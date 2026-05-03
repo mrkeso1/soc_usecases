@@ -1,0 +1,134 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <title>SOC Use Cases</title>
+    <style>
+        body {
+            margin: 0;
+            font-family: Arial, sans-serif;
+            background: #0f172a;
+            color: #e2e8f0;
+        }
+        .topbar {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 16px 24px;
+            background: #1e293b;
+            border-bottom: 1px solid #334155;
+        }
+        .brand {
+            font-size: 20px;
+            font-weight: bold;
+        }
+        .userbox {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+        .logout-btn {
+            background: #dc2626;
+            color: white;
+            text-decoration: none;
+            padding: 8px 14px;
+            border-radius: 8px;
+            font-size: 14px;
+        }
+        .container {
+            max-width: 1100px;
+            margin: 30px auto;
+            padding: 0 20px;
+        }
+        .title {
+            font-size: 28px;
+            margin-bottom: 8px;
+        }
+        .subtitle {
+            color: #94a3b8;
+            margin-bottom: 28px;
+        }
+        .grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+            gap: 20px;
+        }
+        .card {
+            background: #1e293b;
+            border: 1px solid #334155;
+            border-radius: 14px;
+            padding: 22px;
+            box-shadow: 0 10px 24px rgba(0,0,0,.20);
+        }
+        .card h3 {
+            margin-top: 0;
+            margin-bottom: 10px;
+            font-size: 18px;
+        }
+        .card p {
+            color: #94a3b8;
+            font-size: 14px;
+            line-height: 1.5;
+            margin-bottom: 16px;
+        }
+        .card a {
+            display: inline-block;
+            text-decoration: none;
+            background: #2563eb;
+            color: white;
+            padding: 10px 14px;
+            border-radius: 8px;
+            font-size: 14px;
+        }
+        .footer-note {
+            margin-top: 30px;
+            color: #64748b;
+            font-size: 13px;
+        }
+    </style>
+</head>
+<body>
+    <div class="topbar">
+        <div class="brand">SOC Use Cases Manager</div>
+        <div class="userbox">
+            <span>Hola, {{ request.user.username }}</span>
+            <a class="logout-btn" href="{% url 'logout' %}">Salir</a>
+        </div>
+    </div>
+
+    <div class="container">
+        <div class="title">Panel principal</div>
+        <div class="subtitle">Base inicial del sistema de gestión de casos de uso para SOC.</div>
+
+        <div class="grid">
+            <div class="card">
+                <h3>Administración</h3>
+                <p>Acceso rápido al panel de administración de Django para gestionar usuarios, grupos y datos base.</p>
+                <a href="/admin/">Ir al admin</a>
+            </div>
+
+            <div class="card">
+                <h3>Casos de uso</h3>
+                <p>Acá más adelante vamos a listar, crear y administrar los casos de uso del SOC.</p>
+                <a href="/usecases/">Ver inventario</a>
+            </div>
+
+            <div class="card">
+                <h3>Catálogos</h3>
+                <p>MITRE ATT&amp;CK, D3FEND, tecnologías, dispositivos y demás entidades maestras.</p>
+                <a href="#">Próximamente</a>
+            </div>
+
+            <div class="card">
+                <h3>Workflow</h3>
+                <p>Estados, revisiones, aprobaciones, historial de cambios y ciclo de vida de cada caso.</p>
+                <a href="#">Próximamente</a>
+            </div>
+        </div>
+
+        <div class="footer-note">
+            Versión inicial del MVP.
+        </div>
+    </div>
+</body>
+</html>

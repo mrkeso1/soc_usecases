@@ -1,0 +1,319 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <title>{{ usecase.name }}</title>
+    <style>
+        body {
+            margin: 0;
+            font-family: Arial, sans-serif;
+            background: #0f172a;
+            color: #e2e8f0;
+        }
+
+        .topbar {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 16px 24px;
+            background: #1e293b;
+            border-bottom: 1px solid #334155;
+        }
+
+        .topbar a {
+            color: white;
+            text-decoration: none;
+            margin-left: 12px;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 24px auto;
+            padding: 0 20px 24px 20px;
+        }
+
+        .card {
+            background: #1e293b;
+            border: 1px solid #334155;
+            border-radius: 14px;
+            padding: 24px;
+            margin-bottom: 20px;
+        }
+
+        .title {
+            font-size: 28px;
+            margin-top: 0;
+            margin-bottom: 8px;
+        }
+
+        .subtitle {
+            color: #94a3b8;
+            margin-bottom: 24px;
+        }
+
+        .grid {
+            display: grid;
+            grid-template-columns: 260px 1fr;
+            gap: 12px 18px;
+        }
+
+        .label {
+            color: #94a3b8;
+            font-weight: bold;
+        }
+
+        .value-box {
+            background: #111827;
+            border: 1px solid #334155;
+            border-radius: 8px;
+            padding: 10px 12px;
+            word-break: break-word;
+            overflow-wrap: anywhere;
+        }
+
+        .value-box div + div {
+            margin-top: 6px;
+        }
+
+        .badge {
+            display: inline-block;
+            padding: 4px 10px;
+            border-radius: 999px;
+            font-size: 12px;
+            font-weight: bold;
+        }
+
+        .badge-ok {
+            background: rgba(34, 197, 94, .18);
+            color: #86efac;
+        }
+
+        .badge-warning {
+            background: rgba(245, 158, 11, .18);
+            color: #fcd34d;
+        }
+
+        .badge-failed {
+            background: rgba(239, 68, 68, .18);
+            color: #fca5a5;
+        }
+
+        .badge-neutral {
+            background: rgba(148, 163, 184, .18);
+            color: #cbd5e1;
+        }
+
+        .actions {
+            margin-top: 24px;
+        }
+
+        .actions a {
+            display: inline-block;
+            text-decoration: none;
+            background: #2563eb;
+            color: white;
+            padding: 10px 14px;
+            border-radius: 8px;
+            margin-right: 10px;
+        }
+
+        .actions a.secondary {
+            background: #475569;
+        }
+
+        .history-table-wrap {
+            width: 100%;
+            overflow-x: auto;
+            border: 1px solid #334155;
+            border-radius: 10px;
+        }
+
+        .history-table {
+            width: 100%;
+            min-width: 900px;
+            border-collapse: collapse;
+        }
+
+        .history-table th,
+        .history-table td {
+            text-align: left;
+            padding: 10px;
+            border-bottom: 1px solid #334155;
+            vertical-align: top;
+            font-size: 13px;
+        }
+
+        .history-table th {
+            background: #0b1220;
+            white-space: nowrap;
+        }
+
+        .muted {
+            color: #94a3b8;
+        }
+    </style>
+</head>
+<body>
+    <div class="topbar">
+        <div><strong>SOC Use Cases Manager</strong></div>
+        <div>
+            <a href="/dashboard/">Dashboard</a>
+            <a href="/usecases/">Inventario</a>
+            <a href="{% url 'logout' %}">Salir</a>
+        </div>
+    </div>
+
+    <div class="container">
+        <div class="card">
+            <h1 class="title">{{ usecase.name }}</h1>
+            <div class="subtitle">Detalle del caso de uso</div>
+
+            <div class="grid">
+                <div class="label">Grupo</div>
+                <div class="value-box">{{ usecase.group_name|default:"-" }}</div>
+
+                <div class="label">Dispositivo</div>
+                <div class="value-box">{{ usecase.device|default:"-" }}</div>
+
+                <div class="label">Tipo</div>
+                <div class="value-box">{{ usecase.case_type|default:"-" }}</div>
+
+                <div class="label">Objetivo</div>
+                <div class="value-box">{{ usecase.objective|default:"-" }}</div>
+
+                <div class="label">Tipo de bloqueo</div>
+                <div class="value-box">{{ usecase.blocking_type|default:"-" }}</div>
+
+                <div class="label">Responsable desarrollo</div>
+                <div class="value-box">{{ usecase.owner_name|default:"-" }}</div>
+
+                <div class="label">Monitoreo</div>
+                <div class="value-box">{{ usecase.monitoring|default:"-" }}</div>
+
+                <div class="label">Estado</div>
+                <div class="value-box">{{ usecase.status|default:"-" }}</div>
+
+                <div class="label">Fecha alta/ajuste</div>
+                <div class="value-box">{{ usecase.created_or_adjusted_at|default:"-" }}</div>
+
+                <div class="label">Fecha puesta en producción</div>
+                <div class="value-box">{{ usecase.production_date|default:"-" }}</div>
+
+                <div class="label">MITRE ATT&amp;CK relacionado</div>
+                <div class="value-box">
+                    {% for item in usecase.mitre_attacks.all %}
+                        <div>{{ item }}</div>
+                    {% empty %}
+                        -
+                    {% endfor %}
+                </div>
+
+                <div class="label">D3FEND relacionado</div>
+                <div class="value-box">
+                    {% for item in usecase.d3fends.all %}
+                        <div>{{ item }}</div>
+                    {% empty %}
+                        -
+                    {% endfor %}
+                </div>
+
+                <div class="label">Severidad</div>
+                <div class="value-box">{{ usecase.severity|default:"-" }}</div>
+
+                <div class="label">Escalamiento</div>
+                <div class="value-box">{{ usecase.escalation|default:"-" }}</div>
+
+                <div class="label">Envío HO</div>
+                <div class="value-box">{{ usecase.sent_to_ho|default:"-" }}</div>
+
+                <div class="label">HO</div>
+                <div class="value-box">{{ usecase.ho_flag|default:"-" }}</div>
+
+                <div class="label">Última validación</div>
+                <div class="value-box">{{ usecase.last_validation_date|default:"-" }}</div>
+
+                <div class="label">Estado ciclo de vida</div>
+                <div class="value-box">{{ usecase.validation_status|default:"-" }}</div>
+
+                <div class="label">Resultado</div>
+                <div class="value-box">
+                    {% if usecase.validation_result == "OK" %}
+                        <span class="badge badge-ok">OK</span>
+                    {% elif usecase.validation_result == "Advertencia" %}
+                        <span class="badge badge-warning">Advertencia</span>
+                    {% elif usecase.validation_result == "Falló" %}
+                        <span class="badge badge-failed">Falló</span>
+                    {% else %}
+                        <span class="badge badge-neutral">{{ usecase.validation_result|default:"Nada" }}</span>
+                    {% endif %}
+                </div>
+
+                <div class="label">Habilitado</div>
+                <div class="value-box">{% if usecase.is_enabled %}Sí{% else %}No{% endif %}</div>
+
+                <div class="label">Última revisión</div>
+                <div class="value-box">{{ usecase.last_review_date|default:"-" }}</div>
+
+                <div class="label">Próxima revisión</div>
+                <div class="value-box">{{ usecase.next_review_date|default:"-" }}</div>
+
+                <div class="label">Contador</div>
+                <div class="value-box">{{ usecase.review_countdown_label }}</div>
+
+                <div class="label">Comentarios</div>
+                <div class="value-box">{{ usecase.comments|default:"-" }}</div>
+
+                <div class="label">Creado</div>
+                <div class="value-box">{{ usecase.created_at|date:"Y-m-d H:i" }}</div>
+
+                <div class="label">Última actualización</div>
+                <div class="value-box">{{ usecase.updated_at|date:"Y-m-d H:i" }}</div>
+            </div>
+
+            <div class="actions">
+                <a href="{% url 'usecase_edit' usecase.pk %}">Editar</a>
+                <a href="{% url 'usecase_list' %}" class="secondary">Volver</a>
+            </div>
+        </div>
+
+        <div class="card">
+            <h2 style="margin-top: 0;">Historial de cambios</h2>
+
+            <div class="history-table-wrap">
+                <table class="history-table">
+                    <thead>
+                        <tr>
+                            <th>Fecha</th>
+                            <th>Usuario</th>
+                            <th>Campo</th>
+                            <th>Valor anterior</th>
+                            <th>Valor nuevo</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for log in change_logs %}
+                        <tr>
+                            <td>{{ log.changed_at|date:"Y-m-d H:i" }}</td>
+                            <td>
+                                {% if log.changed_by %}
+                                    {{ log.changed_by.username }}
+                                {% else %}
+                                    -
+                                {% endif %}
+                            </td>
+                            <td>{{ log.field_label }}</td>
+                            <td>{{ log.old_value_pretty }}</td>
+                            <td>{{ log.new_value_pretty }}</td>
+                        </tr>
+                        {% empty %}
+                        <tr>
+                            <td colspan="5" class="muted">No hay cambios registrados.</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</body>
+</html>

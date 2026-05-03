@@ -1,0 +1,930 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dashboard — SOC Use Cases Manager</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;600;700&family=Syne:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg:           #060b14;
+            --surface:      #0c1524;
+            --surface-2:    #111d30;
+            --surface-3:    #172540;
+            --border:       rgba(56, 100, 163, 0.22);
+            --border-bright:rgba(56, 100, 163, 0.55);
+            --text:         #b8cce8;
+            --text-strong:  #e8f1ff;
+            --text-muted:   #4e6a8e;
+            --accent:       #2d7aff;
+            --accent-dim:   rgba(45, 122, 255, 0.12);
+            --accent-glow:  rgba(45, 122, 255, 0.35);
+            --good:         #00e5a0;
+            --good-dim:     rgba(0, 229, 160, 0.1);
+            --medium:       #f5a623;
+            --medium-dim:   rgba(245, 166, 35, 0.1);
+            --bad:          #ff4757;
+            --bad-dim:      rgba(255, 71, 87, 0.1);
+            --grid-color:   rgba(45, 122, 255, 0.04);
+        }
+
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+
+        body {
+            font-family: 'Syne', sans-serif;
+            background: var(--bg);
+            color: var(--text);
+            min-height: 100vh;
+            overflow-x: hidden;
+        }
+
+        /* Grid background texture */
+        body::before {
+            content: '';
+            position: fixed;
+            inset: 0;
+            background-image:
+                linear-gradient(var(--grid-color) 1px, transparent 1px),
+                linear-gradient(90deg, var(--grid-color) 1px, transparent 1px);
+            background-size: 48px 48px;
+            pointer-events: none;
+            z-index: 0;
+        }
+
+        /* ── Topbar ── */
+        .topbar {
+            position: sticky;
+            top: 0;
+            z-index: 100;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 0 28px;
+            height: 56px;
+            background: rgba(6, 11, 20, 0.92);
+            backdrop-filter: blur(12px);
+            border-bottom: 1px solid var(--border);
+        }
+
+        .brand {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 13px;
+            font-weight: 600;
+            color: var(--text-strong);
+            letter-spacing: 0.02em;
+        }
+
+        .brand-icon {
+            width: 28px;
+            height: 28px;
+            background: var(--accent);
+            border-radius: 6px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .brand-icon svg { width: 16px; height: 16px; fill: white; }
+
+        .topbar-nav {
+            display: flex;
+            align-items: center;
+            gap: 4px;
+        }
+
+        .topbar-nav a {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 12px;
+            font-weight: 500;
+            color: var(--text-muted);
+            text-decoration: none;
+            padding: 6px 12px;
+            border-radius: 6px;
+            transition: color 0.15s, background 0.15s;
+            letter-spacing: 0.03em;
+        }
+
+        .topbar-nav a:hover,
+        .topbar-nav a.active {
+            color: var(--text-strong);
+            background: var(--surface-3);
+        }
+
+        .topbar-nav a.active {
+            color: var(--accent);
+            background: var(--accent-dim);
+        }
+
+        .topbar-divider {
+            width: 1px;
+            height: 18px;
+            background: var(--border);
+            margin: 0 6px;
+        }
+
+        /* ── Layout ── */
+        .container {
+            position: relative;
+            z-index: 1;
+            max-width: 1600px;
+            margin: 0 auto;
+            padding: 32px 28px 48px;
+        }
+
+        /* ── Page header ── */
+        .page-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-end;
+            margin-bottom: 28px;
+        }
+
+        .page-title-block { }
+
+        .page-eyebrow {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 11px;
+            font-weight: 500;
+            color: var(--accent);
+            letter-spacing: 0.12em;
+            text-transform: uppercase;
+            margin-bottom: 6px;
+            opacity: 0.85;
+        }
+
+        .page-title {
+            font-size: 2.1rem;
+            font-weight: 800;
+            color: var(--text-strong);
+            letter-spacing: -0.03em;
+            line-height: 1.1;
+        }
+
+        .page-subtitle {
+            margin-top: 6px;
+            font-size: 0.9rem;
+            color: var(--text-muted);
+            font-weight: 400;
+            letter-spacing: 0.01em;
+        }
+
+        /* ── Filter panel ── */
+        .filter-panel {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 14px;
+            padding: 16px 18px;
+            margin-bottom: 32px;
+        }
+
+        .filter-form {
+            display: grid;
+            grid-template-columns: repeat(5, minmax(0, 1fr)) auto;
+            gap: 10px;
+            align-items: end;
+        }
+
+        .filter-group label {
+            display: block;
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 10px;
+            font-weight: 600;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            letter-spacing: 0.1em;
+            margin-bottom: 6px;
+        }
+
+        .filter-group select,
+        .filter-group input {
+            width: 100%;
+            background: var(--surface-2);
+            color: var(--text-strong);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 9px 12px;
+            font-family: 'Syne', sans-serif;
+            font-size: 0.87rem;
+            outline: none;
+            transition: border-color 0.15s;
+            appearance: none;
+            -webkit-appearance: none;
+            cursor: pointer;
+        }
+
+        .filter-group select:focus,
+        .filter-group input:focus {
+            border-color: var(--border-bright);
+            box-shadow: 0 0 0 3px var(--accent-dim);
+        }
+
+        .filter-actions {
+            display: flex;
+            gap: 8px;
+            align-items: flex-end;
+        }
+
+        .btn-primary {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            height: 38px;
+            padding: 0 18px;
+            border-radius: 8px;
+            font-family: 'Syne', sans-serif;
+            font-size: 0.88rem;
+            font-weight: 700;
+            border: none;
+            cursor: pointer;
+            background: var(--accent);
+            color: white;
+            transition: opacity 0.15s, transform 0.1s;
+        }
+
+        .btn-primary:hover { opacity: 0.88; transform: translateY(-1px); }
+
+        .btn-secondary {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            height: 38px;
+            padding: 0 14px;
+            border-radius: 8px;
+            font-family: 'Syne', sans-serif;
+            font-size: 0.88rem;
+            font-weight: 600;
+            border: 1px solid var(--border);
+            cursor: pointer;
+            background: var(--surface-2);
+            color: var(--text);
+            text-decoration: none;
+            transition: border-color 0.15s, background 0.15s;
+        }
+
+        .btn-secondary:hover {
+            border-color: var(--border-bright);
+            background: var(--surface-3);
+        }
+
+        /* ── Section header ── */
+        .section-header {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            margin: 36px 0 16px;
+        }
+
+        .section-title {
+            font-size: 1.05rem;
+            font-weight: 700;
+            color: var(--text-strong);
+            letter-spacing: -0.01em;
+        }
+
+        .section-line {
+            flex: 1;
+            height: 1px;
+            background: var(--border);
+        }
+
+        .section-tag {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 10px;
+            font-weight: 600;
+            color: var(--accent);
+            background: var(--accent-dim);
+            border: 1px solid rgba(45, 122, 255, 0.25);
+            padding: 3px 8px;
+            border-radius: 4px;
+            letter-spacing: 0.06em;
+        }
+
+        /* ── Radial cards ── */
+        .radial-grid {
+            display: grid;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            gap: 16px;
+        }
+
+        .radial-card {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 18px;
+            padding: 28px 24px 22px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            position: relative;
+            overflow: hidden;
+            transition: border-color 0.2s;
+        }
+
+        .radial-card::after {
+            content: '';
+            position: absolute;
+            top: 0; left: 0; right: 0;
+            height: 1px;
+            background: linear-gradient(90deg, transparent, var(--border-bright), transparent);
+        }
+
+        .radial-card:hover { border-color: var(--border-bright); }
+
+        .radial-card-title {
+            font-size: 0.82rem;
+            font-weight: 700;
+            color: var(--text-muted);
+            text-align: center;
+            letter-spacing: 0.06em;
+            text-transform: uppercase;
+            margin-bottom: 22px;
+            font-family: 'JetBrains Mono', monospace;
+        }
+
+        .radial-wrap {
+            position: relative;
+            width: 190px;
+            height: 190px;
+            margin-bottom: 20px;
+        }
+
+        .radial-svg {
+            width: 190px;
+            height: 190px;
+            transform: rotate(-90deg);
+        }
+
+        .radial-track {
+            fill: none;
+            stroke: var(--surface-3);
+            stroke-width: 14;
+        }
+
+        .radial-fill {
+            fill: none;
+            stroke-width: 14;
+            stroke-linecap: round;
+            transition: stroke-dashoffset 1.2s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        .radial-fill.good   { stroke: var(--good); filter: drop-shadow(0 0 6px var(--good)); }
+        .radial-fill.medium { stroke: var(--medium); filter: drop-shadow(0 0 6px var(--medium)); }
+        .radial-fill.bad    { stroke: var(--bad); filter: drop-shadow(0 0 6px var(--bad)); }
+
+        .radial-center {
+            position: absolute;
+            inset: 0;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .radial-pct {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 2.6rem;
+            font-weight: 700;
+            letter-spacing: -0.04em;
+            line-height: 1;
+        }
+
+        .radial-pct.good   { color: var(--good); }
+        .radial-pct.medium { color: var(--medium); }
+        .radial-pct.bad    { color: var(--bad); }
+
+        .radial-pct-sym {
+            font-size: 1.2rem;
+            font-weight: 500;
+            opacity: 0.7;
+        }
+
+        .radial-sub {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 11px;
+            color: var(--text-muted);
+            margin-top: 4px;
+        }
+
+        .radial-meta {
+            display: flex;
+            gap: 24px;
+            width: 100%;
+            justify-content: center;
+            margin-bottom: 18px;
+        }
+
+        .radial-meta-item {
+            text-align: center;
+        }
+
+        .radial-meta-label {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 10px;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            letter-spacing: 0.08em;
+            margin-bottom: 3px;
+        }
+
+        .radial-meta-value {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 1.25rem;
+            font-weight: 700;
+            color: var(--text-strong);
+        }
+
+        .radial-legend {
+            width: 100%;
+            border-top: 1px solid var(--border);
+            padding-top: 14px;
+            display: flex;
+            flex-direction: column;
+            gap: 7px;
+        }
+
+        .legend-row {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            font-size: 0.81rem;
+            color: var(--text-muted);
+        }
+
+        .legend-pip {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            flex-shrink: 0;
+        }
+
+        .legend-pip.good   { background: var(--good); box-shadow: 0 0 4px var(--good); }
+        .legend-pip.medium { background: var(--medium); box-shadow: 0 0 4px var(--medium); }
+        .legend-pip.bad    { background: var(--bad); box-shadow: 0 0 4px var(--bad); }
+
+        /* ── Stats panels ── */
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            gap: 16px;
+            margin-top: 4px;
+        }
+
+        .panel {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 18px;
+            overflow: hidden;
+            transition: border-color 0.2s;
+        }
+
+        .panel:hover { border-color: var(--border-bright); }
+
+        .panel-head {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 16px 18px 12px;
+            border-bottom: 1px solid var(--border);
+        }
+
+        .panel-title {
+            font-size: 0.82rem;
+            font-weight: 700;
+            color: var(--text-muted);
+            letter-spacing: 0.06em;
+            text-transform: uppercase;
+            font-family: 'JetBrains Mono', monospace;
+        }
+
+        .panel-body { padding: 6px 0 4px; }
+
+        .list-item {
+            display: flex;
+            align-items: flex-start;
+            justify-content: space-between;
+            padding: 10px 18px;
+            border-bottom: 1px solid rgba(56, 100, 163, 0.1);
+            gap: 12px;
+            transition: background 0.12s;
+            text-decoration: none;
+            color: inherit;
+        }
+
+        a.list-item:hover { background: var(--surface-2); }
+
+        .list-item:last-child { border-bottom: none; }
+
+        .list-item-main {
+            font-size: 0.88rem;
+            font-weight: 600;
+            color: var(--text-strong);
+            line-height: 1.35;
+        }
+
+        .list-item-sub {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 0.75rem;
+            color: var(--text-muted);
+            margin-top: 2px;
+        }
+
+        .count-badge {
+            flex-shrink: 0;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            min-width: 26px;
+            padding: 2px 8px;
+            border-radius: 999px;
+            background: var(--accent-dim);
+            border: 1px solid rgba(45, 122, 255, 0.3);
+            color: var(--accent);
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 0.72rem;
+            font-weight: 700;
+            margin-top: 2px;
+        }
+
+        .empty-note {
+            padding: 20px 18px;
+            font-size: 0.85rem;
+            color: var(--text-muted);
+            font-family: 'JetBrains Mono', monospace;
+        }
+
+        /* ── Summary panel ── */
+        .summary-rows { }
+
+        .summary-row {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 11px 18px;
+            border-bottom: 1px solid rgba(56, 100, 163, 0.1);
+        }
+
+        .summary-row:last-child { border-bottom: none; }
+
+        .summary-row-label {
+            font-size: 0.88rem;
+            color: var(--text);
+        }
+
+        .summary-row-value {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 0.88rem;
+            font-weight: 700;
+            color: var(--text-strong);
+        }
+
+        /* ── Animations ── */
+        @keyframes fadeUp {
+            from { opacity: 0; transform: translateY(16px); }
+            to   { opacity: 1; transform: translateY(0); }
+        }
+
+        .radial-card, .panel {
+            animation: fadeUp 0.5s ease both;
+        }
+
+        .radial-grid .radial-card:nth-child(1) { animation-delay: 0.05s; }
+        .radial-grid .radial-card:nth-child(2) { animation-delay: 0.10s; }
+        .stats-grid .panel:nth-child(1) { animation-delay: 0.08s; }
+        .stats-grid .panel:nth-child(2) { animation-delay: 0.13s; }
+        .stats-grid .panel:nth-child(3) { animation-delay: 0.18s; }
+        .stats-grid .panel:nth-child(4) { animation-delay: 0.23s; }
+        .stats-grid .panel:nth-child(5) { animation-delay: 0.28s; }
+        .stats-grid .panel:nth-child(6) { animation-delay: 0.33s; }
+
+        /* ── Responsive ── */
+        @media (max-width: 1100px) {
+            .filter-form { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+            .radial-grid, .stats-grid { grid-template-columns: 1fr; }
+        }
+
+        @media (max-width: 680px) {
+            .container { padding: 20px 16px 40px; }
+            .topbar { padding: 0 16px; }
+            .filter-form { grid-template-columns: 1fr; }
+            .page-title { font-size: 1.65rem; }
+        }
+    </style>
+</head>
+<body>
+
+<nav class="topbar">
+    <div class="brand">
+        <div class="brand-icon">
+            <svg viewBox="0 0 16 16"><path d="M2 2h5v5H2zM9 2h5v5H9zM2 9h5v5H2zM9 9h5v5H9z"/></svg>
+        </div>
+        SOC Use Cases Manager
+    </div>
+    <div class="topbar-nav">
+        <a href="/dashboard/" class="active">Dashboard</a>
+        <a href="/usecases/">Inventario</a>
+        <div class="topbar-divider"></div>
+        <a href="/admin/">Admin</a>
+        <a href="{% url 'logout' %}">Salir</a>
+    </div>
+</nav>
+
+<div class="container">
+    <div class="page-header">
+        <div class="page-title-block">
+            <div class="page-eyebrow">// COBERTURA &amp; MÉTRICAS</div>
+            <h1 class="page-title">Dashboard</h1>
+            <p class="page-subtitle">Vista ejecutiva de cobertura ATT&amp;CK y D3FEND sobre casos de uso en producción.</p>
+        </div>
+    </div>
+
+    <!-- Filter panel -->
+    <div class="filter-panel">
+        <form method="get" class="filter-form">
+            <div class="filter-group">
+                <label>Dispositivo</label>
+                <select name="device">
+                    <option value="">Todos</option>
+                    {% for item in devices %}
+                        <option value="{{ item }}" {% if selected_device == item %}selected{% endif %}>{{ item }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="filter-group">
+                <label>Severidad</label>
+                <select name="severity">
+                    <option value="">Toda</option>
+                    {% for value, label in severity_choices %}
+                        <option value="{{ value }}" {% if selected_severity == value %}selected{% endif %}>{{ label }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="filter-group">
+                <label>Estado ciclo</label>
+                <select name="validation_status">
+                    <option value="">Todo</option>
+                    {% for value, label in validation_status_choices %}
+                        <option value="{{ value }}" {% if selected_validation_status == value %}selected{% endif %}>{{ label }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="filter-group">
+                <label>Resultado</label>
+                <select name="validation_result">
+                    <option value="">Todo</option>
+                    {% for value, label in validation_result_choices %}
+                        <option value="{{ value }}" {% if selected_validation_result == value %}selected{% endif %}>{{ label }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="filter-group">
+                <label>Habilitado</label>
+                <select name="enabled">
+                    <option value="">Ambos</option>
+                    <option value="yes" {% if selected_enabled == "yes" %}selected{% endif %}>Sí</option>
+                    <option value="no"  {% if selected_enabled == "no"  %}selected{% endif %}>No</option>
+                </select>
+            </div>
+            <div class="filter-actions">
+                <button type="submit" class="btn-primary">Filtrar</button>
+                <a href="{% url 'dashboard' %}" class="btn-secondary">Limpiar</a>
+            </div>
+        </form>
+    </div>
+
+    <!-- ATT&CK -->
+    <div class="section-header">
+        <span class="section-tag">ATT&CK</span>
+        <span class="section-title">Cobertura MITRE ATT&amp;CK</span>
+        <span class="section-line"></span>
+    </div>
+    <div class="radial-grid">
+        {% for metric in attack_radials %}
+        <div class="radial-card">
+            <div class="radial-card-title">{{ metric.title }}</div>
+            <div class="radial-wrap">
+                <svg class="radial-svg" viewBox="0 0 190 190">
+                    <circle class="radial-track" cx="95" cy="95" r="80"/>
+                    <circle
+                        class="radial-fill {{ metric.color_class }}"
+                        cx="95" cy="95" r="80"
+                        stroke-dasharray="502.65"
+                        stroke-dashoffset="{{ metric.dashoffset }}"
+                        data-target="{{ metric.dashoffset }}"
+                        style="stroke-dashoffset: 502.65;"
+                    />
+                </svg>
+                <div class="radial-center">
+                    <div class="radial-pct {{ metric.color_class }}">{{ metric.percent_label }}<span class="radial-pct-sym">%</span></div>
+                    <div class="radial-sub">COBERTURA</div>
+                </div>
+            </div>
+            <div class="radial-meta">
+                <div class="radial-meta-item">
+                    <div class="radial-meta-label">{{ metric.covered_label }}</div>
+                    <div class="radial-meta-value">{{ metric.covered }}</div>
+                </div>
+                <div class="radial-meta-item">
+                    <div class="radial-meta-label">Total</div>
+                    <div class="radial-meta-value">{{ metric.total }}</div>
+                </div>
+            </div>
+            <div class="radial-legend">
+                <div class="legend-row"><span class="legend-pip good"></span>Cubierto &gt; 80%</div>
+                <div class="legend-row"><span class="legend-pip medium"></span>Parcial 40% – 80%</div>
+                <div class="legend-row"><span class="legend-pip bad"></span>Bajo cobertura &lt; 40%</div>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+
+    <!-- D3FEND -->
+    <div class="section-header">
+        <span class="section-tag">D3FEND</span>
+        <span class="section-title">Cobertura D3FEND</span>
+        <span class="section-line"></span>
+    </div>
+    <div class="radial-grid">
+        {% for metric in d3fend_radials %}
+        <div class="radial-card">
+            <div class="radial-card-title">{{ metric.title }}</div>
+            <div class="radial-wrap">
+                <svg class="radial-svg" viewBox="0 0 190 190">
+                    <circle class="radial-track" cx="95" cy="95" r="80"/>
+                    <circle
+                        class="radial-fill {{ metric.color_class }}"
+                        cx="95" cy="95" r="80"
+                        stroke-dasharray="502.65"
+                        stroke-dashoffset="{{ metric.dashoffset }}"
+                        data-target="{{ metric.dashoffset }}"
+                        style="stroke-dashoffset: 502.65;"
+                    />
+                </svg>
+                <div class="radial-center">
+                    <div class="radial-pct {{ metric.color_class }}">{{ metric.percent_label }}<span class="radial-pct-sym">%</span></div>
+                    <div class="radial-sub">COBERTURA</div>
+                </div>
+            </div>
+            <div class="radial-meta">
+                <div class="radial-meta-item">
+                    <div class="radial-meta-label">{{ metric.covered_label }}</div>
+                    <div class="radial-meta-value">{{ metric.covered }}</div>
+                </div>
+                <div class="radial-meta-item">
+                    <div class="radial-meta-label">Total</div>
+                    <div class="radial-meta-value">{{ metric.total }}</div>
+                </div>
+            </div>
+            <div class="radial-legend">
+                <div class="legend-row"><span class="legend-pip good"></span>Cubierto &gt; 80%</div>
+                <div class="legend-row"><span class="legend-pip medium"></span>Parcial 40% – 80%</div>
+                <div class="legend-row"><span class="legend-pip bad"></span>Bajo cobertura &lt; 40%</div>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+
+    <!-- Stats panels -->
+    <div class="section-header" style="margin-top:36px;">
+        <span class="section-tag">ANÁLISIS</span>
+        <span class="section-title">Desglose detallado</span>
+        <span class="section-line"></span>
+    </div>
+    <div class="stats-grid">
+
+        <div class="panel">
+            <div class="panel-head"><span class="panel-title">Tácticas ATT&amp;CK sin cobertura</span></div>
+            <div class="panel-body">
+                {% if uncovered_tactics %}
+                    {% for tactic in uncovered_tactics %}
+                    <div class="list-item" style="display:block;">
+                        <div class="list-item-main">{{ tactic }}</div>
+                    </div>
+                    {% endfor %}
+                {% else %}
+                    <div class="empty-note">// Sin tácticas pendientes</div>
+                {% endif %}
+            </div>
+        </div>
+
+        <div class="panel">
+            <div class="panel-head"><span class="panel-title">Técnicas ATT&amp;CK sin cobertura</span></div>
+            <div class="panel-body">
+                {% if uncovered_attacks %}
+                    {% for item in uncovered_attacks %}
+                    <a class="list-item" href="{% url 'usecase_list' %}?mapping_attack=without&mitre_id={{ item.id }}">
+                        <div>
+                            <div class="list-item-main">{{ item.external_id }} — {{ item.name }}</div>
+                            {% if item.tactic %}<div class="list-item-sub">{{ item.tactic }}</div>{% endif %}
+                        </div>
+                    </a>
+                    {% endfor %}
+                {% else %}
+                    <div class="empty-note">// Sin técnicas pendientes</div>
+                {% endif %}
+            </div>
+        </div>
+
+        <div class="panel">
+            <div class="panel-head"><span class="panel-title">Top técnicas ATT&amp;CK</span></div>
+            <div class="panel-body">
+                {% if top_attack_techniques %}
+                    {% for item in top_attack_techniques %}
+                    <a class="list-item" href="{% url 'usecase_list' %}?mitre_id={{ item.id }}">
+                        <div>
+                            <div class="list-item-main">{{ item.external_id }} — {{ item.name }}</div>
+                        </div>
+                        <span class="count-badge">{{ item.count }}</span>
+                    </a>
+                    {% endfor %}
+                {% else %}
+                    <div class="empty-note">// Sin técnicas vinculadas</div>
+                {% endif %}
+            </div>
+        </div>
+
+        <div class="panel">
+            <div class="panel-head"><span class="panel-title">Técnicas D3FEND sin cobertura</span></div>
+            <div class="panel-body">
+                {% if uncovered_d3fends %}
+                    {% for item in uncovered_d3fends %}
+                    <a class="list-item" href="{% url 'usecase_list' %}?mapping_d3fend=without&d3fend_id={{ item.id }}">
+                        <div>
+                            <div class="list-item-main">{{ item.code }} — {{ item.name }}</div>
+                            {% if item.category %}<div class="list-item-sub">{{ item.category }}</div>{% endif %}
+                        </div>
+                    </a>
+                    {% endfor %}
+                {% else %}
+                    <div class="empty-note">// Sin técnicas pendientes</div>
+                {% endif %}
+            </div>
+        </div>
+
+        <div class="panel">
+            <div class="panel-head"><span class="panel-title">Top técnicas D3FEND</span></div>
+            <div class="panel-body">
+                {% if top_d3fend_controls %}
+                    {% for item in top_d3fend_controls %}
+                    <a class="list-item" href="{% url 'usecase_list' %}?d3fend_id={{ item.id }}">
+                        <div>
+                            <div class="list-item-main">{{ item.code }} — {{ item.name }}</div>
+                        </div>
+                        <span class="count-badge">{{ item.count }}</span>
+                    </a>
+                    {% endfor %}
+                {% else %}
+                    <div class="empty-note">// Sin controles vinculados</div>
+                {% endif %}
+            </div>
+        </div>
+
+        <div class="panel">
+            <div class="panel-head"><span class="panel-title">Resumen rápido</span></div>
+            <div class="panel-body summary-rows">
+                <div class="summary-row">
+                    <span class="summary-row-label">Casos productivos analizados</span>
+                    <span class="summary-row-value">{{ total_cases }}</span>
+                </div>
+                <div class="summary-row">
+                    <span class="summary-row-label">Técnicas ATT&amp;CK cubiertas</span>
+                    <span class="summary-row-value">{{ covered_attack_techniques }} / {{ all_attack_techniques }}</span>
+                </div>
+                <div class="summary-row">
+                    <span class="summary-row-label">Tácticas ATT&amp;CK cubiertas</span>
+                    <span class="summary-row-value">{{ covered_tactics }} / {{ total_tactics }}</span>
+                </div>
+                <div class="summary-row">
+                    <span class="summary-row-label">Técnicas D3FEND cubiertas</span>
+                    <span class="summary-row-value">{{ covered_d3fend_techniques }} / {{ all_d3fend_techniques }}</span>
+                </div>
+                <div class="summary-row">
+                    <span class="summary-row-label">Casos productivos con D3FEND</span>
+                    <span class="summary-row-value">{{ productive_with_d3fend }} / {{ total_cases }}</span>
+                </div>
+            </div>
+        </div>
+
+    </div>
+</div>
+
+<script>
+/* Animate radial rings on load */
+document.addEventListener('DOMContentLoaded', () => {
+    document.querySelectorAll('.radial-fill').forEach(el => {
+        const target = parseFloat(el.dataset.target);
+        // Short delay so CSS paint is done
+        requestAnimationFrame(() => {
+            setTimeout(() => {
+                el.style.transition = 'stroke-dashoffset 1.3s cubic-bezier(0.4, 0, 0.2, 1)';
+                el.style.strokeDashoffset = target;
+            }, 120);
+        });
+    });
+});
+</script>
+</body>
+</html>

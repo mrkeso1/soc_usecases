@@ -1,0 +1,434 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <title>Editar {{ usecase.name }}</title>
+    <style>
+        body {
+            margin: 0;
+            font-family: Arial, sans-serif;
+            background: #0f172a;
+            color: #e2e8f0;
+        }
+        .topbar {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 16px 24px;
+            background: #1e293b;
+            border-bottom: 1px solid #334155;
+        }
+        .topbar a {
+            color: white;
+            text-decoration: none;
+            margin-left: 12px;
+        }
+        .container {
+            max-width: 1100px;
+            margin: 24px auto;
+            padding: 0 20px;
+        }
+        .card {
+            background: #1e293b;
+            border: 1px solid #334155;
+            border-radius: 14px;
+            padding: 24px;
+        }
+        .title {
+            font-size: 28px;
+            margin-top: 0;
+            margin-bottom: 8px;
+        }
+        .subtitle {
+            color: #94a3b8;
+            margin-bottom: 24px;
+        }
+        .grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 18px;
+        }
+        .field label {
+            display: block;
+            margin-bottom: 6px;
+            color: #94a3b8;
+            font-weight: bold;
+        }
+        .field input,
+        .field textarea,
+        .field select {
+            width: 100%;
+            padding: 10px 12px;
+            border-radius: 8px;
+            border: 1px solid #475569;
+            background: #0f172a;
+            color: white;
+            box-sizing: border-box;
+        }
+        .field input[type="checkbox"] {
+            width: auto;
+            transform: scale(1.2);
+            margin-top: 8px;
+        }
+        .field.full {
+            grid-column: 1 / -1;
+        }
+        .readonly-box {
+            width: 100%;
+            padding: 10px 12px;
+            border-radius: 8px;
+            border: 1px solid #334155;
+            background: #111827;
+            color: #cbd5e1;
+            box-sizing: border-box;
+            min-height: 20px;
+        }
+        .hint {
+            margin-top: 6px;
+            font-size: 12px;
+            color: #94a3b8;
+        }
+        .actions {
+            margin-top: 24px;
+        }
+        .actions button,
+        .actions a {
+            display: inline-block;
+            text-decoration: none;
+            background: #2563eb;
+            color: white;
+            padding: 10px 14px;
+            border-radius: 8px;
+            margin-right: 10px;
+            border: 0;
+            cursor: pointer;
+        }
+        .actions a {
+            background: #475569;
+        }
+        .errors {
+            color: #fecaca;
+            margin-bottom: 16px;
+            background: rgba(127, 29, 29, 0.35);
+            border: 1px solid rgba(248, 113, 113, 0.4);
+            padding: 12px;
+            border-radius: 10px;
+        }
+        .autocomplete-box {
+            position: relative;
+        }
+        .autocomplete-results {
+            position: absolute;
+            width: 100%;
+            background: #111827;
+            border: 1px solid #334155;
+            border-radius: 10px;
+            margin-top: 6px;
+            z-index: 20;
+            max-height: 240px;
+            overflow-y: auto;
+            display: none;
+        }
+        .autocomplete-item {
+            padding: 10px 12px;
+            cursor: pointer;
+            border-bottom: 1px solid #1f2937;
+        }
+        .autocomplete-item:hover {
+            background: #1f2937;
+        }
+        .chips {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            margin-top: 10px;
+        }
+        .chip {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            background: #111827;
+            border: 1px solid #334155;
+            padding: 8px 10px;
+            border-radius: 999px;
+            font-size: 13px;
+        }
+        .chip button {
+            background: transparent;
+            color: #fca5a5;
+            border: 0;
+            cursor: pointer;
+            padding: 0;
+            font-size: 14px;
+        }
+    </style>
+</head>
+<body>
+    <div class="topbar">
+        <div><strong>SOC Use Cases Manager</strong></div>
+        <div>
+            <a href="/dashboard/">Dashboard</a>
+            <a href="/usecases/">Inventario</a>
+            <a href="{% url 'logout' %}">Salir</a>
+        </div>
+    </div>
+
+    <div class="container">
+        <div class="card">
+            <h1 class="title">Editar caso de uso</h1>
+            <div class="subtitle">{{ usecase.name }}</div>
+
+            {% if form.errors %}
+                <div class="errors">
+                    {{ form.errors }}
+                </div>
+            {% endif %}
+
+            <form method="post">
+                {% csrf_token %}
+
+                <div class="grid">
+                    <div class="field">
+                        <label>Grupo</label>
+                        {{ form.group_name }}
+                    </div>
+
+                    <div class="field">
+                        <label>Dispositivo</label>
+                        {{ form.device }}
+                    </div>
+
+                    <div class="field">
+                        <label>Tipo</label>
+                        {{ form.case_type }}
+                    </div>
+
+                    <div class="field">
+                        <label>Tipo de bloqueo</label>
+                        {{ form.blocking_type }}
+                    </div>
+
+                    <div class="field full">
+                        <label>Nombre</label>
+                        {{ form.name }}
+                    </div>
+
+                    <div class="field full">
+                        <label>Objetivo</label>
+                        {{ form.objective }}
+                    </div>
+
+                    <div class="field">
+                        <label>Responsable desarrollo</label>
+                        {{ form.owner_name }}
+                    </div>
+
+                    <div class="field">
+                        <label>Monitoreo</label>
+                        {{ form.monitoring }}
+                    </div>
+
+                    <div class="field">
+                        <label>Estado</label>
+                        {{ form.status }}
+                    </div>
+
+                    <div class="field">
+                        <label>Severidad</label>
+                        {{ form.severity }}
+                    </div>
+
+                    <div class="field">
+                        <label>Fecha alta/ajuste</label>
+                        {{ form.created_or_adjusted_at }}
+                    </div>
+
+                    <div class="field">
+                        <label>Fecha puesta en producción</label>
+                        {{ form.production_date }}
+                    </div>
+
+                    <div class="field full">
+                        <label>MITRE ATT&CK relacionado</label>
+                        <div class="autocomplete-box">
+                            <input type="text" id="mitre-search" placeholder="Buscar ATT&CK por ID, nombre o táctica...">
+                            <div id="mitre-results" class="autocomplete-results"></div>
+                        </div>
+                        {{ form.mitre_attacks }}
+                        <div id="mitre-chips" class="chips"></div>
+                    </div>
+
+                    <div class="field full">
+                        <label>D3FEND relacionado</label>
+                        <div class="autocomplete-box">
+                            <input type="text" id="d3fend-search" placeholder="Buscar D3FEND por código, nombre o categoría...">
+                            <div id="d3fend-results" class="autocomplete-results"></div>
+                        </div>
+                        {{ form.d3fends }}
+                        <div id="d3fend-chips" class="chips"></div>
+                    </div>
+
+                    <div class="field">
+                        <label>Escalamiento</label>
+                        {{ form.escalation }}
+                    </div>
+
+                    <div class="field">
+                        <label>Envío HO</label>
+                        {{ form.sent_to_ho }}
+                    </div>
+
+                    <div class="field">
+                        <label>HO</label>
+                        {{ form.ho_flag }}
+                    </div>
+
+                    <div class="field">
+                        <label>Última validación</label>
+                        {{ form.last_validation_date }}
+                        <div class="hint">La próxima revisión se calcula automáticamente a 6 meses.</div>
+                    </div>
+
+                    <div class="field">
+                        <label>Estado ciclo de vida</label>
+                        {{ form.validation_status }}
+                    </div>
+
+                    <div class="field">
+                        <label>Resultado</label>
+                        {{ form.validation_result }}
+                    </div>
+
+                    <div class="field">
+                        <label>Habilitado</label>
+                        {{ form.is_enabled }}
+                    </div>
+
+                    <div class="field">
+                        <label>Última revisión</label>
+                        {{ form.last_review_date }}
+                    </div>
+
+                    <div class="field">
+                        <label>Próxima revisión</label>
+                        <div class="readonly-box">
+                            {{ usecase.next_review_date|default:"Se calculará al guardar" }}
+                        </div>
+                    </div>
+
+                    <div class="field">
+                        <label>Contador</label>
+                        <div class="readonly-box">
+                            {{ usecase.review_countdown_label }}
+                        </div>
+                    </div>
+
+                    <div class="field full">
+                        <label>Comentarios</label>
+                        {{ form.comments }}
+                    </div>
+                </div>
+
+                <div class="actions">
+                    <button type="submit">Guardar cambios</button>
+                    <a href="{% url 'usecase_detail' usecase.pk %}">Cancelar</a>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <script>
+        function setupAutocomplete(config) {
+            const input = document.getElementById(config.inputId);
+            const resultsBox = document.getElementById(config.resultsId);
+            const hiddenSelect = document.getElementById(config.selectId);
+            const chipsBox = document.getElementById(config.chipsId);
+
+            function getSelectedOptions() {
+                return Array.from(hiddenSelect.options).filter(opt => opt.selected);
+            }
+
+            function renderChips() {
+                chipsBox.innerHTML = "";
+                getSelectedOptions().forEach(opt => {
+                    const chip = document.createElement("div");
+                    chip.className = "chip";
+                    chip.innerHTML = `<span>${opt.text}</span>`;
+
+                    const removeBtn = document.createElement("button");
+                    removeBtn.type = "button";
+                    removeBtn.textContent = "✕";
+                    removeBtn.addEventListener("click", () => {
+                        opt.selected = false;
+                        renderChips();
+                    });
+
+                    chip.appendChild(removeBtn);
+                    chipsBox.appendChild(chip);
+                });
+            }
+
+            async function search(term) {
+                if (!term.trim()) {
+                    resultsBox.style.display = "none";
+                    resultsBox.innerHTML = "";
+                    return;
+                }
+
+                const response = await fetch(`${config.url}?q=${encodeURIComponent(term)}`);
+                const data = await response.json();
+
+                resultsBox.innerHTML = "";
+                const selectedIds = new Set(getSelectedOptions().map(opt => opt.value));
+
+                data.results.forEach(item => {
+                    if (selectedIds.has(String(item.id))) return;
+
+                    const row = document.createElement("div");
+                    row.className = "autocomplete-item";
+                    row.textContent = item.label;
+                    row.addEventListener("click", () => {
+                        const option = Array.from(hiddenSelect.options).find(opt => opt.value === String(item.id));
+                        if (option) {
+                            option.selected = true;
+                            renderChips();
+                        }
+                        input.value = "";
+                        resultsBox.innerHTML = "";
+                        resultsBox.style.display = "none";
+                    });
+                    resultsBox.appendChild(row);
+                });
+
+                resultsBox.style.display = resultsBox.children.length ? "block" : "none";
+            }
+
+            input.addEventListener("input", () => search(input.value));
+
+            document.addEventListener("click", (e) => {
+                if (!resultsBox.contains(e.target) && e.target !== input) {
+                    resultsBox.style.display = "none";
+                }
+            });
+
+            renderChips();
+        }
+
+        setupAutocomplete({
+            inputId: "mitre-search",
+            resultsId: "mitre-results",
+            selectId: "id_mitre_attacks",
+            chipsId: "mitre-chips",
+            url: "{% url 'mitre_attack_autocomplete' %}"
+        });
+
+        setupAutocomplete({
+            inputId: "d3fend-search",
+            resultsId: "d3fend-results",
+            selectId: "id_d3fends",
+            chipsId: "d3fend-chips",
+            url: "{% url 'd3fend_autocomplete' %}"
+        });
+    </script>
+</body>
+</html>
