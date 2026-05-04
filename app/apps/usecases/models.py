@@ -17,6 +17,7 @@ class MitreAttack(models.Model):
     external_id = models.CharField("ID ATT&CK", max_length=20, unique=True)
     name = models.CharField("Nombre", max_length=255)
     tactic = models.CharField("Táctica", max_length=100, blank=True)
+    is_enabled = models.BooleanField("Habilitada", default=True)
 
     class Meta:
         ordering = ["external_id"]
@@ -31,6 +32,7 @@ class D3Fend(models.Model):
     code = models.CharField("Código D3FEND", max_length=30, unique=True)
     name = models.CharField("Nombre", max_length=255, blank=True)
     category = models.CharField("Categoría", max_length=100, blank=True)
+    is_enabled = models.BooleanField("Habilitada", default=True)
 
     class Meta:
         ordering = ["code"]

@@ -4,13 +4,17 @@ from .models import UseCase, UseCaseChangeLog, MitreAttack, D3Fend, LifecycleSet
 
 @admin.register(MitreAttack)
 class MitreAttackAdmin(admin.ModelAdmin):
-    list_display = ("external_id", "name", "tactic")
+    list_display = ("external_id", "name", "tactic", "is_enabled")
+    list_filter = ("is_enabled",)
+    list_editable = ("is_enabled",)
     search_fields = ("external_id", "name", "tactic")
 
 
 @admin.register(D3Fend)
 class D3FendAdmin(admin.ModelAdmin):
-    list_display = ("code", "name", "category")
+    list_display = ("code", "name", "category", "is_enabled")
+    list_filter = ("is_enabled",)
+    list_editable = ("is_enabled",)
     search_fields = ("code", "name", "category")
 
 

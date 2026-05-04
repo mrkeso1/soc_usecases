@@ -265,20 +265,20 @@ def dashboard_view(request):
     total_cases   = production_qs.count()
 
     # ATT&CK coverage
-    all_attack_techniques     = MitreAttack.objects.count()
+    all_attack_techniques     = MitreAttack.objects.filter(is_enabled=True).count()
     covered_attack_techniques = (
-        MitreAttack.objects.filter(use_cases__in=production_qs).distinct().count()
+        MitreAttack.objects.filter(is_enabled=True, use_cases__in=production_qs).distinct().count()
     )
 
     covered_tactic_names: set[str] = set()
-    for attack in MitreAttack.objects.filter(use_cases__in=production_qs).distinct():
+    for attack in MitreAttack.objects.filter(is_enabled=True, use_cases__in=production_qs).distinct():
         if attack.tactic:
             covered_tactic_names.update(
                 t.strip() for t in str(attack.tactic).split(",") if t.strip()
             )
 
     all_tactic_names: set[str] = set()
-    for attack in MitreAttack.objects.exclude(tactic=""):
+    for attack in MitreAttack.objects.filter(is_enabled=True).exclude(tactic=""):
         all_tactic_names.update(
             t.strip() for t in str(attack.tactic).split(",") if t.strip()
         )
@@ -288,9 +288,9 @@ def dashboard_view(request):
     uncovered_tactics = sorted(all_tactic_names - covered_tactic_names)
 
     # D3FEND coverage
-    all_d3fend_techniques     = D3Fend.objects.count()
+    all_d3fend_techniques     = D3Fend.objects.filter(is_enabled=True).count()
     covered_d3fend_techniques = (
-        D3Fend.objects.filter(use_cases__in=production_qs).distinct().count()
+        D3Fend.objects.filter(is_enabled=True, use_cases__in=production_qs).distinct().count()
     )
     productive_with_d3fend = (
         production_qs.filter(d3fends__isnull=False).distinct().count()
@@ -298,6 +298,7 @@ def dashboard_view(request):
 
     uncovered_attacks = (
         MitreAttack.objects
+        .filter(is_enabled=True)
         .exclude(use_cases__in=production_qs)
         .distinct()
         .order_by("external_id", "name")[:20]
@@ -305,6 +306,7 @@ def dashboard_view(request):
 
     uncovered_d3fends = (
         D3Fend.objects
+        .filter(is_enabled=True)
         .exclude(use_cases__in=production_qs)
         .distinct()
         .order_by("code", "name")[:20]
@@ -683,7 +685,7 @@ def usecase_bulk_update(request):
 @login_required
 def mitre_attack_autocomplete(request):
     q  = request.GET.get("q", "").strip()
-    qs = MitreAttack.objects.all()
+    qs = MitreAttack.objects.filter(is_enabled=True)
     if q:
         qs = qs.filter(
             Q(external_id__icontains=q) | Q(name__icontains=q) | Q(tactic__icontains=q)
@@ -704,7 +706,7 @@ def mitre_attack_autocomplete(request):
 @login_required
 def d3fend_autocomplete(request):
     q  = request.GET.get("q", "").strip()
-    qs = D3Fend.objects.all()
+    qs = D3Fend.objects.filter(is_enabled=True)
     if q:
         qs = qs.filter(
             Q(code__icontains=q) | Q(name__icontains=q) | Q(category__icontains=q)
