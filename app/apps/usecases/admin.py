@@ -1,16 +1,20 @@
 from django.contrib import admin
-from .models import UseCase, UseCaseChangeLog, MitreAttack, D3Fend
+from .models import UseCase, UseCaseChangeLog, MitreAttack, D3Fend, LifecycleSettings
 
 
 @admin.register(MitreAttack)
 class MitreAttackAdmin(admin.ModelAdmin):
-    list_display = ("external_id", "name", "tactic")
+    list_display = ("external_id", "name", "tactic", "is_enabled")
+    list_filter = ("is_enabled",)
+    list_editable = ("is_enabled",)
     search_fields = ("external_id", "name", "tactic")
 
 
 @admin.register(D3Fend)
 class D3FendAdmin(admin.ModelAdmin):
-    list_display = ("code", "name", "category")
+    list_display = ("code", "name", "category", "is_enabled")
+    list_filter = ("is_enabled",)
+    list_editable = ("is_enabled",)
     search_fields = ("code", "name", "category")
 
 
@@ -68,3 +72,9 @@ class UseCaseChangeLogAdmin(admin.ModelAdmin):
         "field_name",
         "changed_at",
     )
+
+@admin.register(LifecycleSettings)
+class LifecycleSettingsAdmin(admin.ModelAdmin):
+    list_display = ("name", "review_interval_days", "is_active")
+    list_filter = ("is_active",)
+    search_fields = ("name",)
