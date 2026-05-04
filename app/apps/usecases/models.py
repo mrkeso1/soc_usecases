@@ -1,5 +1,5 @@
 import calendar
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 
 from django.conf import settings
 from django.db import models
@@ -40,6 +40,27 @@ class D3Fend(models.Model):
             return f"{self.code} - {self.name}"
         return self.code
 
+
+
+
+class LifecycleSettings(models.Model):
+    name = models.CharField(max_length=100, default="Política principal", unique=True)
+    review_interval_days = models.PositiveIntegerField("Días entre controles", default=120)
+    is_active = models.BooleanField(default=True)
+
+    class Meta:
+        verbose_name = "Configuración ciclo de vida"
+        verbose_name_plural = "Configuraciones ciclo de vida"
+
+    def __str__(self):
+        return f"{self.name} ({self.review_interval_days} días)"
+
+
+def get_review_interval_days() -> int:
+    settings_obj = LifecycleSettings.objects.filter(is_active=True).order_by('-id').first()
+    if settings_obj and settings_obj.review_interval_days > 0:
+        return settings_obj.review_interval_days
+    return 120
 
 class UseCase(models.Model):
     BLOCKING_TYPE_CHOICES = [
@@ -214,7 +235,8 @@ class UseCase(models.Model):
                 self.last_validation_date = None
 
         if self.last_validation_date:
-            self.next_review_date = add_months(self.last_validation_date, 6)
+            interval_days = get_review_interval_days()
+            self.next_review_date = self.last_validation_date + timedelta(days=interval_days)
         else:
             self.next_review_date = None
 

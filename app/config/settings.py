@@ -103,3 +103,7 @@ AUTH_USER_MODEL = "accounts.User"
 LOGIN_URL = "/login/"
 LOGIN_REDIRECT_URL = "/dashboard/"
 LOGOUT_REDIRECT_URL = "/login/"
+AUTHENTICATION_BACKENDS = [
+    "apps.accounts.backends.AdminConfiguredLDAPBackend",
+    "django.contrib.auth.backends.ModelBackend",
+]
