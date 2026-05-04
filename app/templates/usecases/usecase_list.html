@@ -708,6 +708,7 @@
     <div class="topbar-nav">
         <a href="/dashboard/">Dashboard</a>
         <a href="/usecases/" class="active">Inventario</a>
+        <a href="/usecases/lifecycle/">Ciclo de Vida</a>
         <div class="topbar-divider"></div>
         <a href="/admin/">Admin</a>
         <a href="{% url 'logout' %}">Salir</a>
@@ -786,6 +787,9 @@
         <a class="btn-tab {% if selected_view == 'detailed' %}active{% endif %}"
            href="?{% if request.GET %}{% for k,v in request.GET.items %}{% if k != 'view' %}{{ k }}={{ v|urlencode }}&{% endif %}{% endfor %}{% endif %}view=detailed">
             Detallado
+        </a>
+        <a class="btn-export" href="{% url 'usecase_create' %}">
+            + Nuevo caso de uso
         </a>
         <a class="btn-export" href="{% url 'export_usecases_csv' %}?{% for k,v in request.GET.items %}{{ k }}={{ v|urlencode }}&{% endfor %}">
             ↓ Exportar CSV

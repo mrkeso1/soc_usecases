@@ -7,7 +7,7 @@ from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.db import transaction
 from django.db.models import Q
-from django.http import HttpResponse, JsonResponse
+from django.http import HttpResponse, JsonResponse, HttpResponseForbidden
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
 
@@ -70,8 +70,6 @@ def _get_filtered_usecases(request, *, with_prefetch: bool = True):
     status            = request.GET.get("status", "").strip()
     device            = request.GET.get("device", "").strip()
     severity          = request.GET.get("severity", "").strip()
-    validation_status = request.GET.get("validation_status", "").strip()
-    validation_result = request.GET.get("validation_result", "").strip()
     enabled           = request.GET.get("enabled", "").strip()
     owner             = request.GET.get("owner", "").strip()
     review_state      = request.GET.get("review_state", "").strip()
@@ -252,18 +250,12 @@ def dashboard_view(request):
 
     device            = request.GET.get("device", "").strip()
     severity          = request.GET.get("severity", "").strip()
-    validation_status = request.GET.get("validation_status", "").strip()
-    validation_result = request.GET.get("validation_result", "").strip()
     enabled           = request.GET.get("enabled", "").strip()
 
     if device:
         base_qs = base_qs.filter(device__iexact=device)
     if severity:
         base_qs = base_qs.filter(severity__iexact=severity)
-    if validation_status:
-        base_qs = base_qs.filter(validation_status=validation_status)
-    if validation_result:
-        base_qs = base_qs.filter(validation_result=validation_result)
     if enabled == "yes":
         base_qs = base_qs.filter(is_enabled=True)
     elif enabled == "no":
@@ -379,12 +371,8 @@ def dashboard_view(request):
         "devices":                    devices,
         "selected_device":            device,
         "selected_severity":          severity,
-        "selected_validation_status": validation_status,
-        "selected_validation_result": validation_result,
         "selected_enabled":           enabled,
         "severity_choices":           UseCase.SEVERITY_CHOICES,
-        "validation_status_choices":  UseCase.VALIDATION_STATUS_CHOICES,
-        "validation_result_choices":  UseCase.VALIDATION_RESULT_CHOICES,
         "attack_radials":             attack_radials,
         "d3fend_radials":             d3fend_radials,
         "covered_attack_techniques":  covered_attack_techniques,
@@ -411,8 +399,6 @@ def usecase_list(request):
     status            = request.GET.get("status", "").strip()
     device            = request.GET.get("device", "").strip()
     severity          = request.GET.get("severity", "").strip()
-    validation_status = request.GET.get("validation_status", "").strip()
-    validation_result = request.GET.get("validation_result", "").strip()
     enabled           = request.GET.get("enabled", "").strip()
     owner             = request.GET.get("owner", "").strip()
     review_state      = request.GET.get("review_state", "").strip()
@@ -480,8 +466,6 @@ def usecase_list(request):
         "selected_status":            status,
         "selected_device":            device,
         "selected_severity":          severity,
-        "selected_validation_status": validation_status,
-        "selected_validation_result": validation_result,
         "selected_enabled":           enabled,
         "selected_owner":             owner,
         "selected_review_state":      review_state,
@@ -497,8 +481,6 @@ def usecase_list(request):
         "devices":                    devices,
         "owners":                     owners,
         "severity_choices":           UseCase.SEVERITY_CHOICES,
-        "validation_status_choices":  UseCase.VALIDATION_STATUS_CHOICES,
-        "validation_result_choices":  UseCase.VALIDATION_RESULT_CHOICES,
         "visible_total":              visible_total,
         "visible_overdue":            visible_overdue,
         "visible_soon":               visible_soon,
@@ -540,6 +522,28 @@ def export_usecases_csv(request):
         ])
 
     return response
+
+
+@login_required
+def usecase_create(request):
+    if request.method == "POST":
+        form = UseCaseForm(request.POST)
+        if form.is_valid():
+            usecase = form.save(commit=False)
+            usecase.created_by = request.user
+            usecase.updated_by = request.user
+            usecase.save()
+            form.save_m2m()
+            messages.success(request, "Caso de uso creado correctamente.")
+            return redirect("usecase_detail", pk=usecase.pk)
+    else:
+        form = UseCaseForm()
+
+    return render(
+        request,
+        "usecases/usecase_form.html",
+        {"form": form, "title": "Nuevo caso de uso"},
+    )
 
 
 @login_required
@@ -716,3 +720,114 @@ def d3fend_autocomplete(request):
         for obj in qs.order_by("code", "name")[:20]
     ]
     return JsonResponse({"results": data})
+
+
+LIFECYCLE_CHECKPOINTS = [(4, 30), (8, 31), (12, 31)]
+
+
+def _current_lifecycle_window(today: date):
+    checkpoints = [date(today.year, m, d) for m, d in LIFECYCLE_CHECKPOINTS]
+    for cp in checkpoints:
+        if today <= cp:
+            idx = checkpoints.index(cp)
+            start = date(today.year, 1, 1) if idx == 0 else checkpoints[idx - 1] + timedelta(days=1)
+            return start, cp
+    start = checkpoints[-1] + timedelta(days=1)
+    end = date(today.year + 1, 4, 30)
+    return start, end
+
+
+@login_required
+def lifecycle_management_view(request):
+    today = date.today()
+    cycle_start, cycle_end = _current_lifecycle_window(today)
+    only_pending = request.GET.get("only_pending") == "1"
+
+    usecases = UseCase.objects.all().order_by("name")
+    rows = []
+    completed_in_cycle = 0
+    owner_pending_counter = Counter()
+
+    for uc in usecases:
+        last_check = uc.last_validation_date
+        completed = bool(last_check and cycle_start <= last_check <= cycle_end)
+        if completed:
+            completed_in_cycle += 1
+
+        review_days = uc.days_until_review
+        if review_days is None:
+            review_badge = "Sin fecha"
+            review_level = "neutral"
+        elif review_days < 0:
+            review_badge = f"Vencido ({abs(review_days)}d)"
+            review_level = "danger"
+        elif review_days <= 15:
+            review_badge = f"Por vencer ({review_days}d)"
+            review_level = "warn"
+        else:
+            review_badge = f"Al día ({review_days}d)"
+            review_level = "ok"
+
+        is_pending = not completed
+        if is_pending:
+            owner_key = uc.owner_name.strip() if uc.owner_name else "Sin responsable"
+            owner_pending_counter[owner_key] += 1
+
+        if only_pending and not is_pending:
+            continue
+
+        rows.append({
+            "usecase": uc,
+            "last_check": last_check,
+            "next_check": uc.next_review_date,
+            "owner": uc.owner_name,
+            "task_status": "Finalizada" if completed else "Pendiente",
+            "is_pending": is_pending,
+            "review_badge": review_badge,
+            "review_level": review_level,
+        })
+
+    total = UseCase.objects.count()
+    pending = total - completed_in_cycle
+    days_left = (cycle_end - today).days
+
+    context = {
+        "rows": rows,
+        "cycle_start": cycle_start,
+        "cycle_end": cycle_end,
+        "summary_total": total,
+        "summary_completed": completed_in_cycle,
+        "summary_pending": pending,
+        "summary_days_left": days_left,
+        "only_pending": only_pending,
+        "owner_pending_summary": owner_pending_counter.most_common(5),
+    }
+    return render(request, "usecases/lifecycle_management.html", context)
+
+
+@login_required
+def lifecycle_mark_done(request, pk):
+    if request.method != 'POST':
+        return redirect('lifecycle_management')
+
+    uc = get_object_or_404(UseCase, pk=pk)
+    uc.last_validation_date = date.today()
+    uc.validation_status = 'Finalizado'
+    uc.updated_by = request.user
+    uc.save()
+    messages.success(request, f"Ciclo de vida actualizado para '{uc.name}'.")
+    return redirect('lifecycle_management')
+
+
+@login_required
+def usecase_delete(request, pk):
+    if request.method != "POST":
+        return redirect("usecase_detail", pk=pk)
+    if not (request.user.is_staff or request.user.is_superuser):
+        return HttpResponseForbidden("Solo administradores pueden eliminar casos de uso.")
+
+    usecase = get_object_or_404(UseCase, pk=pk)
+    name = usecase.name
+    usecase.delete()
+    messages.success(request, f"Caso de uso '{name}' eliminado.")
+    return redirect("usecase_list")
