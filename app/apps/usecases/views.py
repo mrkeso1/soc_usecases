@@ -70,8 +70,6 @@ def _get_filtered_usecases(request, *, with_prefetch: bool = True):
     status            = request.GET.get("status", "").strip()
     device            = request.GET.get("device", "").strip()
     severity          = request.GET.get("severity", "").strip()
-    validation_status = request.GET.get("validation_status", "").strip()
-    validation_result = request.GET.get("validation_result", "").strip()
     enabled           = request.GET.get("enabled", "").strip()
     owner             = request.GET.get("owner", "").strip()
     review_state      = request.GET.get("review_state", "").strip()
@@ -252,18 +250,12 @@ def dashboard_view(request):
 
     device            = request.GET.get("device", "").strip()
     severity          = request.GET.get("severity", "").strip()
-    validation_status = request.GET.get("validation_status", "").strip()
-    validation_result = request.GET.get("validation_result", "").strip()
     enabled           = request.GET.get("enabled", "").strip()
 
     if device:
         base_qs = base_qs.filter(device__iexact=device)
     if severity:
         base_qs = base_qs.filter(severity__iexact=severity)
-    if validation_status:
-        base_qs = base_qs.filter(validation_status=validation_status)
-    if validation_result:
-        base_qs = base_qs.filter(validation_result=validation_result)
     if enabled == "yes":
         base_qs = base_qs.filter(is_enabled=True)
     elif enabled == "no":
@@ -379,12 +371,8 @@ def dashboard_view(request):
         "devices":                    devices,
         "selected_device":            device,
         "selected_severity":          severity,
-        "selected_validation_status": validation_status,
-        "selected_validation_result": validation_result,
         "selected_enabled":           enabled,
         "severity_choices":           UseCase.SEVERITY_CHOICES,
-        "validation_status_choices":  UseCase.VALIDATION_STATUS_CHOICES,
-        "validation_result_choices":  UseCase.VALIDATION_RESULT_CHOICES,
         "attack_radials":             attack_radials,
         "d3fend_radials":             d3fend_radials,
         "covered_attack_techniques":  covered_attack_techniques,
@@ -411,8 +399,6 @@ def usecase_list(request):
     status            = request.GET.get("status", "").strip()
     device            = request.GET.get("device", "").strip()
     severity          = request.GET.get("severity", "").strip()
-    validation_status = request.GET.get("validation_status", "").strip()
-    validation_result = request.GET.get("validation_result", "").strip()
     enabled           = request.GET.get("enabled", "").strip()
     owner             = request.GET.get("owner", "").strip()
     review_state      = request.GET.get("review_state", "").strip()
@@ -480,8 +466,6 @@ def usecase_list(request):
         "selected_status":            status,
         "selected_device":            device,
         "selected_severity":          severity,
-        "selected_validation_status": validation_status,
-        "selected_validation_result": validation_result,
         "selected_enabled":           enabled,
         "selected_owner":             owner,
         "selected_review_state":      review_state,
@@ -497,8 +481,6 @@ def usecase_list(request):
         "devices":                    devices,
         "owners":                     owners,
         "severity_choices":           UseCase.SEVERITY_CHOICES,
-        "validation_status_choices":  UseCase.VALIDATION_STATUS_CHOICES,
-        "validation_result_choices":  UseCase.VALIDATION_RESULT_CHOICES,
         "visible_total":              visible_total,
         "visible_overdue":            visible_overdue,
         "visible_soon":               visible_soon,
