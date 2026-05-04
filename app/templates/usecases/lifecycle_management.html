@@ -16,7 +16,7 @@
     table{width:100%;border-collapse:collapse;background:#0c1524;border:1px solid rgba(56,100,163,.22);border-radius:10px;overflow:hidden}
     th,td{padding:10px;border-bottom:1px solid rgba(56,100,163,.22);font-size:.9rem} th{color:#e8f1ff;text-align:left}
     .btn{background:#00e5a0;color:#001a10;border:none;padding:7px 10px;border-radius:7px;cursor:pointer;font-weight:700}
-    .pending{color:#f5a623}.ok{color:#00e5a0}
+    .pending{color:#f5a623}.ok{color:#00e5a0}.badge{padding:4px 8px;border-radius:999px;font-size:.78rem}.danger{background:rgba(255,71,87,.15);color:#ff8f98}.warn{background:rgba(245,166,35,.15);color:#ffd37a}.neutral{background:rgba(148,163,184,.15);color:#cbd5e1}.okb{background:rgba(0,229,160,.15);color:#7cf7cf}
   </style>
 </head>
 <body>
@@ -31,17 +31,22 @@
 <div class="container">
   <h1>Gestión de ciclo de vida</h1>
   <p>Ventana actual: {{ cycle_start|date:"d/m/Y" }} → {{ cycle_end|date:"d/m/Y" }}</p>
+  <div style="margin:8px 0 14px;">
+    <a href="?" class="chip">Todos</a>
+    <a href="?only_pending=1" class="chip">Solo pendientes</a>
+  </div>
   <div class="summary">
     <div class="chip">Total: <strong>{{ summary_total }}</strong></div>
     <div class="chip">Completados: <strong class="ok">{{ summary_completed }}</strong></div>
     <div class="chip">Pendientes: <strong class="pending">{{ summary_pending }}</strong></div>
     <div class="chip">Días restantes del ciclo: <strong>{{ summary_days_left }}</strong></div>
   </div>
+  {% if owner_pending_summary %}<div class="chip" style="margin-bottom:12px;">Top pendientes por responsable: {% for owner, count in owner_pending_summary %}<strong>{{ owner }}</strong> ({{ count }}){% if not forloop.last %}, {% endif %}{% endfor %}</div>{% endif %}
 
   <table>
     <thead>
       <tr>
-        <th>Caso de uso</th><th>Última comprobación</th><th>Próxima comprobación</th><th>Responsable</th><th>Estado tarea</th><th>Acción</th>
+        <th>Caso de uso</th><th>Última comprobación</th><th>Próxima comprobación</th><th>Semáforo</th><th>Responsable</th><th>Estado tarea</th><th>Acción</th>
       </tr>
     </thead>
     <tbody>
@@ -50,6 +55,7 @@
         <td>{{ row.usecase.name }}</td>
         <td>{% if row.last_check %}{{ row.last_check|date:"d/m/Y" }}{% else %}—{% endif %}</td>
         <td>{% if row.next_check %}{{ row.next_check|date:"d/m/Y" }}{% else %}—{% endif %}</td>
+        <td><span class="badge {{ row.review_level }} {% if row.review_level == "ok" %}okb{% endif %}">{{ row.review_badge }}</span></td>
         <td>{{ row.owner|default:"—" }}</td>
         <td>{% if row.is_pending %}<span class="pending">{{ row.task_status }}</span>{% else %}<span class="ok">{{ row.task_status }}</span>{% endif %}</td>
         <td>

@@ -7,7 +7,7 @@ from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.db import transaction
 from django.db.models import Q
-from django.http import HttpResponse, JsonResponse
+from django.http import HttpResponse, JsonResponse, HttpResponseForbidden
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
 
@@ -759,38 +759,68 @@ def _current_lifecycle_window(today: date):
 def lifecycle_management_view(request):
     today = date.today()
     cycle_start, cycle_end = _current_lifecycle_window(today)
+    only_pending = request.GET.get("only_pending") == "1"
 
-    usecases = UseCase.objects.all().order_by('name')
+    usecases = UseCase.objects.all().order_by("name")
     rows = []
     completed_in_cycle = 0
+    owner_pending_counter = Counter()
+
     for uc in usecases:
         last_check = uc.last_validation_date
         completed = bool(last_check and cycle_start <= last_check <= cycle_end)
         if completed:
             completed_in_cycle += 1
+
+        review_days = uc.days_until_review
+        if review_days is None:
+            review_badge = "Sin fecha"
+            review_level = "neutral"
+        elif review_days < 0:
+            review_badge = f"Vencido ({abs(review_days)}d)"
+            review_level = "danger"
+        elif review_days <= 15:
+            review_badge = f"Por vencer ({review_days}d)"
+            review_level = "warn"
+        else:
+            review_badge = f"Al día ({review_days}d)"
+            review_level = "ok"
+
+        is_pending = not completed
+        if is_pending:
+            owner_key = uc.owner_name.strip() if uc.owner_name else "Sin responsable"
+            owner_pending_counter[owner_key] += 1
+
+        if only_pending and not is_pending:
+            continue
+
         rows.append({
-            'usecase': uc,
-            'last_check': last_check,
-            'next_check': uc.next_review_date,
-            'owner': uc.owner_name,
-            'task_status': 'Finalizada' if completed else 'Pendiente',
-            'is_pending': not completed,
+            "usecase": uc,
+            "last_check": last_check,
+            "next_check": uc.next_review_date,
+            "owner": uc.owner_name,
+            "task_status": "Finalizada" if completed else "Pendiente",
+            "is_pending": is_pending,
+            "review_badge": review_badge,
+            "review_level": review_level,
         })
 
-    total = len(rows)
+    total = UseCase.objects.count()
     pending = total - completed_in_cycle
     days_left = (cycle_end - today).days
 
     context = {
-        'rows': rows,
-        'cycle_start': cycle_start,
-        'cycle_end': cycle_end,
-        'summary_total': total,
-        'summary_completed': completed_in_cycle,
-        'summary_pending': pending,
-        'summary_days_left': days_left,
+        "rows": rows,
+        "cycle_start": cycle_start,
+        "cycle_end": cycle_end,
+        "summary_total": total,
+        "summary_completed": completed_in_cycle,
+        "summary_pending": pending,
+        "summary_days_left": days_left,
+        "only_pending": only_pending,
+        "owner_pending_summary": owner_pending_counter.most_common(5),
     }
-    return render(request, 'usecases/lifecycle_management.html', context)
+    return render(request, "usecases/lifecycle_management.html", context)
 
 
 @login_required
@@ -805,3 +835,17 @@ def lifecycle_mark_done(request, pk):
     uc.save()
     messages.success(request, f"Ciclo de vida actualizado para '{uc.name}'.")
     return redirect('lifecycle_management')
+
+
+@login_required
+def usecase_delete(request, pk):
+    if request.method != "POST":
+        return redirect("usecase_detail", pk=pk)
+    if not (request.user.is_staff or request.user.is_superuser):
+        return HttpResponseForbidden("Solo administradores pueden eliminar casos de uso.")
+
+    usecase = get_object_or_404(UseCase, pk=pk)
+    name = usecase.name
+    usecase.delete()
+    messages.success(request, f"Caso de uso '{name}' eliminado.")
+    return redirect("usecase_list")

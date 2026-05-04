@@ -5,6 +5,7 @@ from .views import (
     usecase_create,
     usecase_edit,
     usecase_quick_update,
+    usecase_delete,
     usecase_bulk_update,
     mitre_attack_autocomplete,
     d3fend_autocomplete,
@@ -25,4 +26,5 @@ urlpatterns = [
     path("<int:pk>/", usecase_detail, name="usecase_detail"),
     path("<int:pk>/edit/", usecase_edit, name="usecase_edit"),
     path("<int:pk>/quick-update/", usecase_quick_update, name="usecase_quick_update"),
+    path("<int:pk>/delete/", usecase_delete, name="usecase_delete"),
 ]
