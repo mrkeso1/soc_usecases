@@ -1,5 +1,5 @@
 from django.contrib import admin
-from .models import UseCase, UseCaseChangeLog, MitreAttack, D3Fend
+from .models import UseCase, UseCaseChangeLog, MitreAttack, D3Fend, LifecycleSettings
 
 
 @admin.register(MitreAttack)
@@ -68,3 +68,9 @@ class UseCaseChangeLogAdmin(admin.ModelAdmin):
         "field_name",
         "changed_at",
     )
+
+@admin.register(LifecycleSettings)
+class LifecycleSettingsAdmin(admin.ModelAdmin):
+    list_display = ("name", "review_interval_days", "is_active")
+    list_filter = ("is_active",)
+    search_fields = ("name",)
