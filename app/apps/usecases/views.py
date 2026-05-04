@@ -543,6 +543,28 @@ def export_usecases_csv(request):
 
 
 @login_required
+def usecase_create(request):
+    if request.method == "POST":
+        form = UseCaseForm(request.POST)
+        if form.is_valid():
+            usecase = form.save(commit=False)
+            usecase.created_by = request.user
+            usecase.updated_by = request.user
+            usecase.save()
+            form.save_m2m()
+            messages.success(request, "Caso de uso creado correctamente.")
+            return redirect("usecase_detail", pk=usecase.pk)
+    else:
+        form = UseCaseForm()
+
+    return render(
+        request,
+        "usecases/usecase_form.html",
+        {"form": form, "title": "Nuevo caso de uso"},
+    )
+
+
+@login_required
 def usecase_edit(request, pk):
     usecase = get_object_or_404(
         UseCase.objects.prefetch_related("mitre_attacks", "d3fends"), pk=pk

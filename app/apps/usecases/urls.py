@@ -2,6 +2,7 @@ from django.urls import path
 from .views import (
     usecase_list,
     usecase_detail,
+    usecase_create,
     usecase_edit,
     usecase_quick_update,
     usecase_bulk_update,
@@ -14,6 +15,7 @@ from .views import (
 
 urlpatterns = [
     path("", usecase_list, name="usecase_list"),
+    path("new/", usecase_create, name="usecase_create"),
     path("export/csv/", export_usecases_csv, name="export_usecases_csv"),
     path("bulk-update/", usecase_bulk_update, name="usecase_bulk_update"),
     path("lifecycle/", lifecycle_management_view, name="lifecycle_management"),
