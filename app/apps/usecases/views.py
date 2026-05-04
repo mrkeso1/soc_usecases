@@ -87,9 +87,9 @@ def _get_filtered_usecases(request, *, with_prefetch: bool = True):
         qs = qs.filter(device__iexact=device)
     if severity:
         qs = qs.filter(severity__iexact=severity)
-    if validation_status:
+    if locals().get("validation_status"):
         qs = qs.filter(validation_status=validation_status)
-    if validation_result:
+    if locals().get("validation_result"):
         qs = qs.filter(validation_result=validation_result)
     if enabled == "yes":
         qs = qs.filter(is_enabled=True)
