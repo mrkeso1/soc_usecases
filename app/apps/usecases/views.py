@@ -543,6 +543,28 @@ def export_usecases_csv(request):
 
 
 @login_required
+def usecase_create(request):
+    if request.method == "POST":
+        form = UseCaseForm(request.POST)
+        if form.is_valid():
+            usecase = form.save(commit=False)
+            usecase.created_by = request.user
+            usecase.updated_by = request.user
+            usecase.save()
+            form.save_m2m()
+            messages.success(request, "Caso de uso creado correctamente.")
+            return redirect("usecase_detail", pk=usecase.pk)
+    else:
+        form = UseCaseForm()
+
+    return render(
+        request,
+        "usecases/usecase_form.html",
+        {"form": form, "title": "Nuevo caso de uso"},
+    )
+
+
+@login_required
 def usecase_edit(request, pk):
     usecase = get_object_or_404(
         UseCase.objects.prefetch_related("mitre_attacks", "d3fends"), pk=pk
@@ -716,3 +738,70 @@ def d3fend_autocomplete(request):
         for obj in qs.order_by("code", "name")[:20]
     ]
     return JsonResponse({"results": data})
+
+
+LIFECYCLE_CHECKPOINTS = [(4, 30), (8, 31), (12, 31)]
+
+
+def _current_lifecycle_window(today: date):
+    checkpoints = [date(today.year, m, d) for m, d in LIFECYCLE_CHECKPOINTS]
+    for cp in checkpoints:
+        if today <= cp:
+            idx = checkpoints.index(cp)
+            start = date(today.year, 1, 1) if idx == 0 else checkpoints[idx - 1] + timedelta(days=1)
+            return start, cp
+    start = checkpoints[-1] + timedelta(days=1)
+    end = date(today.year + 1, 4, 30)
+    return start, end
+
+
+@login_required
+def lifecycle_management_view(request):
+    today = date.today()
+    cycle_start, cycle_end = _current_lifecycle_window(today)
+
+    usecases = UseCase.objects.all().order_by('name')
+    rows = []
+    completed_in_cycle = 0
+    for uc in usecases:
+        last_check = uc.last_validation_date
+        completed = bool(last_check and cycle_start <= last_check <= cycle_end)
+        if completed:
+            completed_in_cycle += 1
+        rows.append({
+            'usecase': uc,
+            'last_check': last_check,
+            'next_check': uc.next_review_date,
+            'owner': uc.owner_name,
+            'task_status': 'Finalizada' if completed else 'Pendiente',
+            'is_pending': not completed,
+        })
+
+    total = len(rows)
+    pending = total - completed_in_cycle
+    days_left = (cycle_end - today).days
+
+    context = {
+        'rows': rows,
+        'cycle_start': cycle_start,
+        'cycle_end': cycle_end,
+        'summary_total': total,
+        'summary_completed': completed_in_cycle,
+        'summary_pending': pending,
+        'summary_days_left': days_left,
+    }
+    return render(request, 'usecases/lifecycle_management.html', context)
+
+
+@login_required
+def lifecycle_mark_done(request, pk):
+    if request.method != 'POST':
+        return redirect('lifecycle_management')
+
+    uc = get_object_or_404(UseCase, pk=pk)
+    uc.last_validation_date = date.today()
+    uc.validation_status = 'Finalizado'
+    uc.updated_by = request.user
+    uc.save()
+    messages.success(request, f"Ciclo de vida actualizado para '{uc.name}'.")
+    return redirect('lifecycle_management')
