@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Ciclo de Vida — SOC Use Cases Manager</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;600;700&family=Syne:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <style>
+        :root {--bg:#060b14;--surface:#0c1524;--surface-2:#111d30;--surface-3:#172540;--border:rgba(56,100,163,.22);--border-bright:rgba(56,100,163,.55);--text:#b8cce8;--text-strong:#e8f1ff;--text-muted:#4e6a8e;--accent:#2d7aff;--accent-dim:rgba(45,122,255,.12);--good:#00e5a0;--medium:#f5a623;--bad:#ff4757;}
+        *{box-sizing:border-box} body{font-family:'Syne',sans-serif;background:var(--bg);color:var(--text);margin:0}
+        .topbar{position:sticky;top:0;z-index:100;display:flex;justify-content:space-between;align-items:center;padding:0 28px;height:56px;background:rgba(6,11,20,.92);backdrop-filter:blur(12px);border-bottom:1px solid var(--border)}
+        .topbar-nav a{font-family:'JetBrains Mono',monospace;font-size:12px;color:var(--text-muted);text-decoration:none;padding:6px 12px;border-radius:6px}.topbar-nav a.active,.topbar-nav a:hover{color:var(--text-strong);background:var(--surface-3)}
+        .container{padding:28px}.page-eyebrow{font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--accent);letter-spacing:.12em;text-transform:uppercase}.page-title{font-size:1.9rem;color:var(--text-strong);margin:4px 0}
+        .summary-strip{display:flex;gap:10px;flex-wrap:wrap;margin:18px 0}.summary-chip{background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:9px 14px}.chip-value{font-family:'JetBrains Mono',monospace;font-size:1.2rem;color:var(--text-strong)}
+        .toolbar-row{display:flex;gap:8px;align-items:center;margin-bottom:14px}.btn-tab{padding:8px 12px;border:1px solid var(--border);border-radius:7px;background:var(--surface);color:var(--text-muted);text-decoration:none}.btn-tab.active{background:var(--accent-dim);border-color:var(--accent);color:var(--accent)}
+        .table-wrap{background:var(--surface);border:1px solid var(--border);border-radius:14px;overflow:auto}
+        table{width:100%;border-collapse:collapse;table-layout:fixed}th,td{padding:12px 14px;border-bottom:1px solid var(--border);font-size:.88rem;text-align:left;vertical-align:middle}th{font-family:'JetBrains Mono',monospace;color:var(--text-muted);text-transform:uppercase;font-size:.72rem;letter-spacing:.06em;white-space:nowrap}
+        .badge{padding:4px 8px;border-radius:999px;font-size:.78rem}.danger{background:rgba(255,71,87,.15);color:#ff8f98}.warn{background:rgba(245,166,35,.15);color:#ffd37a}.neutral{background:rgba(148,163,184,.15);color:#cbd5e1}.okb{background:rgba(0,229,160,.15);color:#7cf7cf}
+        .btn-save{background:var(--good);color:#001a10;border:0;padding:7px 10px;border-radius:7px;font-weight:700;cursor:pointer}.owner-form{display:flex;gap:6px;align-items:center}.owner-select{width:100%;min-width:170px;background:var(--surface-2);color:var(--text-strong);border:1px solid var(--border);border-radius:7px;padding:7px}.btn-mini{background:var(--surface-3);color:var(--text);border:1px solid var(--border);padding:7px 9px;border-radius:7px;cursor:pointer}.action-form{display:flex;gap:6px;align-items:center}
+    </style>
+</head>
+<body>
+<nav class="topbar"><div><strong>SOC Use Cases Manager</strong></div><div class="topbar-nav"><a href="/dashboard/">Dashboard</a><a href="/usecases/">Inventario</a><a class="active" href="{% url 'lifecycle_management' %}">Ciclo de Vida</a></div></nav>
+<div class="container">
+    <div class="page-eyebrow">// CICLO DE VIDA</div>
+    <h1 class="page-title">Gestión de revisiones</h1>
+    <p>Ventana actual: {{ cycle_start|date:"d/m/Y" }} → {{ cycle_end|date:"d/m/Y" }}</p>
+
+    <div class="summary-strip">
+        <div class="summary-chip">Total <div class="chip-value">{{ summary_total }}</div></div>
+        <div class="summary-chip">Completados <div class="chip-value">{{ summary_completed }}</div></div>
+        <div class="summary-chip">Pendientes <div class="chip-value">{{ summary_pending }}</div></div>
+        <div class="summary-chip">Días ciclo <div class="chip-value">{{ summary_days_left }}</div></div>
+    </div>
+
+    <div class="toolbar-row">
+        <a class="btn-tab {% if not only_pending %}active{% endif %}" href="?">Todos</a>
+        <a class="btn-tab {% if only_pending %}active{% endif %}" href="?only_pending=1">Solo pendientes</a>
+    </div>
+
+    {% if owner_pending_summary %}<p>Top pendientes por responsable de control: {% for owner, count in owner_pending_summary %}<strong>{{ owner }}</strong> ({{ count }}){% if not forloop.last %}, {% endif %}{% endfor %}</p>{% endif %}
+
+    <div class="table-wrap">
+        <table>
+            <thead>
+                <tr>
+                    <th>Caso</th>
+                    <th>Último control</th>
+                    <th>Próximo control</th>
+                    <th>Semáforo</th>
+                    <th>Responsable control</th>
+                    <th>Estado</th>
+                    <th>Acción</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for row in rows %}
+                <tr>
+                    <td>{{ row.usecase.name }}</td>
+                    <td>{% if row.last_check %}{{ row.last_check|date:"d/m/Y" }}{% else %}—{% endif %}</td>
+                    <td>{% if row.next_check %}{{ row.next_check|date:"d/m/Y" }}{% else %}—{% endif %}</td>
+                    <td><span class="badge {{ row.review_level }} {% if row.review_level == 'ok' %}okb{% endif %}">{{ row.review_badge }}</span></td>
+                    <td>
+                        <form class="owner-form" method="post" action="{% url 'lifecycle_assign_owner' row.usecase.pk %}">
+                            {% csrf_token %}
+                            <select class="owner-select" name="lifecycle_control_owner">
+                                <option value="">Sin responsable</option>
+                                {% for user in lifecycle_users %}
+                                    <option value="{{ user.pk }}" {% if row.owner and row.owner.pk == user.pk %}selected{% endif %}>{{ user.get_full_name|default:user.username }}</option>
+                                {% endfor %}
+                            </select>
+                            <button class="btn-mini" type="submit">Guardar</button>
+                        </form>
+                    </td>
+                    <td>{{ row.task_status }}</td>
+                    <td>
+                        {% if row.is_pending %}
+                            <form class="action-form" method="post" action="{% url 'lifecycle_mark_done' row.usecase.pk %}">
+                                {% csrf_token %}
+                                <input type="hidden" name="lifecycle_control_owner" value="{% if row.owner %}{{ row.owner.pk }}{% endif %}">
+                                <button class="btn-save" type="submit">Finalizar</button>
+                            </form>
+                        {% else %}
+                            ✓
+                        {% endif %}
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+</body></html>
