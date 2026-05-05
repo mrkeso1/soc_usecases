@@ -123,7 +123,15 @@ class UseCase(models.Model):
     )
 
     name = models.CharField("Nombre NetWitness", max_length=255)
-    owner_name = models.CharField("Responsable", max_length=150, blank=True)
+    owner_name = models.CharField("Responsable desarrollo", max_length=150, blank=True)
+    lifecycle_control_owner = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        verbose_name="Responsable control",
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name="lifecycle_control_usecases",
+    )
     monitoring = models.CharField("Monitoreo", max_length=100, blank=True)
 
     status = models.CharField(

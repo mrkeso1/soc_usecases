@@ -26,8 +26,7 @@ class UseCaseAdmin(admin.ModelAdmin):
         "device",
         "status",
         "severity",
-        "validation_status",
-        "validation_result",
+        "lifecycle_control_owner",
         "production_date",
         "next_review_date",
         "is_enabled",
@@ -37,6 +36,9 @@ class UseCaseAdmin(admin.ModelAdmin):
         "group_name",
         "device",
         "owner_name",
+        "lifecycle_control_owner__username",
+        "lifecycle_control_owner__first_name",
+        "lifecycle_control_owner__last_name",
         "comments",
     )
     list_filter = (
@@ -44,10 +46,10 @@ class UseCaseAdmin(admin.ModelAdmin):
         "device",
         "status",
         "severity",
-        "validation_status",
-        "validation_result",
+        "lifecycle_control_owner",
         "is_enabled",
     )
+    autocomplete_fields = ("lifecycle_control_owner",)
     filter_horizontal = ("mitre_attacks", "d3fends")
 
 

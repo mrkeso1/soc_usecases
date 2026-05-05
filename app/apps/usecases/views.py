@@ -4,6 +4,7 @@ import csv
 import math
 
 from django.contrib import messages
+from django.contrib.auth import get_user_model
 from django.contrib.auth.decorators import login_required
 from django.db import transaction
 from django.db.models import Q
@@ -87,10 +88,6 @@ def _get_filtered_usecases(request, *, with_prefetch: bool = True):
         qs = qs.filter(device__iexact=device)
     if severity:
         qs = qs.filter(severity__iexact=severity)
-    if locals().get("validation_status"):
-        qs = qs.filter(validation_status=validation_status)
-    if locals().get("validation_result"):
-        qs = qs.filter(validation_result=validation_result)
     if enabled == "yes":
         qs = qs.filter(is_enabled=True)
     elif enabled == "no":
@@ -127,8 +124,6 @@ def _get_filtered_usecases(request, *, with_prefetch: bool = True):
         qs = qs.filter(next_review_date__lt=today)
     elif quick == "soon":
         qs = qs.filter(next_review_date__gte=today, next_review_date__lte=soon_limit)
-    elif quick == "failed":
-        qs = qs.filter(validation_result="Falló")
     elif quick == "without_attack":
         qs = qs.filter(mitre_attacks__isnull=True)
     elif quick == "without_d3fend":
@@ -172,6 +167,7 @@ def _snapshot_usecase(usecase) -> dict:
         "objective":            usecase.objective,
         "blocking_type":        usecase.blocking_type,
         "owner_name":           usecase.owner_name,
+        "lifecycle_control_owner": usecase.lifecycle_control_owner_id,
         "monitoring":           usecase.monitoring,
         "status":               usecase.status,
         "severity":             usecase.severity,
@@ -196,7 +192,8 @@ TRACKED_FIELD_LABELS = {
     "case_type":            "Tipo",
     "objective":            "Objetivo",
     "blocking_type":        "Tipo de bloqueo",
-    "owner_name":           "Responsable",
+    "owner_name":           "Responsable desarrollo",
+    "lifecycle_control_owner": "Responsable control",
     "monitoring":           "Monitoreo",
     "status":               "Estado",
     "severity":             "Severidad",
@@ -425,8 +422,6 @@ def usecase_list(request):
         "owner":                "owner_name",
         "status":               "status",
         "severity":             "severity",
-        "validation_status":    "validation_status",
-        "validation_result":    "validation_result",
         "last_validation_date": "last_validation_date",
         "next_review_date":     "next_review_date",
         "enabled":              "is_enabled",
@@ -458,7 +453,6 @@ def usecase_list(request):
     visible_total         = qs.count()
     visible_overdue       = qs.filter(next_review_date__lt=today).count()
     visible_soon          = qs.filter(next_review_date__gte=today, next_review_date__lte=soon_limit).count()
-    visible_failed        = qs.filter(validation_result="Falló").count()
     visible_without_attack = qs.filter(mitre_attacks__isnull=True).distinct().count()
     visible_without_d3fend = qs.filter(d3fends__isnull=True).distinct().count()
 
@@ -486,7 +480,6 @@ def usecase_list(request):
         "visible_total":              visible_total,
         "visible_overdue":            visible_overdue,
         "visible_soon":               visible_soon,
-        "visible_failed":             visible_failed,
         "visible_without_attack":     visible_without_attack,
         "visible_without_d3fend":     visible_without_d3fend,
     }
@@ -502,9 +495,8 @@ def export_usecases_csv(request):
 
     writer = csv.writer(response)
     writer.writerow([
-        "Nombre", "Dispositivo", "Responsable", "Estado", "Severidad",
-        "Estado ciclo de vida", "Resultado", "Ultima validacion",
-        "Proxima revision", "Habilitado", "ATT&CK", "D3FEND",
+        "Nombre", "Dispositivo", "Responsable desarrollo", "Estado", "Severidad",
+        "Ultimo control", "Proximo control", "Habilitado", "ATT&CK", "D3FEND",
     ])
 
     for uc in qs:
@@ -514,8 +506,6 @@ def export_usecases_csv(request):
             uc.owner_name,
             uc.status,
             uc.severity,
-            uc.validation_status,
-            uc.validation_result,
             uc.last_validation_date or "",
             uc.next_review_date or "",
             "Si" if uc.is_enabled else "No",
@@ -654,8 +644,10 @@ def usecase_bulk_update(request):
             usecase.owner_name        = request.POST.get(f"owner_name_{pk}", "").strip()
             usecase.status            = request.POST.get(f"status_{pk}", "").strip()
             usecase.severity          = request.POST.get(f"severity_{pk}", "").strip()
-            usecase.validation_status = request.POST.get(f"validation_status_{pk}", "").strip()
-            usecase.validation_result = request.POST.get(f"validation_result_{pk}", "").strip()
+            if f"validation_status_{pk}" in request.POST:
+                usecase.validation_status = request.POST.get(f"validation_status_{pk}", "").strip()
+            if f"validation_result_{pk}" in request.POST:
+                usecase.validation_result = request.POST.get(f"validation_result_{pk}", "").strip()
             usecase.last_validation_date = _parse_date_field(
                 request.POST.get(f"last_validation_date_{pk}", "").strip()
             )
@@ -745,7 +737,9 @@ def lifecycle_management_view(request):
     cycle_start, cycle_end = _current_lifecycle_window(today)
     only_pending = request.GET.get("only_pending") == "1"
 
-    usecases = UseCase.objects.all().order_by("name")
+    usecases = UseCase.objects.select_related("lifecycle_control_owner").all().order_by("name")
+    User = get_user_model()
+    lifecycle_users = User.objects.filter(is_active=True).order_by("username")
     rows = []
     completed_in_cycle = 0
     owner_pending_counter = Counter()
@@ -772,7 +766,10 @@ def lifecycle_management_view(request):
 
         is_pending = not completed
         if is_pending:
-            owner_key = uc.owner_name.strip() if uc.owner_name else "Sin responsable"
+            if uc.lifecycle_control_owner:
+                owner_key = uc.lifecycle_control_owner.get_full_name() or uc.lifecycle_control_owner.username
+            else:
+                owner_key = "Sin responsable de control"
             owner_pending_counter[owner_key] += 1
 
         if only_pending and not is_pending:
@@ -782,7 +779,7 @@ def lifecycle_management_view(request):
             "usecase": uc,
             "last_check": last_check,
             "next_check": uc.next_review_date,
-            "owner": uc.owner_name,
+            "owner": uc.lifecycle_control_owner,
             "task_status": "Finalizada" if completed else "Pendiente",
             "is_pending": is_pending,
             "review_badge": review_badge,
@@ -803,6 +800,7 @@ def lifecycle_management_view(request):
         "summary_days_left": days_left,
         "only_pending": only_pending,
         "owner_pending_summary": owner_pending_counter.most_common(5),
+        "lifecycle_users": lifecycle_users,
     }
     return render(request, "usecases/lifecycle_management.html", context)
 
@@ -813,12 +811,34 @@ def lifecycle_mark_done(request, pk):
         return redirect('lifecycle_management')
 
     uc = get_object_or_404(UseCase, pk=pk)
+    owner_id = request.POST.get("lifecycle_control_owner", "").strip()
+    if owner_id.isdigit():
+        uc.lifecycle_control_owner_id = int(owner_id)
+    elif owner_id == "":
+        uc.lifecycle_control_owner = None
     uc.last_validation_date = date.today()
     uc.validation_status = 'Finalizado'
     uc.updated_by = request.user
     uc.save()
     messages.success(request, f"Ciclo de vida actualizado para '{uc.name}'.")
     return redirect('lifecycle_management')
+
+
+@login_required
+def lifecycle_assign_owner(request, pk):
+    if request.method != "POST":
+        return redirect("lifecycle_management")
+
+    uc = get_object_or_404(UseCase, pk=pk)
+    owner_id = request.POST.get("lifecycle_control_owner", "").strip()
+    if owner_id.isdigit():
+        uc.lifecycle_control_owner_id = int(owner_id)
+    else:
+        uc.lifecycle_control_owner = None
+    uc.updated_by = request.user
+    uc.save()
+    messages.success(request, f"Responsable de control actualizado para '{uc.name}'.")
+    return redirect("lifecycle_management")
 
 
 @login_required
