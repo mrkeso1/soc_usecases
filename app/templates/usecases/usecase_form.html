@@ -162,16 +162,10 @@
             font-size: 14px;
         }
     </style>
+    {% include "includes/topbar_styles.html" %}
 </head>
 <body>
-    <div class="topbar">
-        <div><strong>SOC Use Cases Manager</strong></div>
-        <div>
-            <a href="/dashboard/">Dashboard</a>
-            <a href="/usecases/">Inventario</a>
-            <a href="{% url 'logout' %}">Salir</a>
-        </div>
-    </div>
+    {% include "includes/topbar.html" %}
 
     <div class="container">
         <div class="card">

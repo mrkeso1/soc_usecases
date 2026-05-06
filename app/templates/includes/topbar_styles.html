@@ -1,0 +1,81 @@
+<style>
+    .topbar {
+        position: sticky;
+        top: 0;
+        z-index: 100;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 0 28px;
+        height: 56px;
+        background: rgba(6, 11, 20, 0.92);
+        backdrop-filter: blur(12px);
+        border-bottom: 1px solid var(--border, rgba(56, 100, 163, 0.22));
+    }
+
+    .brand {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        font-family: 'JetBrains Mono', monospace;
+        font-size: 13px;
+        font-weight: 600;
+        color: var(--text-strong, #e8f1ff);
+        letter-spacing: 0.02em;
+    }
+
+    .brand-icon {
+        width: 28px;
+        height: 28px;
+        background: var(--accent, #2d7aff);
+        border-radius: 6px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }
+
+    .brand-icon svg { width: 16px; height: 16px; fill: white; }
+
+    .topbar-nav {
+        display: flex;
+        align-items: center;
+        gap: 4px;
+    }
+
+    .topbar-nav a {
+        font-family: 'JetBrains Mono', monospace;
+        font-size: 12px;
+        font-weight: 500;
+        color: var(--text-muted, #4e6a8e);
+        text-decoration: none;
+        padding: 6px 12px;
+        border-radius: 6px;
+        transition: color 0.15s, background 0.15s;
+        letter-spacing: 0.03em;
+        margin-left: 0;
+    }
+
+    .topbar-nav a:hover,
+    .topbar-nav a.active {
+        color: var(--text-strong, #e8f1ff);
+        background: var(--surface-3, #172540);
+    }
+
+    .topbar-nav a.active {
+        color: var(--accent, #2d7aff);
+        background: var(--accent-dim, rgba(45, 122, 255, 0.12));
+    }
+
+    .topbar-divider {
+        width: 1px;
+        height: 18px;
+        background: var(--border, rgba(56, 100, 163, 0.22));
+        margin: 0 6px;
+    }
+
+    @media (max-width: 680px) {
+        .topbar { padding: 0 16px; }
+        .topbar-nav { gap: 2px; }
+        .topbar-nav a { padding: 6px 8px; }
+    }
+</style>

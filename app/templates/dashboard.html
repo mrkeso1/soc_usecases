@@ -613,24 +613,11 @@
             .page-title { font-size: 1.65rem; }
         }
     </style>
+    {% include "includes/topbar_styles.html" %}
 </head>
 <body>
 
-<nav class="topbar">
-    <div class="brand">
-        <div class="brand-icon">
-            <svg viewBox="0 0 16 16"><path d="M2 2h5v5H2zM9 2h5v5H9zM2 9h5v5H2zM9 9h5v5H9z"/></svg>
-        </div>
-        SOC Use Cases Manager
-    </div>
-    <div class="topbar-nav">
-        <a href="/dashboard/" class="active">Dashboard</a>
-        <a href="/usecases/">Inventario</a>
-        <div class="topbar-divider"></div>
-        <a href="/admin/">Admin</a>
-        <a href="{% url 'logout' %}">Salir</a>
-    </div>
-</nav>
+{% include "includes/topbar.html" %}
 
 <div class="container">
     <div class="page-header">
