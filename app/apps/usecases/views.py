@@ -641,36 +641,59 @@ def usecase_bulk_update(request):
             pk = str(usecase.pk)
             old_data = _snapshot_usecase(usecase)
 
-            usecase.owner_name        = request.POST.get(f"owner_name_{pk}", "").strip()
-            usecase.status            = request.POST.get(f"status_{pk}", "").strip()
-            usecase.severity          = request.POST.get(f"severity_{pk}", "").strip()
+            scalar_changes = {
+                "owner_name": request.POST.get(f"owner_name_{pk}", "").strip(),
+                "status": request.POST.get(f"status_{pk}", "").strip(),
+                "severity": request.POST.get(f"severity_{pk}", "").strip(),
+                "last_validation_date": _parse_date_field(
+                    request.POST.get(f"last_validation_date_{pk}", "").strip()
+                ),
+                "is_enabled": request.POST.get(f"is_enabled_{pk}") == "on",
+            }
             if f"validation_status_{pk}" in request.POST:
-                usecase.validation_status = request.POST.get(f"validation_status_{pk}", "").strip()
+                scalar_changes["validation_status"] = request.POST.get(
+                    f"validation_status_{pk}", ""
+                ).strip()
             if f"validation_result_{pk}" in request.POST:
-                usecase.validation_result = request.POST.get(f"validation_result_{pk}", "").strip()
-            usecase.last_validation_date = _parse_date_field(
-                request.POST.get(f"last_validation_date_{pk}", "").strip()
-            )
-            usecase.is_enabled  = request.POST.get(f"is_enabled_{pk}") == "on"
-            usecase.updated_by  = request.user
-            usecase.save()
+                scalar_changes["validation_result"] = request.POST.get(
+                    f"validation_result_{pk}", ""
+                ).strip()
 
-            usecase.mitre_attacks.set(
-                MitreAttack.objects.filter(
-                    id__in=_parse_csv_ids(request.POST.get(f"mitre_attack_ids_{pk}", ""))
-                )
-            )
-            usecase.d3fends.set(
-                D3Fend.objects.filter(
-                    id__in=_parse_csv_ids(request.POST.get(f"d3fend_ids_{pk}", ""))
-                )
-            )
+            changed_fields = []
+            for field_name, new_value in scalar_changes.items():
+                if getattr(usecase, field_name) != new_value:
+                    setattr(usecase, field_name, new_value)
+                    changed_fields.append(field_name)
 
-            new_data = _snapshot_usecase(usecase)
-            create_change_logs(usecase, old_data, new_data, request.user)
-            updated_count += 1
+            current_mitre_ids = {item.id for item in usecase.mitre_attacks.all()}
+            current_d3fend_ids = {item.id for item in usecase.d3fends.all()}
+            posted_mitre_ids = set(_parse_csv_ids(request.POST.get(f"mitre_attack_ids_{pk}", "")))
+            posted_d3fend_ids = set(_parse_csv_ids(request.POST.get(f"d3fend_ids_{pk}", "")))
 
-    messages.success(request, f"Se actualizaron {updated_count} caso(s).")
+            m2m_changed = False
+            if current_mitre_ids != posted_mitre_ids:
+                usecase.mitre_attacks.set(MitreAttack.objects.filter(id__in=posted_mitre_ids))
+                m2m_changed = True
+            if current_d3fend_ids != posted_d3fend_ids:
+                usecase.d3fends.set(D3Fend.objects.filter(id__in=posted_d3fend_ids))
+                m2m_changed = True
+
+            if changed_fields:
+                usecase.updated_by = request.user
+                usecase.save()
+
+            if changed_fields or m2m_changed:
+                if m2m_changed and not changed_fields:
+                    usecase.updated_by = request.user
+                    usecase.save(update_fields=["updated_by", "updated_at"])
+                new_data = _snapshot_usecase(usecase)
+                create_change_logs(usecase, old_data, new_data, request.user)
+                updated_count += 1
+
+    if updated_count:
+        messages.success(request, f"Se actualizaron {updated_count} caso(s).")
+    else:
+        messages.info(request, "No se detectaron cambios para guardar.")
     return _redirect_usecase_list_with_query(return_qs)
 
 

@@ -32,9 +32,10 @@
     .owner-summary strong { color: var(--text-strong); }
 
     .table-wrap { background:var(--surface); border:1px solid var(--border); border-radius:14px; overflow:auto; }
-    table { width:100%; border-collapse:collapse; table-layout:fixed; }
+    table { width:100%; min-width:1180px; border-collapse:collapse; table-layout:fixed; }
     th, td { padding:12px 14px; border-bottom:1px solid var(--border); font-size:.88rem; text-align:left; vertical-align:middle; }
-    th { font-family:'JetBrains Mono', monospace; color:var(--text-muted); text-transform:uppercase; font-size:.72rem; letter-spacing:.06em; white-space:nowrap; }
+    th { font-family:'JetBrains Mono', monospace; color:var(--text-muted); text-transform:uppercase; font-size:.72rem; letter-spacing:.06em; white-space:normal; line-height:1.25; }
+    td.case-name { color:var(--text-strong); font-weight:600; overflow-wrap:anywhere; word-break:break-word; }
 
     .badge { padding:4px 8px; border-radius:999px; font-size:.78rem; }
     .danger { background:rgba(255,71,87,.15); color:#ff8f98; }
@@ -74,9 +75,18 @@
 
     <div class="table-wrap">
         <table>
+            <colgroup>
+                <col style="width: 28%;">
+                <col style="width: 12%;">
+                <col style="width: 12%;">
+                <col style="width: 13%;">
+                <col style="width: 20%;">
+                <col style="width: 8%;">
+                <col style="width: 7%;">
+            </colgroup>
             <thead>
                 <tr>
-                    <th>Caso</th>
+                    <th>Nombre de caso de uso</th>
                     <th>Último control</th>
                     <th>Próximo control</th>
                     <th>Semáforo</th>
@@ -88,7 +98,7 @@
             <tbody>
                 {% for row in rows %}
                 <tr>
-                    <td>{{ row.usecase.name }}</td>
+                    <td class="case-name">{{ row.usecase.name }}</td>
                     <td>{% if row.last_check %}{{ row.last_check|date:"d/m/Y" }}{% else %}—{% endif %}</td>
                     <td>{% if row.next_check %}{{ row.next_check|date:"d/m/Y" }}{% else %}—{% endif %}</td>
                     <td><span class="badge {{ row.review_level }} {% if row.review_level == 'ok' %}okb{% endif %}">{{ row.review_badge }}</span></td>
