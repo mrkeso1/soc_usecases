@@ -133,18 +133,14 @@ def _get_filtered_usecases(request, *, with_prefetch: bool = True):
 
 
 def _redirect_usecase_list_with_query(return_qs: str = ""):
-    base_url = reverse("usecase_list")
-    return redirect(f"{base_url}?{return_qs}" if return_qs else base_url)
-
-
-def _redirect_usecase_list_to_saved(return_qs: str, updated_ids: list[int]):
     query = QueryDict(return_qs, mutable=True)
     query.pop("saved_only", None)
     query.pop("updated_ids", None)
     query.pop("updated", None)
-    query.setlist("updated_ids", [str(item) for item in updated_ids])
-    query["saved_only"] = "1"
-    return _redirect_usecase_list_with_query(query.urlencode())
+
+    query_string = query.urlencode()
+    base_url = reverse("usecase_list")
+    return redirect(f"{base_url}?{query_string}" if query_string else base_url)
 
 
 def _parse_csv_ids(raw_value: str) -> list[int]:
@@ -402,12 +398,14 @@ def dashboard_view(request):
 
 @login_required
 def usecase_list(request):
-    qs = _get_filtered_usecases(request, with_prefetch=True)
+    legacy_query = request.GET.copy()
+    legacy_query.pop("saved_only", None)
+    legacy_query.pop("updated_ids", None)
+    legacy_query.pop("updated", None)
+    if legacy_query.urlencode() != request.GET.urlencode():
+        return _redirect_usecase_list_with_query(legacy_query.urlencode())
 
-    updated_ids = [int(item) for item in request.GET.getlist("updated_ids") if str(item).isdigit()]
-    saved_only = request.GET.get("saved_only") == "1"
-    if saved_only and updated_ids:
-        qs = qs.filter(pk__in=updated_ids)
+    qs = _get_filtered_usecases(request, with_prefetch=True)
 
     q                 = request.GET.get("q", "").strip()
     status            = request.GET.get("status", "").strip()
@@ -425,10 +423,6 @@ def usecase_list(request):
     selected_view = request.GET.get("view", "compact").strip()
     if selected_view not in ("compact", "detailed"):
         selected_view = "compact"
-
-    full_view_query = request.GET.copy()
-    full_view_query.pop("saved_only", None)
-    full_view_query.pop("updated_ids", None)
 
     selected_sort = request.GET.get("sort", "name").strip()
     selected_dir  = request.GET.get("dir", "asc").strip()
@@ -492,9 +486,6 @@ def usecase_list(request):
         "selected_sort":              selected_sort,
         "selected_dir":               selected_dir,
         "selected_quick":             quick,
-        "saved_only":                 saved_only,
-        "updated_ids":                updated_ids,
-        "full_view_query":            full_view_query.urlencode(),
         "statuses":                   statuses,
         "devices":                    devices,
         "owners":                     owners,
@@ -658,7 +649,6 @@ def usecase_bulk_update(request):
     )
 
     updated_count = 0
-    updated_ids = []
     with transaction.atomic():
         for usecase in usecases:
             pk = str(usecase.pk)
@@ -712,14 +702,10 @@ def usecase_bulk_update(request):
                 new_data = _snapshot_usecase(usecase)
                 create_change_logs(usecase, old_data, new_data, request.user)
                 updated_count += 1
-                updated_ids.append(usecase.pk)
 
     if updated_count:
-        messages.success(
-            request,
-            f"Se actualizaron {updated_count} caso(s). Mostrando solo los casos modificados.",
-        )
-        return _redirect_usecase_list_to_saved(return_qs, updated_ids)
+        messages.success(request, f"Se actualizaron {updated_count} caso(s).")
+        return _redirect_usecase_list_with_query(return_qs)
 
     messages.info(request, "No se detectaron cambios para guardar.")
     return _redirect_usecase_list_with_query(return_qs)

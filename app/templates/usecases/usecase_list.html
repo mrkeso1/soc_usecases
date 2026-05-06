@@ -919,7 +919,7 @@
                 </thead>
                 <tbody>
                     {% for uc in usecases %}
-                    <tr class="{% if uc.is_review_overdue %}row-overdue{% elif uc.next_review_date and uc.days_until_review is not None and uc.days_until_review >= 0 and uc.days_until_review <= 30 %}row-soon{% endif %}{% if uc.pk in updated_ids %} row-updated{% endif %}">
+                    <tr class="{% if uc.is_review_overdue %}row-overdue{% elif uc.next_review_date and uc.days_until_review is not None and uc.days_until_review >= 0 and uc.days_until_review <= 30 %}row-soon{% endif %}">
 
                         <td class="col-name sticky-l1">
                             <input type="hidden" name="uc_ids" value="{{ uc.pk }}">
