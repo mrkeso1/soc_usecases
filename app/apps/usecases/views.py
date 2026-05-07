@@ -422,6 +422,11 @@ def usecase_list(request):
 
     qs = _get_filtered_usecases(request, with_prefetch=True)
 
+    updated_ids = [int(item) for item in request.GET.getlist("updated_ids") if str(item).isdigit()]
+    saved_only = request.GET.get("saved_only") == "1"
+    if saved_only and updated_ids:
+        qs = qs.filter(pk__in=updated_ids)
+
     q                 = request.GET.get("q", "").strip()
     status            = request.GET.get("status", "").strip()
     device            = request.GET.get("device", "").strip()
@@ -438,6 +443,10 @@ def usecase_list(request):
     selected_view = request.GET.get("view", "compact").strip()
     if selected_view not in ("compact", "detailed"):
         selected_view = "compact"
+
+    full_view_query = request.GET.copy()
+    full_view_query.pop("saved_only", None)
+    full_view_query.pop("updated_ids", None)
 
     selected_sort = request.GET.get("sort", "name").strip()
     selected_dir  = request.GET.get("dir", "asc").strip()
@@ -501,6 +510,9 @@ def usecase_list(request):
         "selected_sort":              selected_sort,
         "selected_dir":               selected_dir,
         "selected_quick":             quick,
+        "saved_only":                 saved_only,
+        "updated_ids":                updated_ids,
+        "full_view_query":            full_view_query.urlencode(),
         "statuses":                   statuses,
         "devices":                    devices,
         "owners":                     owners,
@@ -667,6 +679,7 @@ def usecase_bulk_update(request):
     )
 
     updated_count = 0
+    updated_ids = []
     with transaction.atomic():
         for usecase in usecases:
             pk = str(usecase.pk)
