@@ -1,8 +1,9 @@
 import calendar
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 
 from django.conf import settings
 from django.db import models
+from django.db.models import Q
 
 
 def add_months(source_date, months):
@@ -17,6 +18,7 @@ class MitreAttack(models.Model):
     external_id = models.CharField("ID ATT&CK", max_length=20, unique=True)
     name = models.CharField("Nombre", max_length=255)
     tactic = models.CharField("Táctica", max_length=100, blank=True)
+    is_enabled = models.BooleanField("Habilitada", default=True)
 
     class Meta:
         ordering = ["external_id"]
@@ -31,6 +33,7 @@ class D3Fend(models.Model):
     code = models.CharField("Código D3FEND", max_length=30, unique=True)
     name = models.CharField("Nombre", max_length=255, blank=True)
     category = models.CharField("Categoría", max_length=100, blank=True)
+    is_enabled = models.BooleanField("Habilitada", default=True)
 
     class Meta:
         ordering = ["code"]
@@ -40,6 +43,42 @@ class D3Fend(models.Model):
             return f"{self.code} - {self.name}"
         return self.code
 
+
+
+
+class LifecycleSettings(models.Model):
+    name = models.CharField(max_length=100, default="Política principal", unique=True)
+    review_interval_days = models.PositiveIntegerField("Días entre controles", default=120)
+    is_active = models.BooleanField(default=True)
+
+    class Meta:
+        verbose_name = "Configuración ciclo de vida"
+        verbose_name_plural = "Configuraciones ciclo de vida"
+        constraints = [
+            models.UniqueConstraint(
+                fields=["is_active"],
+                condition=Q(is_active=True),
+                name="unique_active_lifecycle_settings",
+            )
+        ]
+
+    def __str__(self):
+        return f"{self.name} ({self.review_interval_days} días)"
+
+    def save(self, *args, **kwargs):
+        if self.is_active:
+            qs = LifecycleSettings.objects.filter(is_active=True)
+            if self.pk:
+                qs = qs.exclude(pk=self.pk)
+            qs.update(is_active=False)
+        super().save(*args, **kwargs)
+
+
+def get_review_interval_days() -> int:
+    settings_obj = LifecycleSettings.objects.filter(is_active=True).order_by('-id').first()
+    if settings_obj and settings_obj.review_interval_days > 0:
+        return settings_obj.review_interval_days
+    return 120
 
 class UseCase(models.Model):
     BLOCKING_TYPE_CHOICES = [
@@ -100,7 +139,15 @@ class UseCase(models.Model):
     )
 
     name = models.CharField("Nombre NetWitness", max_length=255)
-    owner_name = models.CharField("Responsable", max_length=150, blank=True)
+    owner_name = models.CharField("Responsable desarrollo", max_length=150, blank=True)
+    lifecycle_control_owner = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        verbose_name="Responsable control",
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name="lifecycle_control_usecases",
+    )
     monitoring = models.CharField("Monitoreo", max_length=100, blank=True)
 
     status = models.CharField(
@@ -214,7 +261,8 @@ class UseCase(models.Model):
                 self.last_validation_date = None
 
         if self.last_validation_date:
-            self.next_review_date = add_months(self.last_validation_date, 6)
+            interval_days = get_review_interval_days()
+            self.next_review_date = self.last_validation_date + timedelta(days=interval_days)
         else:
             self.next_review_date = None
 
@@ -240,6 +288,45 @@ class UseCase(models.Model):
         if days == 0:
             return "Vence hoy"
         return f"Faltan {days} días"
+
+
+class LifecycleReview(models.Model):
+    use_case = models.ForeignKey(
+        UseCase,
+        on_delete=models.CASCADE,
+        related_name="lifecycle_reviews",
+        verbose_name="Caso de uso",
+    )
+    control_owner = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name="lifecycle_reviews_owned",
+        verbose_name="Responsable control",
+    )
+    completed_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name="lifecycle_reviews_completed",
+        verbose_name="Finalizado por",
+    )
+    status = models.CharField("Estado", max_length=20, default="Finalizado")
+    result = models.CharField("Resultado", max_length=20, blank=True, default="")
+    notes = models.TextField("Notas", blank=True)
+    checked_at = models.DateField("Fecha control", default=date.today)
+    next_review_date = models.DateField("Próximo control", null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["-checked_at", "-created_at"]
+        verbose_name = "Historial de revisión"
+        verbose_name_plural = "Historial de revisiones"
+
+    def __str__(self):
+        return f"{self.use_case.name} - {self.checked_at}"
 
 
 class UseCaseChangeLog(models.Model):
