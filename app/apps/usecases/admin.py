@@ -1,5 +1,5 @@
 from django.contrib import admin
-from .models import UseCase, UseCaseChangeLog, MitreAttack, D3Fend, LifecycleSettings
+from .models import D3Fend, LifecycleReview, LifecycleSettings, MitreAttack, UseCase, UseCaseChangeLog
 
 
 @admin.register(MitreAttack)
@@ -51,6 +51,27 @@ class UseCaseAdmin(admin.ModelAdmin):
     )
     autocomplete_fields = ("lifecycle_control_owner",)
     filter_horizontal = ("mitre_attacks", "d3fends")
+
+
+@admin.register(LifecycleReview)
+class LifecycleReviewAdmin(admin.ModelAdmin):
+    list_display = (
+        "use_case",
+        "control_owner",
+        "completed_by",
+        "status",
+        "result",
+        "checked_at",
+        "next_review_date",
+    )
+    search_fields = (
+        "use_case__name",
+        "control_owner__username",
+        "completed_by__username",
+        "notes",
+    )
+    list_filter = ("status", "result", "checked_at", "control_owner")
+    autocomplete_fields = ("use_case", "control_owner", "completed_by")
 
 
 @admin.register(UseCaseChangeLog)

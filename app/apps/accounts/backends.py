@@ -2,12 +2,26 @@ from __future__ import annotations
 
 from typing import Optional
 
-from django.contrib.auth.backends import BaseBackend
+from django.contrib.auth.backends import BaseBackend, ModelBackend
 from django.contrib.auth import get_user_model
 
 from ldap3 import ALL, SUBTREE, Connection, Server
 
-from .models import LDAPSettings
+from .models import LDAPAuthLog, LDAPSettings
+
+
+def _active_ldap_config() -> Optional[LDAPSettings]:
+    return LDAPSettings.objects.filter(is_enabled=True).order_by("-updated_at").first()
+
+
+def _log_ldap_event(*, event_type: str, username: str = "", config: Optional[LDAPSettings] = None, success: bool = False, message: str = "") -> None:
+    LDAPAuthLog.objects.create(
+        event_type=event_type,
+        username=username or "",
+        server_uri=config.server_uri if config else "",
+        success=success,
+        message=(message or "")[:2000],
+    )
 
 
 class AdminConfiguredLDAPBackend(BaseBackend):
@@ -15,12 +29,19 @@ class AdminConfiguredLDAPBackend(BaseBackend):
         if not username or not password:
             return None
 
-        config = LDAPSettings.objects.filter(is_enabled=True).order_by("-updated_at").first()
-        if not config:
+        config = _active_ldap_config()
+        if not config or config.auth_mode == LDAPSettings.AUTH_MODE_LOCAL_ONLY:
             return None
 
         user_dn = self._resolve_user_dn(config, username)
         if not user_dn:
+            _log_ldap_event(
+                event_type=LDAPAuthLog.EVENT_AUTH,
+                username=username,
+                config=config,
+                success=False,
+                message="No se pudo resolver el DN del usuario.",
+            )
             return None
 
         server = Server(config.server_uri, use_ssl=config.use_ssl, get_info=ALL)
@@ -28,7 +49,14 @@ class AdminConfiguredLDAPBackend(BaseBackend):
         try:
             with Connection(server, user=user_dn, password=password, auto_bind=True) as user_conn:
                 attrs = self._read_user_attributes(config, user_conn, user_dn)
-        except Exception:
+        except Exception as exc:
+            _log_ldap_event(
+                event_type=LDAPAuthLog.EVENT_AUTH,
+                username=username,
+                config=config,
+                success=False,
+                message=str(exc),
+            )
             return None
 
         User = get_user_model()
@@ -40,6 +68,13 @@ class AdminConfiguredLDAPBackend(BaseBackend):
         user.display_name = attrs.get(config.display_name_attr, user.display_name)
         user.is_active = True
         user.save()
+        _log_ldap_event(
+            event_type=LDAPAuthLog.EVENT_AUTH,
+            username=username,
+            config=config,
+            success=True,
+            message="Autenticación LDAP exitosa.",
+        )
         return user
 
     def get_user(self, user_id):
@@ -99,3 +134,21 @@ class AdminConfiguredLDAPBackend(BaseBackend):
             except Exception:
                 continue
         return result
+
+
+class AdminControlledModelBackend(ModelBackend):
+    """Local auth backend that can be disabled by LDAPSettings.auth_mode."""
+
+    def authenticate(self, request, username=None, password=None, **kwargs):
+        user = super().authenticate(request, username=username, password=password, **kwargs)
+        if user is None:
+            return None
+
+        config = _active_ldap_config()
+        if (
+            config
+            and config.auth_mode == LDAPSettings.AUTH_MODE_LDAP_ONLY
+            and not user.is_superuser
+        ):
+            return None
+        return user
