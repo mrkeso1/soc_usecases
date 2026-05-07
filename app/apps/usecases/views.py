@@ -13,7 +13,7 @@ from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
 
 from .forms import UseCaseForm
-from .models import D3Fend, MitreAttack, UseCase, UseCaseChangeLog
+from .models import D3Fend, LifecycleReview, MitreAttack, UseCase, UseCaseChangeLog
 
 
 # ── Helpers ──────────────────────────────────────────────────────────────────
@@ -133,8 +133,26 @@ def _get_filtered_usecases(request, *, with_prefetch: bool = True):
 
 
 def _redirect_usecase_list_with_query(return_qs: str = ""):
+    query = QueryDict(return_qs, mutable=True)
+    query.pop("saved_only", None)
+    query.pop("updated_ids", None)
+    query.pop("updated", None)
+
+    query_string = query.urlencode()
     base_url = reverse("usecase_list")
-    return redirect(f"{base_url}?{return_qs}" if return_qs else base_url)
+    return redirect(f"{base_url}?{query_string}" if query_string else base_url)
+
+
+def _is_lifecycle_admin(user) -> bool:
+    return bool(user.is_staff or user.is_superuser)
+
+
+def _can_finish_lifecycle_review(user, usecase: UseCase) -> bool:
+    return _is_lifecycle_admin(user) or usecase.lifecycle_control_owner_id == user.id
+
+
+def _can_assign_lifecycle_owner(user) -> bool:
+    return _is_lifecycle_admin(user)
 
 
 def _redirect_usecase_list_to_saved(return_qs: str, updated_ids: list[int]):
@@ -402,6 +420,13 @@ def dashboard_view(request):
 
 @login_required
 def usecase_list(request):
+    legacy_query = request.GET.copy()
+    legacy_query.pop("saved_only", None)
+    legacy_query.pop("updated_ids", None)
+    legacy_query.pop("updated", None)
+    if legacy_query.urlencode() != request.GET.urlencode():
+        return _redirect_usecase_list_with_query(legacy_query.urlencode())
+
     qs = _get_filtered_usecases(request, with_prefetch=True)
 
     updated_ids = [int(item) for item in request.GET.getlist("updated_ids") if str(item).isdigit()]
@@ -642,12 +667,15 @@ def usecase_bulk_update(request):
     if request.method != "POST":
         return redirect("usecase_list")
 
-    raw_ids    = request.POST.getlist("uc_ids")
-    usecase_ids = [int(x) for x in raw_ids if str(x).isdigit()]
-    return_qs  = request.POST.get("return_qs", "").strip()
+    return_qs = request.POST.get("return_qs", "").strip()
+    if "changed_ids" in request.POST:
+        usecase_ids = _parse_csv_ids(request.POST.get("changed_ids", ""))
+    else:
+        raw_ids = request.POST.getlist("uc_ids")
+        usecase_ids = [int(x) for x in raw_ids if str(x).isdigit()]
 
     if not usecase_ids:
-        messages.warning(request, "No se recibieron casos para actualizar.")
+        messages.info(request, "No se detectaron cambios para guardar.")
         return _redirect_usecase_list_with_query(return_qs)
 
     usecases = (
@@ -712,14 +740,10 @@ def usecase_bulk_update(request):
                 new_data = _snapshot_usecase(usecase)
                 create_change_logs(usecase, old_data, new_data, request.user)
                 updated_count += 1
-                updated_ids.append(usecase.pk)
 
     if updated_count:
-        messages.success(
-            request,
-            f"Se actualizaron {updated_count} caso(s). Mostrando solo los casos modificados.",
-        )
-        return _redirect_usecase_list_to_saved(return_qs, updated_ids)
+        messages.success(request, f"Se actualizaron {updated_count} caso(s).")
+        return _redirect_usecase_list_with_query(return_qs)
 
     messages.info(request, "No se detectaron cambios para guardar.")
     return _redirect_usecase_list_with_query(return_qs)
@@ -833,6 +857,8 @@ def lifecycle_management_view(request):
             "owner": uc.lifecycle_control_owner,
             "task_status": "Finalizada" if completed else "Pendiente",
             "is_pending": is_pending,
+            "can_finish": _can_finish_lifecycle_review(request.user, uc),
+            "can_assign_owner": _can_assign_lifecycle_owner(request.user),
             "review_badge": review_badge,
             "review_level": review_level,
         })
@@ -852,6 +878,7 @@ def lifecycle_management_view(request):
         "only_pending": only_pending,
         "owner_pending_summary": owner_pending_counter.most_common(5),
         "lifecycle_users": lifecycle_users,
+        "can_manage_lifecycle": _can_assign_lifecycle_owner(request.user),
     }
     return render(request, "usecases/lifecycle_management.html", context)
 
@@ -862,15 +889,32 @@ def lifecycle_mark_done(request, pk):
         return redirect('lifecycle_management')
 
     uc = get_object_or_404(UseCase, pk=pk)
-    owner_id = request.POST.get("lifecycle_control_owner", "").strip()
-    if owner_id.isdigit():
-        uc.lifecycle_control_owner_id = int(owner_id)
-    elif owner_id == "":
-        uc.lifecycle_control_owner = None
+    if not _can_finish_lifecycle_review(request.user, uc):
+        return HttpResponseForbidden("Solo el responsable de control asignado o un administrador puede finalizar esta revisión.")
+
+    old_data = _snapshot_usecase(uc)
+    if _can_assign_lifecycle_owner(request.user):
+        owner_id = request.POST.get("lifecycle_control_owner", "").strip()
+        if owner_id.isdigit():
+            uc.lifecycle_control_owner_id = int(owner_id)
+        elif owner_id == "":
+            uc.lifecycle_control_owner = None
+
     uc.last_validation_date = date.today()
-    uc.validation_status = 'Finalizado'
+    uc.validation_status = "Finalizado"
     uc.updated_by = request.user
     uc.save()
+
+    LifecycleReview.objects.create(
+        use_case=uc,
+        control_owner=uc.lifecycle_control_owner,
+        completed_by=request.user,
+        status=uc.validation_status,
+        result=uc.validation_result,
+        checked_at=uc.last_validation_date,
+        next_review_date=uc.next_review_date,
+    )
+    create_change_logs(uc, old_data, _snapshot_usecase(uc), request.user)
     messages.success(request, f"Ciclo de vida actualizado para '{uc.name}'.")
     return redirect('lifecycle_management')
 
@@ -880,7 +924,11 @@ def lifecycle_assign_owner(request, pk):
     if request.method != "POST":
         return redirect("lifecycle_management")
 
+    if not _can_assign_lifecycle_owner(request.user):
+        return HttpResponseForbidden("Solo administradores pueden reasignar responsables de control.")
+
     uc = get_object_or_404(UseCase, pk=pk)
+    old_data = _snapshot_usecase(uc)
     owner_id = request.POST.get("lifecycle_control_owner", "").strip()
     if owner_id.isdigit():
         uc.lifecycle_control_owner_id = int(owner_id)
@@ -888,6 +936,7 @@ def lifecycle_assign_owner(request, pk):
         uc.lifecycle_control_owner = None
     uc.updated_by = request.user
     uc.save()
+    create_change_logs(uc, old_data, _snapshot_usecase(uc), request.user)
     messages.success(request, f"Responsable de control actualizado para '{uc.name}'.")
     return redirect("lifecycle_management")
 

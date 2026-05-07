@@ -105,5 +105,5 @@ LOGIN_REDIRECT_URL = "/dashboard/"
 LOGOUT_REDIRECT_URL = "/login/"
 AUTHENTICATION_BACKENDS = [
     "apps.accounts.backends.AdminConfiguredLDAPBackend",
-    "django.contrib.auth.backends.ModelBackend",
+    "apps.accounts.backends.AdminControlledModelBackend",
 ]

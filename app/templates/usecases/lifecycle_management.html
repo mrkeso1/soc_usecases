@@ -48,6 +48,7 @@
     .owner-select { width:100%; min-width:170px; background:var(--surface-2); color:var(--text-strong); border:1px solid var(--border); border-radius:7px; padding:7px; }
     .btn-mini { background:var(--surface-3); color:var(--text); border:1px solid var(--border); padding:7px 9px; border-radius:7px; cursor:pointer; }
     .action-form { display:flex; gap:6px; align-items:center; }
+    .muted { color:var(--text-muted); font-size:.82rem; }
 </style>
 {% endblock %}
 
@@ -103,25 +104,31 @@
                     <td>{% if row.next_check %}{{ row.next_check|date:"d/m/Y" }}{% else %}—{% endif %}</td>
                     <td><span class="badge {{ row.review_level }} {% if row.review_level == 'ok' %}okb{% endif %}">{{ row.review_badge }}</span></td>
                     <td>
-                        <form class="owner-form" method="post" action="{% url 'lifecycle_assign_owner' row.usecase.pk %}">
-                            {% csrf_token %}
-                            <select class="owner-select" name="lifecycle_control_owner">
-                                <option value="">Sin responsable</option>
-                                {% for user in lifecycle_users %}
-                                    <option value="{{ user.pk }}" {% if row.owner and row.owner.pk == user.pk %}selected{% endif %}>{{ user.get_full_name|default:user.username }}</option>
-                                {% endfor %}
-                            </select>
-                            <button class="btn-mini" type="submit">Guardar</button>
-                        </form>
+                        {% if row.can_assign_owner %}
+                            <form class="owner-form" method="post" action="{% url 'lifecycle_assign_owner' row.usecase.pk %}">
+                                {% csrf_token %}
+                                <select class="owner-select" name="lifecycle_control_owner">
+                                    <option value="">Sin responsable</option>
+                                    {% for user in lifecycle_users %}
+                                        <option value="{{ user.pk }}" {% if row.owner and row.owner.pk == user.pk %}selected{% endif %}>{{ user.get_full_name|default:user.username }}</option>
+                                    {% endfor %}
+                                </select>
+                                <button class="btn-mini" type="submit">Guardar</button>
+                            </form>
+                        {% else %}
+                            {% if row.owner %}{{ row.owner.get_full_name|default:row.owner.username }}{% else %}<span class="muted">Sin responsable</span>{% endif %}
+                        {% endif %}
                     </td>
                     <td>{{ row.task_status }}</td>
                     <td>
-                        {% if row.is_pending %}
+                        {% if row.is_pending and row.can_finish %}
                             <form class="action-form" method="post" action="{% url 'lifecycle_mark_done' row.usecase.pk %}">
                                 {% csrf_token %}
                                 <input type="hidden" name="lifecycle_control_owner" value="{% if row.owner %}{{ row.owner.pk }}{% endif %}">
                                 <button class="btn-save" type="submit">Finalizar</button>
                             </form>
+                        {% elif row.is_pending %}
+                            <span class="muted">Sin permiso</span>
                         {% else %}
                             ✓
                         {% endif %}
