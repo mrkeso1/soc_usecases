@@ -1,0 +1,18 @@
+<nav class="topbar">
+    <div class="brand">
+        <div class="brand-icon">
+            <svg viewBox="0 0 16 16"><path d="M2 2h5v5H2zM9 2h5v5H9zM2 9h5v5H2zM9 9h5v5H9z"/></svg>
+        </div>
+        SOC Use Cases Manager
+    </div>
+    <div class="topbar-nav">
+        {% with url_name=request.resolver_match.url_name %}
+            <a href="{% url 'dashboard' %}" class="{% if url_name == 'dashboard' %}active{% endif %}">Dashboard</a>
+            <a href="{% url 'usecase_list' %}" class="{% if url_name == 'usecase_list' or url_name == 'usecase_detail' or url_name == 'usecase_edit' or url_name == 'usecase_create' %}active{% endif %}">Inventario</a>
+            <a href="{% url 'lifecycle_management' %}" class="{% if url_name == 'lifecycle_management' %}active{% endif %}">Ciclo de Vida</a>
+        {% endwith %}
+        <div class="topbar-divider"></div>
+        <a href="/admin/">Admin</a>
+        <a href="{% url 'logout' %}">Salir</a>
+    </div>
+</nav>

@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}SOC Use Cases Manager{% endblock %}</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;600;700&family=Syne:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg: #060b14;
+            --surface: #0c1524;
+            --surface-2: #111d30;
+            --surface-3: #172540;
+            --border: rgba(56, 100, 163, 0.22);
+            --border-bright: rgba(56, 100, 163, 0.55);
+            --text: #b8cce8;
+            --text-strong: #e8f1ff;
+            --text-muted: #4e6a8e;
+            --accent: #2d7aff;
+            --accent-dim: rgba(45, 122, 255, 0.12);
+            --good: #00e5a0;
+            --medium: #f5a623;
+            --bad: #ff4757;
+            --grid-color: rgba(45, 122, 255, 0.04);
+        }
+
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+
+        body {
+            font-family: 'Syne', sans-serif;
+            background: var(--bg);
+            color: var(--text);
+            min-height: 100vh;
+            overflow-x: hidden;
+        }
+
+        body::before {
+            content: '';
+            position: fixed;
+            inset: 0;
+            background-image:
+                linear-gradient(var(--grid-color) 1px, transparent 1px),
+                linear-gradient(90deg, var(--grid-color) 1px, transparent 1px);
+            background-size: 48px 48px;
+            pointer-events: none;
+            z-index: 0;
+        }
+
+        .container {
+            position: relative;
+            z-index: 1;
+            padding: 28px 28px 48px;
+        }
+    </style>
+    {% include "includes/topbar_styles.html" %}
+    {% block extra_css %}{% endblock %}
+</head>
+<body>
+    {% include "includes/topbar.html" %}
+    {% block content %}{% endblock %}
+</body>
+</html>
