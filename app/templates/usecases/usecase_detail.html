@@ -268,9 +268,9 @@
             </div>
 
             <div class="actions">
-                <a href="{% url 'usecase_edit' usecase.pk %}">Editar</a>
+                {% if can_manage_usecases %}<a href="{% url 'usecase_edit' usecase.pk %}">Editar</a>{% endif %}
                 <a href="{% url 'usecase_list' %}" class="secondary">Volver</a>
-                {% if request.user.is_staff or request.user.is_superuser %}
+                {% if can_delete_usecases %}
                 <form method="post" action="{% url 'usecase_delete' usecase.pk %}" onsubmit="return confirm('¿Eliminar este caso de uso? Esta acción no se puede deshacer.');">
                     {% csrf_token %}
                     <button class="btn-danger" type="submit">Eliminar</button>
