@@ -144,7 +144,10 @@ def _redirect_usecase_list_with_query(return_qs: str = ""):
 
 
 def _is_lifecycle_admin(user) -> bool:
-    return bool(user.is_staff or user.is_superuser)
+    return bool(
+        user.is_superuser
+        or user.has_perm("usecases.manage_lifecycle_controls")
+    )
 
 
 def _can_finish_lifecycle_review(user, usecase: UseCase) -> bool:
@@ -153,16 +156,6 @@ def _can_finish_lifecycle_review(user, usecase: UseCase) -> bool:
 
 def _can_assign_lifecycle_owner(user) -> bool:
     return _is_lifecycle_admin(user)
-
-
-def _redirect_usecase_list_to_saved(return_qs: str, updated_ids: list[int]):
-    query = QueryDict(return_qs, mutable=True)
-    query.pop("saved_only", None)
-    query.pop("updated_ids", None)
-    query.pop("updated", None)
-    query.setlist("updated_ids", [str(item) for item in updated_ids])
-    query["saved_only"] = "1"
-    return _redirect_usecase_list_with_query(query.urlencode())
 
 
 def _parse_csv_ids(raw_value: str) -> list[int]:
@@ -812,9 +805,15 @@ def lifecycle_management_view(request):
     cycle_start, cycle_end = _current_lifecycle_window(today)
     only_pending = request.GET.get("only_pending") == "1"
 
+    is_lifecycle_admin = _is_lifecycle_admin(request.user)
     usecases = UseCase.objects.select_related("lifecycle_control_owner").all().order_by("name")
+
     User = get_user_model()
-    lifecycle_users = User.objects.filter(is_active=True).order_by("username")
+    lifecycle_users = (
+        User.objects.filter(is_active=True).order_by("username")
+        if is_lifecycle_admin
+        else User.objects.none()
+    )
     rows = []
     completed_in_cycle = 0
     owner_pending_counter = Counter()
@@ -863,7 +862,7 @@ def lifecycle_management_view(request):
             "review_level": review_level,
         })
 
-    total = UseCase.objects.count()
+    total = usecases.count()
     pending = total - completed_in_cycle
     days_left = (cycle_end - today).days
 
@@ -878,7 +877,8 @@ def lifecycle_management_view(request):
         "only_pending": only_pending,
         "owner_pending_summary": owner_pending_counter.most_common(5),
         "lifecycle_users": lifecycle_users,
-        "can_manage_lifecycle": _can_assign_lifecycle_owner(request.user),
+        "can_manage_lifecycle": is_lifecycle_admin,
+        "lifecycle_scope_label": "Todos los casos" if is_lifecycle_admin else "Todos los casos · solo podés finalizar los asignados a vos",
     }
     return render(request, "usecases/lifecycle_management.html", context)
 

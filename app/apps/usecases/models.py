@@ -243,6 +243,7 @@ class UseCase(models.Model):
             ("approve_usecase", "Can approve use case"),
             ("promote_usecase", "Can promote use case to production"),
             ("review_usecase", "Can review use case"),
+            ("manage_lifecycle_controls", "Can manage all lifecycle controls"),
             ("retire_usecase", "Can retire use case"),
         ]
 
