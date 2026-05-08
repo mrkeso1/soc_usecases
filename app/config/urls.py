@@ -1,9 +1,11 @@
+from django.conf import settings
+from django.conf.urls.static import static
 from django.contrib import admin
 from django.contrib.auth import views as auth_views
 from django.shortcuts import redirect
 from django.urls import include, path
 
-from apps.usecases.views import dashboard_view
+from apps.usecases.views import dashboard_pdf_export, dashboard_view
 
 
 def root_redirect(request):
@@ -19,6 +21,10 @@ urlpatterns = [
     ),
     path("logout/", auth_views.LogoutView.as_view(), name="logout"),
     path("dashboard/", dashboard_view, name="dashboard"),
+    path("dashboard/export/pdf/", dashboard_pdf_export, name="dashboard_pdf_export"),
     path("usecases/", include("apps.usecases.urls")),
     path("", root_redirect, name="home"),
 ]
+
+if settings.DEBUG:
+    urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
