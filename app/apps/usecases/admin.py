@@ -1,5 +1,5 @@
 from django.contrib import admin
-from .models import D3Fend, LifecycleReview, LifecycleSettings, MitreAttack, UseCase, UseCaseChangeLog
+from .models import D3Fend, DashboardReportSettings, LifecycleReview, LifecycleSettings, MitreAttack, UseCase, UseCaseChangeLog
 
 
 @admin.register(MitreAttack)
@@ -101,3 +101,10 @@ class LifecycleSettingsAdmin(admin.ModelAdmin):
     list_display = ("name", "review_interval_days", "is_active")
     list_filter = ("is_active",)
     search_fields = ("name",)
+
+
+@admin.register(DashboardReportSettings)
+class DashboardReportSettingsAdmin(admin.ModelAdmin):
+    list_display = ("name", "is_active", "report_title", "updated_at")
+    list_filter = ("is_active",)
+    search_fields = ("name", "report_title", "report_subtitle", "footer_text")

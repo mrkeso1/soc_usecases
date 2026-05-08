@@ -4,6 +4,7 @@ from typing import Optional
 
 from django.contrib.auth.backends import BaseBackend, ModelBackend
 from django.contrib.auth import get_user_model
+from django.db.utils import OperationalError, ProgrammingError
 
 from ldap3 import ALL, SUBTREE, Connection, Server
 
@@ -11,17 +12,23 @@ from .models import LDAPAuthLog, LDAPSettings
 
 
 def _active_ldap_config() -> Optional[LDAPSettings]:
-    return LDAPSettings.objects.filter(is_enabled=True).order_by("-updated_at").first()
+    try:
+        return LDAPSettings.objects.filter(is_enabled=True).order_by("-updated_at").first()
+    except (OperationalError, ProgrammingError):
+        return None
 
 
 def _log_ldap_event(*, event_type: str, username: str = "", config: Optional[LDAPSettings] = None, success: bool = False, message: str = "") -> None:
-    LDAPAuthLog.objects.create(
-        event_type=event_type,
-        username=username or "",
-        server_uri=config.server_uri if config else "",
-        success=success,
-        message=(message or "")[:2000],
-    )
+    try:
+        LDAPAuthLog.objects.create(
+            event_type=event_type,
+            username=username or "",
+            server_uri=config.server_uri if config else "",
+            success=success,
+            message=(message or "")[:2000],
+        )
+    except (OperationalError, ProgrammingError):
+        return
 
 
 class AdminConfiguredLDAPBackend(BaseBackend):

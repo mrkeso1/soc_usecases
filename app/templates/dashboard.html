@@ -660,6 +660,7 @@
             <div class="filter-actions">
                 <button type="submit" class="btn-primary">Filtrar</button>
                 <a href="{% url 'dashboard' %}" class="btn-secondary">Limpiar</a>
+                <a href="{% url 'dashboard_pdf_export' %}{% if request.GET.urlencode %}?{{ request.GET.urlencode }}{% endif %}" class="btn-secondary">Exportar PDF</a>
             </div>
         </form>
     </div>

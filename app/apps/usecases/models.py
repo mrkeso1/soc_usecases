@@ -46,6 +46,43 @@ class D3Fend(models.Model):
 
 
 
+class DashboardReportSettings(models.Model):
+    name = models.CharField(max_length=100, default="Reporte principal", unique=True)
+    is_active = models.BooleanField(default=True)
+    logo = models.ImageField("Logo", upload_to="dashboard_reports/logos/", blank=True)
+    report_title = models.CharField("Título", max_length=160, default="Reporte ejecutivo SOC")
+    report_subtitle = models.CharField(
+        "Subtítulo",
+        max_length=255,
+        default="Cobertura ATT&CK y D3FEND sobre casos de uso en producción",
+        blank=True,
+    )
+    footer_text = models.CharField("Pie de página", max_length=255, blank=True, default="SOC Use Cases Manager")
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name = "Configuración reporte dashboard"
+        verbose_name_plural = "Configuraciones reporte dashboard"
+        constraints = [
+            models.UniqueConstraint(
+                fields=["is_active"],
+                condition=Q(is_active=True),
+                name="unique_active_dashboard_report_settings",
+            )
+        ]
+
+    def __str__(self):
+        return f"{self.name} ({'Activo' if self.is_active else 'Inactivo'})"
+
+    def save(self, *args, **kwargs):
+        if self.is_active:
+            qs = DashboardReportSettings.objects.filter(is_active=True)
+            if self.pk:
+                qs = qs.exclude(pk=self.pk)
+            qs.update(is_active=False)
+        super().save(*args, **kwargs)
+
+
 class LifecycleSettings(models.Model):
     name = models.CharField(max_length=100, default="Política principal", unique=True)
     review_interval_days = models.PositiveIntegerField("Días entre controles", default=120)
