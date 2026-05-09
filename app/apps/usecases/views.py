@@ -7,7 +7,7 @@ from io import BytesIO
 from django.contrib import messages
 from django.contrib.auth import get_user_model
 from django.contrib.auth.decorators import login_required
-from django.db import transaction
+from django.db import OperationalError, ProgrammingError, transaction
 from django.db.models import Q
 from django.http import HttpResponse, JsonResponse, HttpResponseForbidden, QueryDict
 from django.shortcuts import get_object_or_404, redirect, render
@@ -451,6 +451,13 @@ def _safe_table_rows(items, code_attr, subtitle_attr=None, limit=10):
     return rows or [["-", "Sin pendientes", "-"]]
 
 
+def _get_active_dashboard_report_settings():
+    try:
+        return DashboardReportSettings.objects.filter(is_active=True).order_by("-updated_at").first()
+    except (OperationalError, ProgrammingError):
+        return None
+
+
 def _build_dashboard_pdf(buffer, context, report_settings, generated_by):
     from reportlab.lib import colors
     from reportlab.lib.enums import TA_RIGHT
@@ -546,7 +553,7 @@ def _build_dashboard_pdf(buffer, context, report_settings, generated_by):
 @login_required
 def dashboard_pdf_export(request):
     context = _build_dashboard_context(request)
-    report_settings = DashboardReportSettings.objects.filter(is_active=True).order_by("-updated_at").first()
+    report_settings = _get_active_dashboard_report_settings()
     buffer = BytesIO()
     _build_dashboard_pdf(buffer, context, report_settings, request.user)
     response = HttpResponse(buffer.getvalue(), content_type="application/pdf")
