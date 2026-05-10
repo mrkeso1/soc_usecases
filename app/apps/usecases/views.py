@@ -787,6 +787,9 @@ def usecase_create(request):
 
 @login_required
 def usecase_edit(request, pk):
+    if not _can_manage_usecases(request.user):
+        return HttpResponseForbidden("No tenés permisos para editar casos de uso.")
+
     usecase = get_object_or_404(
         UseCase.objects.prefetch_related("mitre_attacks", "d3fends"), pk=pk
     )
@@ -840,6 +843,9 @@ def usecase_detail(request, pk):
 
 @login_required
 def usecase_quick_update(request, pk):
+    if not _can_manage_usecases(request.user):
+        return HttpResponseForbidden("No tenés permisos para actualizar casos de uso.")
+
     if request.method != "POST":
         return redirect("usecase_list")
 
