@@ -13,6 +13,8 @@ from django.http import HttpResponse, JsonResponse, HttpResponseForbidden, Query
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
 
+from apps.accounts.roles import is_admin_role, is_readonly_role
+
 from .forms import UseCaseForm
 from .models import D3Fend, DashboardReportSettings, LifecycleReview, MitreAttack, UseCase, UseCaseChangeLog
 
@@ -145,26 +147,74 @@ def _redirect_usecase_list_with_query(return_qs: str = ""):
 
 
 
-def _can_add_usecases(user) -> bool:
-    return bool(user.is_superuser or user.has_perm("usecases.add_usecase"))
-
-
-def _can_manage_usecases(user) -> bool:
-    return bool(user.is_superuser or user.has_perm("usecases.change_usecase"))
-
-
-def _can_delete_usecases(user) -> bool:
-    return bool(user.is_superuser or user.has_perm("usecases.delete_usecase"))
-
-def _is_lifecycle_admin(user) -> bool:
+def _can_access_usecases(user) -> bool:
     return bool(
-        user.is_superuser
-        or user.has_perm("usecases.manage_lifecycle_controls")
+        is_admin_role(user)
+        or (
+            getattr(user, "is_authenticated", False)
+            and not is_readonly_role(user)
+            and user.has_perm("usecases.view_usecase")
+        )
     )
 
 
+def _user_owner_tokens(user) -> set[str]:
+    values = [
+        getattr(user, "username", ""),
+        getattr(user, "display_name", ""),
+        getattr(user, "email", ""),
+    ]
+    full_name = user.get_full_name() if hasattr(user, "get_full_name") else ""
+    values.append(full_name)
+    return {str(value).strip().casefold() for value in values if str(value).strip()}
+
+
+def _is_usecase_owner(user, usecase: UseCase) -> bool:
+    if not getattr(user, "is_authenticated", False):
+        return False
+    if usecase.created_by_id == user.id or usecase.lifecycle_control_owner_id == user.id:
+        return True
+    owner_name = (usecase.owner_name or "").strip().casefold()
+    return bool(owner_name and owner_name in _user_owner_tokens(user))
+
+
+def _can_add_usecases(user) -> bool:
+    return bool(is_admin_role(user) or (not is_readonly_role(user) and user.has_perm("usecases.add_usecase")))
+
+
+def _can_manage_usecases(user, usecase: UseCase | None = None) -> bool:
+    if is_admin_role(user):
+        return True
+    if is_readonly_role(user) or not user.has_perm("usecases.change_usecase"):
+        return False
+    if usecase is None:
+        return True
+    return _is_usecase_owner(user, usecase)
+
+
+def _can_delete_usecases(user, usecase: UseCase | None = None) -> bool:
+    if is_admin_role(user):
+        return True
+    if is_readonly_role(user) or not user.has_perm("usecases.delete_usecase"):
+        return False
+    if usecase is None:
+        return True
+    return _is_usecase_owner(user, usecase)
+
+
+def _is_lifecycle_admin(user) -> bool:
+    return bool(is_admin_role(user) or user.has_perm("usecases.manage_lifecycle_controls"))
+
+
 def _can_finish_lifecycle_review(user, usecase: UseCase) -> bool:
-    return _is_lifecycle_admin(user) or usecase.lifecycle_control_owner_id == user.id
+    return bool(
+        _is_lifecycle_admin(user)
+        or (
+            not is_readonly_role(user)
+            and user.has_perm("usecases.add_lifecyclereview")
+            and usecase.lifecycle_control_owner_id == user.id
+        )
+    )
 
 
 def _can_assign_lifecycle_owner(user) -> bool:
@@ -563,6 +613,9 @@ def dashboard_pdf_export(request):
 
 @login_required
 def usecase_list(request):
+    if not _can_access_usecases(request.user):
+        return HttpResponseForbidden("Solo el grupo ReadOnly puede acceder al dashboard.")
+
     legacy_query = request.GET.copy()
     legacy_query.pop("saved_only", None)
     legacy_query.pop("updated_ids", None)
@@ -634,6 +687,11 @@ def usecase_list(request):
     visible_without_attack = qs.filter(mitre_attacks__isnull=True).distinct().count()
     visible_without_d3fend = qs.filter(d3fends__isnull=True).distinct().count()
 
+    qs = list(qs)
+    for usecase in qs:
+        usecase.can_manage_by_user = _can_manage_usecases(request.user, usecase)
+        usecase.can_delete_by_user = _can_delete_usecases(request.user, usecase)
+
     context = {
         "usecases":                   qs,
         "q":                          q,
@@ -661,14 +719,17 @@ def usecase_list(request):
         "visible_without_attack":     visible_without_attack,
         "visible_without_d3fend":     visible_without_d3fend,
         "can_add_usecases":           _can_add_usecases(request.user),
-        "can_manage_usecases":        _can_manage_usecases(request.user),
-        "can_delete_usecases":        _can_delete_usecases(request.user),
+        "can_manage_usecases":        any(uc.can_manage_by_user for uc in qs),
+        "can_delete_usecases":        any(uc.can_delete_by_user for uc in qs),
     }
     return render(request, "usecases/usecase_list.html", context)
 
 
 @login_required
 def export_usecases_csv(request):
+    if not _can_access_usecases(request.user):
+        return HttpResponseForbidden("Solo el grupo ReadOnly puede acceder al dashboard.")
+
     qs = _get_filtered_usecases(request, with_prefetch=True).order_by("name")
 
     response = HttpResponse(content_type="text/csv; charset=utf-8-sig")
@@ -708,6 +769,8 @@ def usecase_create(request):
             usecase = form.save(commit=False)
             usecase.created_by = request.user
             usecase.updated_by = request.user
+            if not usecase.owner_name:
+                usecase.owner_name = request.user.get_full_name() or request.user.username
             usecase.save()
             form.save_m2m()
             messages.success(request, "Caso de uso creado correctamente.")
@@ -730,6 +793,9 @@ def usecase_edit(request, pk):
     usecase = get_object_or_404(
         UseCase.objects.prefetch_related("mitre_attacks", "d3fends"), pk=pk
     )
+    if not _can_manage_usecases(request.user, usecase):
+        return HttpResponseForbidden("Solo podés editar casos de uso propios.")
+
     old_data = _snapshot_usecase(usecase)
 
     if request.method == "POST":
@@ -755,6 +821,9 @@ def usecase_edit(request, pk):
 
 @login_required
 def usecase_detail(request, pk):
+    if not _can_access_usecases(request.user):
+        return HttpResponseForbidden("Solo el grupo ReadOnly puede acceder al dashboard.")
+
     usecase = get_object_or_404(
         UseCase.objects.prefetch_related("mitre_attacks", "d3fends", "change_logs__changed_by"),
         pk=pk,
@@ -766,8 +835,8 @@ def usecase_detail(request, pk):
         {
             "usecase": usecase,
             "change_logs": change_logs,
-            "can_manage_usecases": _can_manage_usecases(request.user),
-            "can_delete_usecases": _can_delete_usecases(request.user),
+            "can_manage_usecases": _can_manage_usecases(request.user, usecase),
+            "can_delete_usecases": _can_delete_usecases(request.user, usecase),
         },
     )
 
@@ -783,6 +852,9 @@ def usecase_quick_update(request, pk):
     usecase = get_object_or_404(
         UseCase.objects.prefetch_related("mitre_attacks", "d3fends"), pk=pk
     )
+    if not _can_manage_usecases(request.user, usecase):
+        return HttpResponseForbidden("Solo podés actualizar casos de uso propios.")
+
     old_data = _snapshot_usecase(usecase)
 
     usecase.owner_name        = request.POST.get("owner_name", "").strip()
@@ -812,8 +884,8 @@ def usecase_quick_update(request, pk):
 
 @login_required
 def usecase_bulk_update(request):
-    if not _can_manage_usecases(request.user):
-        return HttpResponseForbidden("No tenés permisos para actualizar casos de uso.")
+    if not _can_access_usecases(request.user):
+        return HttpResponseForbidden("Solo el grupo ReadOnly puede acceder al dashboard.")
 
     if request.method != "POST":
         return redirect("usecase_list")
@@ -839,6 +911,9 @@ def usecase_bulk_update(request):
     updated_count = 0
     with transaction.atomic():
         for usecase in usecases:
+            if not _can_manage_usecases(request.user, usecase):
+                continue
+
             pk = str(usecase.pk)
             old_data = _snapshot_usecase(usecase)
 
@@ -901,6 +976,9 @@ def usecase_bulk_update(request):
 
 @login_required
 def mitre_attack_autocomplete(request):
+    if not _can_access_usecases(request.user):
+        return HttpResponseForbidden("Solo el grupo ReadOnly puede acceder al dashboard.")
+
     q  = request.GET.get("q", "").strip()
     qs = MitreAttack.objects.filter(is_enabled=True)
     if q:
@@ -922,6 +1000,9 @@ def mitre_attack_autocomplete(request):
 
 @login_required
 def d3fend_autocomplete(request):
+    if not _can_access_usecases(request.user):
+        return HttpResponseForbidden("Solo el grupo ReadOnly puede acceder al dashboard.")
+
     q  = request.GET.get("q", "").strip()
     qs = D3Fend.objects.filter(is_enabled=True)
     if q:
@@ -958,6 +1039,9 @@ def _current_lifecycle_window(today: date):
 
 @login_required
 def lifecycle_management_view(request):
+    if not _can_access_usecases(request.user):
+        return HttpResponseForbidden("Solo el grupo ReadOnly puede acceder al dashboard.")
+
     today = date.today()
     cycle_start, cycle_end = _current_lifecycle_window(today)
     only_pending = request.GET.get("only_pending") == "1"
@@ -1102,10 +1186,11 @@ def lifecycle_assign_owner(request, pk):
 def usecase_delete(request, pk):
     if request.method != "POST":
         return redirect("usecase_detail", pk=pk)
-    if not _can_delete_usecases(request.user):
-        return HttpResponseForbidden("No tenés permisos para eliminar casos de uso.")
 
     usecase = get_object_or_404(UseCase, pk=pk)
+    if not _can_delete_usecases(request.user, usecase):
+        return HttpResponseForbidden("Solo podés eliminar casos de uso propios si tenés permiso de borrado.")
+
     name = usecase.name
     usecase.delete()
     messages.success(request, f"Caso de uso '{name}' eliminado.")

@@ -66,6 +66,33 @@
         background: var(--accent-dim, rgba(45, 122, 255, 0.12));
     }
 
+
+    .topbar-logout-form {
+        display: inline-flex;
+        align-items: center;
+        margin: 0;
+    }
+
+    .topbar-logout-button {
+        font-family: 'JetBrains Mono', monospace;
+        font-size: 12px;
+        font-weight: 500;
+        color: var(--text-muted, #4e6a8e);
+        background: transparent;
+        border: 0;
+        text-decoration: none;
+        padding: 6px 12px;
+        border-radius: 6px;
+        transition: color 0.15s, background 0.15s;
+        letter-spacing: 0.03em;
+        cursor: pointer;
+    }
+
+    .topbar-logout-button:hover {
+        color: var(--text-strong, #e8f1ff);
+        background: var(--surface-3, #172540);
+    }
+
     .topbar-divider {
         width: 1px;
         height: 18px;

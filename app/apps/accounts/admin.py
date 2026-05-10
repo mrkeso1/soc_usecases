@@ -1,5 +1,6 @@
 from django.contrib import admin, messages
-from django.contrib.auth.admin import UserAdmin as DjangoUserAdmin
+from django.contrib.auth.admin import GroupAdmin as DjangoGroupAdmin, UserAdmin as DjangoUserAdmin
+from django.contrib.auth.models import Group
 from django.shortcuts import redirect
 from django.urls import path, reverse
 from django.utils.html import format_html
@@ -7,6 +8,23 @@ from django.utils.html import format_html
 from ldap3 import ALL, Connection, Server
 
 from .models import LDAPAuthLog, LDAPSettings, User
+from .roles import ROLE_GROUPS
+
+
+if admin.site.is_registered(Group):
+    admin.site.unregister(Group)
+
+
+@admin.register(Group)
+class RoleGroupAdmin(DjangoGroupAdmin):
+    def get_queryset(self, request):
+        return super().get_queryset(request).filter(name__in=ROLE_GROUPS)
+
+    def has_add_permission(self, request):
+        return False
+
+    def has_delete_permission(self, request, obj=None):
+        return False
 
 
 @admin.register(User)
@@ -14,6 +32,11 @@ class UserAdmin(DjangoUserAdmin):
     fieldsets = DjangoUserAdmin.fieldsets + (
         ("Datos SOC", {"fields": ("display_name", "ldap_dn", "area")}),
     )
+
+    def formfield_for_manytomany(self, db_field, request, **kwargs):
+        if db_field.name == "groups":
+            kwargs["queryset"] = db_field.remote_field.model.objects.filter(name__in=ROLE_GROUPS)
+        return super().formfield_for_manytomany(db_field, request, **kwargs)
 
 
 @admin.register(LDAPSettings)

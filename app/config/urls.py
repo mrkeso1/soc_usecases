@@ -19,7 +19,7 @@ urlpatterns = [
         auth_views.LoginView.as_view(template_name="registration/login.html"),
         name="login",
     ),
-    path("logout/", auth_views.LogoutView.as_view(), name="logout"),
+    path("logout/", auth_views.LogoutView.as_view(next_page="login"), name="logout"),
     path("dashboard/", dashboard_view, name="dashboard"),
     path("dashboard/export/pdf/", dashboard_pdf_export, name="dashboard_pdf_export"),
     path("usecases/", include("apps.usecases.urls")),
