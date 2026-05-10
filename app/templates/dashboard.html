@@ -613,24 +613,11 @@
             .page-title { font-size: 1.65rem; }
         }
     </style>
+    {% include "includes/topbar_styles.html" %}
 </head>
 <body>
 
-<nav class="topbar">
-    <div class="brand">
-        <div class="brand-icon">
-            <svg viewBox="0 0 16 16"><path d="M2 2h5v5H2zM9 2h5v5H9zM2 9h5v5H2zM9 9h5v5H9z"/></svg>
-        </div>
-        SOC Use Cases Manager
-    </div>
-    <div class="topbar-nav">
-        <a href="/dashboard/" class="active">Dashboard</a>
-        <a href="/usecases/">Inventario</a>
-        <div class="topbar-divider"></div>
-        <a href="/admin/">Admin</a>
-        <a href="{% url 'logout' %}">Salir</a>
-    </div>
-</nav>
+{% include "includes/topbar.html" %}
 
 <div class="container">
     <div class="page-header">
@@ -663,24 +650,6 @@
                 </select>
             </div>
             <div class="filter-group">
-                <label>Estado ciclo</label>
-                <select name="validation_status">
-                    <option value="">Todo</option>
-                    {% for value, label in validation_status_choices %}
-                        <option value="{{ value }}" {% if selected_validation_status == value %}selected{% endif %}>{{ label }}</option>
-                    {% endfor %}
-                </select>
-            </div>
-            <div class="filter-group">
-                <label>Resultado</label>
-                <select name="validation_result">
-                    <option value="">Todo</option>
-                    {% for value, label in validation_result_choices %}
-                        <option value="{{ value }}" {% if selected_validation_result == value %}selected{% endif %}>{{ label }}</option>
-                    {% endfor %}
-                </select>
-            </div>
-            <div class="filter-group">
                 <label>Habilitado</label>
                 <select name="enabled">
                     <option value="">Ambos</option>
@@ -691,6 +660,7 @@
             <div class="filter-actions">
                 <button type="submit" class="btn-primary">Filtrar</button>
                 <a href="{% url 'dashboard' %}" class="btn-secondary">Limpiar</a>
+                <a href="{% url 'dashboard_pdf_export' %}{% if request.GET.urlencode %}?{{ request.GET.urlencode }}{% endif %}" class="btn-secondary">Exportar PDF</a>
             </div>
         </form>
     </div>
