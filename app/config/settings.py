@@ -20,10 +20,7 @@ INSTALLED_APPS = [
     "django.contrib.staticfiles",
 
     "apps.accounts.apps.AccountsConfig",
-    "apps.core.apps.CoreConfig",
-    "apps.catalog.apps.CatalogConfig",
     "apps.usecases.apps.UsecasesConfig",
-    "apps.workflow.apps.WorkflowConfig",
 ]
 
 MIDDLEWARE = [

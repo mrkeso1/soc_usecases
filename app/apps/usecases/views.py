@@ -1,7 +1,6 @@
 from collections import Counter
 from datetime import date, timedelta, datetime
 import csv
-import math
 from io import BytesIO
 
 from django.contrib import messages
@@ -13,57 +12,23 @@ from django.http import HttpResponse, JsonResponse, HttpResponseForbidden, Query
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
 
-from apps.accounts.roles import is_admin_role, is_readonly_role
-
+from .dashboard import build_dashboard_context
 from .forms import UseCaseForm
-from .models import D3Fend, DashboardReportSettings, LifecycleReview, MitreAttack, UseCase, UseCaseChangeLog
+from .lifecycle import current_lifecycle_window
+from .models import D3Fend, LifecycleReview, MitreAttack, UseCase, UseCaseChangeLog
+from .permissions import (
+    can_access_usecases,
+    can_add_usecases,
+    can_assign_lifecycle_owner,
+    can_delete_usecases,
+    can_finish_lifecycle_review,
+    can_manage_usecases,
+    is_lifecycle_admin as user_is_lifecycle_admin,
+)
+from .reports import build_dashboard_pdf, get_active_dashboard_report_settings
 
 
 # ── Helpers ──────────────────────────────────────────────────────────────────
-
-def _coverage_color_class(percent: float) -> str:
-    if percent >= 80:
-        return "good"
-    if percent >= 40:
-        return "medium"
-    return "bad"
-
-
-def _safe_percent(part: int, total: int) -> float:
-    if not total:
-        return 0.0
-    return round((part / total) * 100, 1)
-
-
-def _svg_dashoffset(percent: float, radius: float = 80.0) -> float:
-    """
-    Given a percentage (0-100) and the SVG circle radius,
-    return the stroke-dashoffset so that the filled arc matches the percentage.
-    circumference = 2π·r ≈ 502.65 for r=80
-    offset = circumference * (1 - percent/100)
-    """
-    circumference = 2 * math.pi * radius
-    return round(circumference * (1 - percent / 100), 2)
-
-
-def _build_radial_metric(
-    title: str,
-    covered: int,
-    total: int,
-    covered_label: str = "Cubiertas",
-) -> dict:
-    percent = _safe_percent(covered, total)
-    return {
-        "title": title,
-        "covered": covered,
-        "total": total,
-        "percent": percent,
-        "percent_label": str(percent).replace(".", ","),
-        "color_class": _coverage_color_class(percent),
-        "covered_label": covered_label,
-        "dashoffset": _svg_dashoffset(percent),
-    }
-
 
 def _get_filtered_usecases(request, *, with_prefetch: bool = True):
     qs = UseCase.objects.all()
@@ -145,80 +110,6 @@ def _redirect_usecase_list_with_query(return_qs: str = ""):
     base_url = reverse("usecase_list")
     return redirect(f"{base_url}?{query_string}" if query_string else base_url)
 
-
-
-def _can_access_usecases(user) -> bool:
-    return bool(
-        is_admin_role(user)
-        or (
-            getattr(user, "is_authenticated", False)
-            and not is_readonly_role(user)
-            and user.has_perm("usecases.view_usecase")
-        )
-    )
-
-
-def _user_owner_tokens(user) -> set[str]:
-    values = [
-        getattr(user, "username", ""),
-        getattr(user, "display_name", ""),
-        getattr(user, "email", ""),
-    ]
-    full_name = user.get_full_name() if hasattr(user, "get_full_name") else ""
-    values.append(full_name)
-    return {str(value).strip().casefold() for value in values if str(value).strip()}
-
-
-def _is_usecase_owner(user, usecase: UseCase) -> bool:
-    if not getattr(user, "is_authenticated", False):
-        return False
-    if usecase.created_by_id == user.id or usecase.lifecycle_control_owner_id == user.id:
-        return True
-    owner_name = (usecase.owner_name or "").strip().casefold()
-    return bool(owner_name and owner_name in _user_owner_tokens(user))
-
-
-def _can_add_usecases(user) -> bool:
-    return bool(is_admin_role(user) or (not is_readonly_role(user) and user.has_perm("usecases.add_usecase")))
-
-
-def _can_manage_usecases(user, usecase: UseCase | None = None) -> bool:
-    if is_admin_role(user):
-        return True
-    if is_readonly_role(user) or not user.has_perm("usecases.change_usecase"):
-        return False
-    if usecase is None:
-        return True
-    return _is_usecase_owner(user, usecase)
-
-
-def _can_delete_usecases(user, usecase: UseCase | None = None) -> bool:
-    if is_admin_role(user):
-        return True
-    if is_readonly_role(user) or not user.has_perm("usecases.delete_usecase"):
-        return False
-    if usecase is None:
-        return True
-    return _is_usecase_owner(user, usecase)
-
-
-def _is_lifecycle_admin(user) -> bool:
-    return bool(is_admin_role(user) or user.has_perm("usecases.manage_lifecycle_controls"))
-
-
-def _can_finish_lifecycle_review(user, usecase: UseCase) -> bool:
-    return bool(
-        _is_lifecycle_admin(user)
-        or (
-            not is_readonly_role(user)
-            and user.has_perm("usecases.add_lifecyclereview")
-            and usecase.lifecycle_control_owner_id == user.id
-        )
-    )
-
-
-def _can_assign_lifecycle_owner(user) -> bool:
-    return _is_lifecycle_admin(user)
 
 
 def _parse_csv_ids(raw_value: str) -> list[int]:
@@ -321,291 +212,17 @@ def _parse_date_field(raw: str):
 
 # ── Views ─────────────────────────────────────────────────────────────────────
 
-def _build_dashboard_context(request):
-    base_qs = (
-        UseCase.objects
-        .filter(status__iexact="Producción")
-        .prefetch_related("mitre_attacks", "d3fends")
-    )
-
-    device            = request.GET.get("device", "").strip()
-    severity          = request.GET.get("severity", "").strip()
-    enabled           = request.GET.get("enabled", "").strip()
-
-    if device:
-        base_qs = base_qs.filter(device__iexact=device)
-    if severity:
-        base_qs = base_qs.filter(severity__iexact=severity)
-    if enabled == "yes":
-        base_qs = base_qs.filter(is_enabled=True)
-    elif enabled == "no":
-        base_qs = base_qs.filter(is_enabled=False)
-
-    production_qs = base_qs.distinct()
-    total_cases   = production_qs.count()
-
-    # ATT&CK coverage
-    all_attack_techniques     = MitreAttack.objects.filter(is_enabled=True).count()
-    covered_attack_techniques = (
-        MitreAttack.objects.filter(is_enabled=True, use_cases__in=production_qs).distinct().count()
-    )
-
-    covered_tactic_names: set[str] = set()
-    for attack in MitreAttack.objects.filter(is_enabled=True, use_cases__in=production_qs).distinct():
-        if attack.tactic:
-            covered_tactic_names.update(
-                t.strip() for t in str(attack.tactic).split(",") if t.strip()
-            )
-
-    all_tactic_names: set[str] = set()
-    for attack in MitreAttack.objects.filter(is_enabled=True).exclude(tactic=""):
-        all_tactic_names.update(
-            t.strip() for t in str(attack.tactic).split(",") if t.strip()
-        )
-
-    total_tactics    = len(all_tactic_names)
-    covered_tactics  = len(covered_tactic_names)
-    uncovered_tactics = sorted(all_tactic_names - covered_tactic_names)
-
-    # D3FEND coverage
-    all_d3fend_techniques     = D3Fend.objects.filter(is_enabled=True).count()
-    covered_d3fend_techniques = (
-        D3Fend.objects.filter(is_enabled=True, use_cases__in=production_qs).distinct().count()
-    )
-    productive_with_d3fend = (
-        production_qs.filter(d3fends__isnull=False).distinct().count()
-    )
-
-    uncovered_attacks = (
-        MitreAttack.objects
-        .filter(is_enabled=True)
-        .exclude(use_cases__in=production_qs)
-        .distinct()
-        .order_by("external_id", "name")[:20]
-    )
-
-    uncovered_d3fends = (
-        D3Fend.objects
-        .filter(is_enabled=True)
-        .exclude(use_cases__in=production_qs)
-        .distinct()
-        .order_by("code", "name")[:20]
-    )
-
-    # Top techniques
-    attack_counter: Counter = Counter()
-    for uc in production_qs:
-        for attack in uc.mitre_attacks.all():
-            attack_counter[(attack.id, attack.external_id, attack.name)] += 1
-
-    top_attack_techniques = [
-        {"id": aid, "external_id": eid, "name": name, "count": count}
-        for (aid, eid, name), count in attack_counter.most_common(10)
-    ]
-
-    d3fend_counter: Counter = Counter()
-    for uc in production_qs:
-        for d3 in uc.d3fends.all():
-            d3fend_counter[(d3.id, d3.code, d3.name)] += 1
-
-    top_d3fend_controls = [
-        {"id": did, "code": code, "name": name, "count": count}
-        for (did, code, name), count in d3fend_counter.most_common(10)
-    ]
-
-    attack_radials = [
-        _build_radial_metric(
-            "Cobertura Técnicas ATT&CK",
-            covered_attack_techniques,
-            all_attack_techniques,
-        ),
-        _build_radial_metric(
-            "Cobertura Tácticas ATT&CK",
-            covered_tactics,
-            total_tactics,
-        ),
-    ]
-
-    d3fend_radials = [
-        _build_radial_metric(
-            "Cobertura Técnicas D3FEND",
-            covered_d3fend_techniques,
-            all_d3fend_techniques,
-        ),
-        _build_radial_metric(
-            "Casos productivos con D3FEND",
-            productive_with_d3fend,
-            total_cases,
-            covered_label="Con D3FEND",
-        ),
-    ]
-
-    devices = (
-        UseCase.objects
-        .exclude(device="")
-        .values_list("device", flat=True)
-        .distinct()
-        .order_by("device")
-    )
-
-    context = {
-        "total_cases":                total_cases,
-        "devices":                    devices,
-        "selected_device":            device,
-        "selected_severity":          severity,
-        "selected_enabled":           enabled,
-        "severity_choices":           UseCase.SEVERITY_CHOICES,
-        "attack_radials":             attack_radials,
-        "d3fend_radials":             d3fend_radials,
-        "covered_attack_techniques":  covered_attack_techniques,
-        "all_attack_techniques":      all_attack_techniques,
-        "covered_tactics":            covered_tactics,
-        "total_tactics":              total_tactics,
-        "uncovered_tactics":          uncovered_tactics,
-        "covered_d3fend_techniques":  covered_d3fend_techniques,
-        "all_d3fend_techniques":      all_d3fend_techniques,
-        "productive_with_d3fend":     productive_with_d3fend,
-        "uncovered_attacks":          uncovered_attacks,
-        "uncovered_d3fends":          uncovered_d3fends,
-        "top_attack_techniques":      top_attack_techniques,
-        "top_d3fend_controls":        top_d3fend_controls,
-    }
-    return context
-
-
 @login_required
 def dashboard_view(request):
-    return render(request, "dashboard.html", _build_dashboard_context(request))
-
-
-def _pdf_metric_table(metrics):
-    return [[m["title"], f'{m["percent_label"]}%', f'{m["covered"]} / {m["total"]}'] for m in metrics]
-
-
-def _draw_pdf_footer(canvas, doc, footer_text):
-    canvas.saveState()
-    canvas.setFillColorRGB(0.45, 0.49, 0.56)
-    canvas.setFont("Helvetica", 8)
-    canvas.drawString(doc.leftMargin, 24, footer_text or "SOC Use Cases Manager")
-    canvas.drawRightString(doc.pagesize[0] - doc.rightMargin, 24, f"Página {doc.page}")
-    canvas.restoreState()
-
-
-def _safe_table_rows(items, code_attr, subtitle_attr=None, limit=10):
-    rows = []
-    for item in list(items)[:limit]:
-        code = getattr(item, code_attr, "")
-        name = getattr(item, "name", "")
-        subtitle = getattr(item, subtitle_attr, "") if subtitle_attr else ""
-        rows.append([str(code), str(name or "-"), str(subtitle or "-")])
-    return rows or [["-", "Sin pendientes", "-"]]
-
-
-def _get_active_dashboard_report_settings():
-    try:
-        return DashboardReportSettings.objects.filter(is_active=True).order_by("-updated_at").first()
-    except (OperationalError, ProgrammingError):
-        return None
-
-
-def _build_dashboard_pdf(buffer, context, report_settings, generated_by):
-    from reportlab.lib import colors
-    from reportlab.lib.enums import TA_RIGHT
-    from reportlab.lib.pagesizes import A4
-    from reportlab.lib.styles import ParagraphStyle, getSampleStyleSheet
-    from reportlab.lib.units import cm
-    from reportlab.platypus import Image, Paragraph, SimpleDocTemplate, Spacer, Table, TableStyle
-
-    doc = SimpleDocTemplate(
-        buffer,
-        pagesize=A4,
-        rightMargin=1.4 * cm,
-        leftMargin=1.4 * cm,
-        topMargin=1.2 * cm,
-        bottomMargin=1.2 * cm,
-        title="Dashboard SOC",
-    )
-    styles = getSampleStyleSheet()
-    title_style = ParagraphStyle("ReportTitle", parent=styles["Title"], fontName="Helvetica-Bold", fontSize=18, textColor=colors.HexColor("#111827"), spaceAfter=6)
-    subtitle_style = ParagraphStyle("ReportSubtitle", parent=styles["Normal"], fontSize=9, textColor=colors.HexColor("#4b5563"), leading=12)
-    section_style = ParagraphStyle("Section", parent=styles["Heading2"], fontName="Helvetica-Bold", fontSize=11, textColor=colors.HexColor("#1f2937"), spaceBefore=14, spaceAfter=7)
-    right_style = ParagraphStyle("RightMeta", parent=styles["Normal"], alignment=TA_RIGHT, fontSize=8, textColor=colors.HexColor("#6b7280"), leading=11)
-
-    story = []
-    title = report_settings.report_title if report_settings else "Reporte ejecutivo SOC"
-    subtitle = report_settings.report_subtitle if report_settings else "Cobertura ATT&CK y D3FEND sobre casos de uso en producción"
-    footer = report_settings.footer_text if report_settings else "SOC Use Cases Manager"
-
-    header_left = []
-    if report_settings and report_settings.logo:
-        try:
-            logo = Image(report_settings.logo.path)
-            logo._restrictSize(4.2 * cm, 1.8 * cm)
-            header_left.append(logo)
-        except Exception:
-            header_left.append(Paragraph("SOC", title_style))
-    else:
-        header_left.append(Paragraph("SOC", title_style))
-
-    filters = []
-    if context.get("selected_device"):
-        filters.append(f'Dispositivo: {context["selected_device"]}')
-    if context.get("selected_severity"):
-        filters.append(f'Severidad: {context["selected_severity"]}')
-    if context.get("selected_enabled"):
-        filters.append(f'Habilitado: {"Sí" if context["selected_enabled"] == "yes" else "No"}')
-    filter_text = " · ".join(filters) if filters else "Sin filtros adicionales"
-    meta = Paragraph(
-        f"Generado: {date.today():%d/%m/%Y}<br/>Usuario: {getattr(generated_by, 'username', '-')}<br/>{filter_text}",
-        right_style,
-    )
-    header = Table([[header_left, meta]], colWidths=[10.2 * cm, 7.0 * cm])
-    header.setStyle(TableStyle([("VALIGN", (0, 0), (-1, -1), "TOP"), ("LINEBELOW", (0, 0), (-1, -1), 0.6, colors.HexColor("#d1d5db")), ("BOTTOMPADDING", (0, 0), (-1, -1), 10)]))
-    story.append(header)
-    story.append(Spacer(1, 10))
-    story.append(Paragraph(title, title_style))
-    story.append(Paragraph(subtitle, subtitle_style))
-    story.append(Spacer(1, 10))
-
-    kpis = [
-        ["Casos productivos", context["total_cases"]],
-        ["ATT&CK técnicas", f'{context["covered_attack_techniques"]} / {context["all_attack_techniques"]}'],
-        ["ATT&CK tácticas", f'{context["covered_tactics"]} / {context["total_tactics"]}'],
-        ["D3FEND técnicas", f'{context["covered_d3fend_techniques"]} / {context["all_d3fend_techniques"]}'],
-        ["Casos con D3FEND", f'{context["productive_with_d3fend"]} / {context["total_cases"]}'],
-    ]
-    kpi_table = Table(kpis, colWidths=[6.5 * cm, 3.0 * cm])
-    kpi_table.setStyle(TableStyle([("BACKGROUND", (0, 0), (-1, -1), colors.HexColor("#f8fafc")), ("GRID", (0, 0), (-1, -1), 0.4, colors.HexColor("#e5e7eb")), ("FONTNAME", (0, 0), (0, -1), "Helvetica-Bold"), ("TEXTCOLOR", (0, 0), (-1, -1), colors.HexColor("#111827")), ("PADDING", (0, 0), (-1, -1), 7)]))
-    story.append(kpi_table)
-
-    for title_text, metrics in (("Cobertura ATT&CK", context["attack_radials"]), ("Cobertura D3FEND", context["d3fend_radials"])):
-        story.append(Paragraph(title_text, section_style))
-        rows = [["Métrica", "%", "Cubierto / Total"]] + _pdf_metric_table(metrics)
-        table = Table(rows, colWidths=[9.5 * cm, 2.5 * cm, 4.5 * cm], repeatRows=1)
-        table.setStyle(TableStyle([("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#eaf2ff")), ("TEXTCOLOR", (0, 0), (-1, 0), colors.HexColor("#1d4ed8")), ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"), ("GRID", (0, 0), (-1, -1), 0.4, colors.HexColor("#dbe3ef")), ("PADDING", (0, 0), (-1, -1), 6)]))
-        story.append(table)
-
-    story.append(Paragraph("Pendientes y principales técnicas", section_style))
-    attack_rows = [["ID", "Técnica", "Táctica"]] + _safe_table_rows(context["uncovered_attacks"], "external_id", "tactic")
-    table = Table(attack_rows, colWidths=[2.4 * cm, 10.2 * cm, 4.0 * cm], repeatRows=1)
-    table.setStyle(TableStyle([("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#fff7ed")), ("TEXTCOLOR", (0, 0), (-1, 0), colors.HexColor("#9a3412")), ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"), ("GRID", (0, 0), (-1, -1), 0.35, colors.HexColor("#fed7aa")), ("PADDING", (0, 0), (-1, -1), 5)]))
-    story.append(table)
-
-    story.append(Spacer(1, 8))
-    d3_rows = [["Código", "Control", "Categoría"]] + _safe_table_rows(context["uncovered_d3fends"], "code", "category")
-    table = Table(d3_rows, colWidths=[2.4 * cm, 10.2 * cm, 4.0 * cm], repeatRows=1)
-    table.setStyle(TableStyle([("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#ecfdf5")), ("TEXTCOLOR", (0, 0), (-1, 0), colors.HexColor("#047857")), ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"), ("GRID", (0, 0), (-1, -1), 0.35, colors.HexColor("#bbf7d0")), ("PADDING", (0, 0), (-1, -1), 5)]))
-    story.append(table)
-
-    doc.build(story, onFirstPage=lambda c, d: _draw_pdf_footer(c, d, footer), onLaterPages=lambda c, d: _draw_pdf_footer(c, d, footer))
+    return render(request, "dashboard.html", build_dashboard_context(request))
 
 
 @login_required
 def dashboard_pdf_export(request):
-    context = _build_dashboard_context(request)
-    report_settings = _get_active_dashboard_report_settings()
+    context = build_dashboard_context(request)
+    report_settings = get_active_dashboard_report_settings()
     buffer = BytesIO()
-    _build_dashboard_pdf(buffer, context, report_settings, request.user)
+    build_dashboard_pdf(buffer, context, report_settings, request.user)
     response = HttpResponse(buffer.getvalue(), content_type="application/pdf")
     response["Content-Disposition"] = f'attachment; filename="dashboard-soc-{date.today():%Y%m%d}.pdf"'
     return response
@@ -613,7 +230,7 @@ def dashboard_pdf_export(request):
 
 @login_required
 def usecase_list(request):
-    if not _can_access_usecases(request.user):
+    if not can_access_usecases(request.user):
         return HttpResponseForbidden("Solo el grupo ReadOnly puede acceder al dashboard.")
 
     legacy_query = request.GET.copy()
@@ -689,8 +306,8 @@ def usecase_list(request):
 
     qs = list(qs)
     for usecase in qs:
-        usecase.can_manage_by_user = _can_manage_usecases(request.user, usecase)
-        usecase.can_delete_by_user = _can_delete_usecases(request.user, usecase)
+        usecase.can_manage_by_user = can_manage_usecases(request.user, usecase)
+        usecase.can_delete_by_user = can_delete_usecases(request.user, usecase)
 
     context = {
         "usecases":                   qs,
@@ -718,7 +335,7 @@ def usecase_list(request):
         "visible_soon":               visible_soon,
         "visible_without_attack":     visible_without_attack,
         "visible_without_d3fend":     visible_without_d3fend,
-        "can_add_usecases":           _can_add_usecases(request.user),
+        "can_add_usecases":           can_add_usecases(request.user),
         "can_manage_usecases":        any(uc.can_manage_by_user for uc in qs),
         "can_delete_usecases":        any(uc.can_delete_by_user for uc in qs),
     }
@@ -727,7 +344,7 @@ def usecase_list(request):
 
 @login_required
 def export_usecases_csv(request):
-    if not _can_access_usecases(request.user):
+    if not can_access_usecases(request.user):
         return HttpResponseForbidden("Solo el grupo ReadOnly puede acceder al dashboard.")
 
     qs = _get_filtered_usecases(request, with_prefetch=True).order_by("name")
@@ -760,7 +377,7 @@ def export_usecases_csv(request):
 
 @login_required
 def usecase_create(request):
-    if not _can_add_usecases(request.user):
+    if not can_add_usecases(request.user):
         return HttpResponseForbidden("No tenés permisos para crear casos de uso.")
 
     if request.method == "POST":
@@ -793,7 +410,7 @@ def usecase_edit(request, pk):
     usecase = get_object_or_404(
         UseCase.objects.prefetch_related("mitre_attacks", "d3fends"), pk=pk
     )
-    if not _can_manage_usecases(request.user, usecase):
+    if not can_manage_usecases(request.user, usecase):
         return HttpResponseForbidden("Solo podés editar casos de uso propios.")
 
     old_data = _snapshot_usecase(usecase)
@@ -821,7 +438,7 @@ def usecase_edit(request, pk):
 
 @login_required
 def usecase_detail(request, pk):
-    if not _can_access_usecases(request.user):
+    if not can_access_usecases(request.user):
         return HttpResponseForbidden("Solo el grupo ReadOnly puede acceder al dashboard.")
 
     usecase = get_object_or_404(
@@ -835,8 +452,8 @@ def usecase_detail(request, pk):
         {
             "usecase": usecase,
             "change_logs": change_logs,
-            "can_manage_usecases": _can_manage_usecases(request.user, usecase),
-            "can_delete_usecases": _can_delete_usecases(request.user, usecase),
+            "can_manage_usecases": can_manage_usecases(request.user, usecase),
+            "can_delete_usecases": can_delete_usecases(request.user, usecase),
         },
     )
 
@@ -852,7 +469,7 @@ def usecase_quick_update(request, pk):
     usecase = get_object_or_404(
         UseCase.objects.prefetch_related("mitre_attacks", "d3fends"), pk=pk
     )
-    if not _can_manage_usecases(request.user, usecase):
+    if not can_manage_usecases(request.user, usecase):
         return HttpResponseForbidden("Solo podés actualizar casos de uso propios.")
 
     old_data = _snapshot_usecase(usecase)
@@ -884,7 +501,7 @@ def usecase_quick_update(request, pk):
 
 @login_required
 def usecase_bulk_update(request):
-    if not _can_access_usecases(request.user):
+    if not can_access_usecases(request.user):
         return HttpResponseForbidden("Solo el grupo ReadOnly puede acceder al dashboard.")
 
     if request.method != "POST":
@@ -911,7 +528,7 @@ def usecase_bulk_update(request):
     updated_count = 0
     with transaction.atomic():
         for usecase in usecases:
-            if not _can_manage_usecases(request.user, usecase):
+            if not can_manage_usecases(request.user, usecase):
                 continue
 
             pk = str(usecase.pk)
@@ -976,7 +593,7 @@ def usecase_bulk_update(request):
 
 @login_required
 def mitre_attack_autocomplete(request):
-    if not _can_access_usecases(request.user):
+    if not can_access_usecases(request.user):
         return HttpResponseForbidden("Solo el grupo ReadOnly puede acceder al dashboard.")
 
     q  = request.GET.get("q", "").strip()
@@ -1000,7 +617,7 @@ def mitre_attack_autocomplete(request):
 
 @login_required
 def d3fend_autocomplete(request):
-    if not _can_access_usecases(request.user):
+    if not can_access_usecases(request.user):
         return HttpResponseForbidden("Solo el grupo ReadOnly puede acceder al dashboard.")
 
     q  = request.GET.get("q", "").strip()
@@ -1022,37 +639,22 @@ def d3fend_autocomplete(request):
     return JsonResponse({"results": data})
 
 
-LIFECYCLE_CHECKPOINTS = [(4, 30), (8, 31), (12, 31)]
-
-
-def _current_lifecycle_window(today: date):
-    checkpoints = [date(today.year, m, d) for m, d in LIFECYCLE_CHECKPOINTS]
-    for cp in checkpoints:
-        if today <= cp:
-            idx = checkpoints.index(cp)
-            start = date(today.year, 1, 1) if idx == 0 else checkpoints[idx - 1] + timedelta(days=1)
-            return start, cp
-    start = checkpoints[-1] + timedelta(days=1)
-    end = date(today.year + 1, 4, 30)
-    return start, end
-
-
 @login_required
 def lifecycle_management_view(request):
-    if not _can_access_usecases(request.user):
+    if not can_access_usecases(request.user):
         return HttpResponseForbidden("Solo el grupo ReadOnly puede acceder al dashboard.")
 
     today = date.today()
-    cycle_start, cycle_end = _current_lifecycle_window(today)
+    cycle_start, cycle_end = current_lifecycle_window(today)
     only_pending = request.GET.get("only_pending") == "1"
 
-    is_lifecycle_admin = _is_lifecycle_admin(request.user)
+    lifecycle_admin = user_is_lifecycle_admin(request.user)
     usecases = UseCase.objects.select_related("lifecycle_control_owner").all().order_by("name")
 
     User = get_user_model()
     lifecycle_users = (
         User.objects.filter(is_active=True).order_by("username")
-        if is_lifecycle_admin
+        if lifecycle_admin
         else User.objects.none()
     )
     rows = []
@@ -1097,8 +699,8 @@ def lifecycle_management_view(request):
             "owner": uc.lifecycle_control_owner,
             "task_status": "Finalizada" if completed else "Pendiente",
             "is_pending": is_pending,
-            "can_finish": _can_finish_lifecycle_review(request.user, uc),
-            "can_assign_owner": _can_assign_lifecycle_owner(request.user),
+            "can_finish": can_finish_lifecycle_review(request.user, uc),
+            "can_assign_owner": can_assign_lifecycle_owner(request.user),
             "review_badge": review_badge,
             "review_level": review_level,
         })
@@ -1118,8 +720,8 @@ def lifecycle_management_view(request):
         "only_pending": only_pending,
         "owner_pending_summary": owner_pending_counter.most_common(5),
         "lifecycle_users": lifecycle_users,
-        "can_manage_lifecycle": is_lifecycle_admin,
-        "lifecycle_scope_label": "Todos los casos" if is_lifecycle_admin else "Todos los casos · solo podés finalizar los asignados a vos",
+        "can_manage_lifecycle": lifecycle_admin,
+        "lifecycle_scope_label": "Todos los casos" if lifecycle_admin else "Todos los casos · solo podés finalizar los asignados a vos",
     }
     return render(request, "usecases/lifecycle_management.html", context)
 
@@ -1130,11 +732,11 @@ def lifecycle_mark_done(request, pk):
         return redirect('lifecycle_management')
 
     uc = get_object_or_404(UseCase, pk=pk)
-    if not _can_finish_lifecycle_review(request.user, uc):
+    if not can_finish_lifecycle_review(request.user, uc):
         return HttpResponseForbidden("Solo el responsable de control asignado o un administrador puede finalizar esta revisión.")
 
     old_data = _snapshot_usecase(uc)
-    if _can_assign_lifecycle_owner(request.user):
+    if can_assign_lifecycle_owner(request.user):
         owner_id = request.POST.get("lifecycle_control_owner", "").strip()
         if owner_id.isdigit():
             uc.lifecycle_control_owner_id = int(owner_id)
@@ -1165,7 +767,7 @@ def lifecycle_assign_owner(request, pk):
     if request.method != "POST":
         return redirect("lifecycle_management")
 
-    if not _can_assign_lifecycle_owner(request.user):
+    if not can_assign_lifecycle_owner(request.user):
         return HttpResponseForbidden("Solo administradores pueden reasignar responsables de control.")
 
     uc = get_object_or_404(UseCase, pk=pk)
@@ -1188,7 +790,7 @@ def usecase_delete(request, pk):
         return redirect("usecase_detail", pk=pk)
 
     usecase = get_object_or_404(UseCase, pk=pk)
-    if not _can_delete_usecases(request.user, usecase):
+    if not can_delete_usecases(request.user, usecase):
         return HttpResponseForbidden("Solo podés eliminar casos de uso propios si tenés permiso de borrado.")
 
     name = usecase.name
