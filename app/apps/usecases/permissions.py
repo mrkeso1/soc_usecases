@@ -1,5 +1,8 @@
 """Role and ownership checks for use-case workflows."""
 
+import re
+import unicodedata
+
 from apps.accounts.roles import is_admin_role, is_analyst_role, is_readonly_role
 
 from .models import UseCase
@@ -18,15 +21,29 @@ def can_access_usecases(user) -> bool:
     )
 
 
+def _normalize_owner_value(value: str) -> str:
+    value = unicodedata.normalize("NFKD", str(value or ""))
+    value = "".join(ch for ch in value if not unicodedata.combining(ch))
+    value = re.sub(r"[^a-zA-Z0-9@._+-]+", " ", value).strip().casefold()
+    return re.sub(r"\s+", " ", value)
+
+
 def _user_owner_tokens(user) -> set[str]:
     values = [
         getattr(user, "username", ""),
         getattr(user, "display_name", ""),
         getattr(user, "email", ""),
+        getattr(user, "first_name", ""),
+        getattr(user, "last_name", ""),
     ]
     full_name = user.get_full_name() if hasattr(user, "get_full_name") else ""
     values.append(full_name)
-    return {str(value).strip().casefold() for value in values if str(value).strip()}
+
+    tokens = {_normalize_owner_value(value) for value in values if str(value).strip()}
+    email = getattr(user, "email", "") or ""
+    if "@" in email:
+        tokens.add(_normalize_owner_value(email.split("@", 1)[0]))
+    return {token for token in tokens if token}
 
 
 def is_usecase_owner(user, usecase: UseCase) -> bool:
@@ -35,8 +52,19 @@ def is_usecase_owner(user, usecase: UseCase) -> bool:
         return False
     if usecase.created_by_id == user.id or usecase.lifecycle_control_owner_id == user.id:
         return True
-    owner_name = (usecase.owner_name or "").strip().casefold()
-    return bool(owner_name and owner_name in _user_owner_tokens(user))
+
+    owner_name = _normalize_owner_value(usecase.owner_name)
+    if not owner_name:
+        return False
+
+    for token in _user_owner_tokens(user):
+        if token == owner_name:
+            return True
+        if len(token) >= 3 and token in owner_name:
+            return True
+        if len(owner_name) >= 3 and owner_name in token:
+            return True
+    return False
 
 
 def can_add_usecases(user) -> bool:
