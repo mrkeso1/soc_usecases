@@ -86,15 +86,10 @@
             font-size: 13px;
         }
     </style>
+    {% include "includes/topbar_styles.html" %}
 </head>
 <body>
-    <div class="topbar">
-        <div class="brand">SOC Use Cases Manager</div>
-        <div class="userbox">
-            <span>Hola, {{ request.user.username }}</span>
-            <a class="logout-btn" href="{% url 'logout' %}">Salir</a>
-        </div>
-    </div>
+    {% include "includes/topbar.html" %}
 
     <div class="container">
         <div class="title">Panel principal</div>
