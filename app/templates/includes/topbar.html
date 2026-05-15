@@ -1,0 +1,25 @@
+<nav class="topbar">
+    <div class="brand">
+        <div class="brand-icon">
+            <svg viewBox="0 0 16 16"><path d="M2 2h5v5H2zM9 2h5v5H9zM2 9h5v5H2zM9 9h5v5H9z"/></svg>
+        </div>
+        SOC Use Cases Manager
+    </div>
+    <div class="topbar-nav">
+        {% with url_name=request.resolver_match.url_name %}
+            <a href="{% url 'dashboard' %}" class="{% if url_name == 'dashboard' %}active{% endif %}">Dashboard</a>
+            {% if not is_role_readonly %}
+                {% if is_role_admin or is_role_analyst or perms.usecases.view_usecase %}
+                    <a href="{% url 'usecase_list' %}" class="{% if url_name == 'usecase_list' or url_name == 'usecase_detail' or url_name == 'usecase_edit' or url_name == 'usecase_create' %}active{% endif %}">Inventario</a>
+                    <a href="{% url 'lifecycle_management' %}" class="{% if url_name == 'lifecycle_management' %}active{% endif %}">Ciclo de Vida</a>
+                {% endif %}
+            {% endif %}
+        {% endwith %}
+        <div class="topbar-divider"></div>
+        {% if not is_role_readonly %}{% if is_role_admin or request.user.is_staff %}<a href="/admin/">Admin</a>{% endif %}{% endif %}
+        <form method="post" action="{% url 'logout' %}" class="topbar-logout-form">
+            {% csrf_token %}
+            <button type="submit" class="topbar-logout-button">Salir</button>
+        </form>
+    </div>
+</nav>
