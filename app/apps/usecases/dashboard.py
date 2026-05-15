@@ -18,7 +18,7 @@ def _coverage_color_class(percent: float) -> str:
     return "bad"
 
 
-def _safe_percent(part: int, total: int) -> float:
+def _safe_percent(part: float, total: float) -> float:
     if not total:
         return 0.0
     return round((part / total) * 100, 1)
@@ -32,14 +32,15 @@ def _svg_dashoffset(percent: float, radius: float = 80.0) -> float:
 
 def _build_radial_metric(
     title: str,
-    covered: int,
-    total: int,
+    covered: float,
+    total: float,
     covered_label: str = "Cubiertas",
 ) -> dict:
     percent = _safe_percent(covered, total)
+    covered_value = round(covered, 1) if isinstance(covered, float) else covered
     return {
         "title": title,
-        "covered": covered,
+        "covered": covered_value,
         "total": total,
         "percent": percent,
         "percent_label": str(percent).replace(".", ","),
@@ -97,12 +98,44 @@ def build_dashboard_context(request):
     covered_tactics = len(covered_tactic_names)
     uncovered_tactics = sorted(all_tactic_names - covered_tactic_names)
 
-    # D3FEND coverage mirrors ATT&CK coverage and also counts use cases that
-    # have at least one D3FEND control mapped.
-    all_d3fend_techniques = D3Fend.objects.filter(is_enabled=True).count()
-    covered_d3fend_techniques = (
-        D3Fend.objects.filter(is_enabled=True, use_cases__in=production_qs).distinct().count()
+    # D3FEND coverage is inferred from the official D3FEND→ATT&CK relations.
+    # A defensive technique can map to multiple ATT&CK techniques, so each D3FEND
+    # item receives partial credit: covered related ATT&CK / total related ATT&CK.
+    covered_attack_ids = set(
+        MitreAttack.objects
+        .filter(is_enabled=True, use_cases__in=production_qs)
+        .distinct()
+        .values_list("id", flat=True)
     )
+    mapped_d3fends = list(
+        D3Fend.objects
+        .filter(is_enabled=True, related_attacks__is_enabled=True)
+        .prefetch_related("related_attacks")
+        .distinct()
+        .order_by("code", "name")
+    )
+    all_d3fend_techniques = len(mapped_d3fends)
+    d3fend_coverage_rows = []
+    covered_d3fend_techniques = 0.0
+    fully_covered_d3fend_techniques = 0
+    partially_covered_d3fend_techniques = 0
+
+    for d3fend in mapped_d3fends:
+        related_attack_ids = {attack.id for attack in d3fend.related_attacks.all() if attack.is_enabled}
+        total_related = len(related_attack_ids)
+        covered_related = len(related_attack_ids & covered_attack_ids)
+        coverage_ratio = (covered_related / total_related) if total_related else 0.0
+        covered_d3fend_techniques += coverage_ratio
+        if coverage_ratio >= 1:
+            fully_covered_d3fend_techniques += 1
+        elif coverage_ratio > 0:
+            partially_covered_d3fend_techniques += 1
+        d3fend.coverage_percent = round(coverage_ratio * 100, 1)
+        d3fend.covered_related_attacks = covered_related
+        d3fend.total_related_attacks = total_related
+        d3fend_coverage_rows.append((coverage_ratio, d3fend))
+
+    covered_d3fend_techniques = round(covered_d3fend_techniques, 1)
     productive_with_d3fend = (
         production_qs.filter(d3fends__isnull=False).distinct().count()
     )
@@ -115,13 +148,7 @@ def build_dashboard_context(request):
         .order_by("external_id", "name")[:20]
     )
 
-    uncovered_d3fends = (
-        D3Fend.objects
-        .filter(is_enabled=True)
-        .exclude(use_cases__in=production_qs)
-        .distinct()
-        .order_by("code", "name")[:20]
-    )
+    uncovered_d3fends = [d3fend for coverage, d3fend in d3fend_coverage_rows if coverage == 0][:20]
 
     attack_counter: Counter = Counter()
     for uc in production_qs:
@@ -158,12 +185,19 @@ def build_dashboard_context(request):
 
     d3fend_radials = [
         _build_radial_metric(
-            "Cobertura Técnicas D3FEND",
+            "Cobertura D3FEND inferida por ATT&CK",
             covered_d3fend_techniques,
             all_d3fend_techniques,
+            covered_label="Equivalente cubierto",
         ),
         _build_radial_metric(
-            "Casos productivos con D3FEND",
+            "D3FEND totalmente cubiertos",
+            fully_covered_d3fend_techniques,
+            all_d3fend_techniques,
+            covered_label="100% cubiertos",
+        ),
+        _build_radial_metric(
+            "Casos productivos con D3FEND manual",
             productive_with_d3fend,
             total_cases,
             covered_label="Con D3FEND",
@@ -195,6 +229,8 @@ def build_dashboard_context(request):
         "covered_d3fend_techniques": covered_d3fend_techniques,
         "all_d3fend_techniques": all_d3fend_techniques,
         "productive_with_d3fend": productive_with_d3fend,
+        "fully_covered_d3fend_techniques": fully_covered_d3fend_techniques,
+        "partially_covered_d3fend_techniques": partially_covered_d3fend_techniques,
         "uncovered_attacks": uncovered_attacks,
         "uncovered_d3fends": uncovered_d3fends,
         "top_attack_techniques": top_attack_techniques,

@@ -34,6 +34,13 @@ class D3Fend(models.Model):
     name = models.CharField("Nombre", max_length=255, blank=True)
     category = models.CharField("Categoría", max_length=100, blank=True)
     is_enabled = models.BooleanField("Habilitada", default=True)
+    related_attacks = models.ManyToManyField(
+        MitreAttack,
+        blank=True,
+        related_name="related_d3fends",
+        verbose_name="ATT&CK relacionados por D3FEND",
+        help_text="Relación inferida por D3FEND entre esta técnica defensiva y técnicas ATT&CK.",
+    )
 
     class Meta:
         ordering = ["code"]

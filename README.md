@@ -4,6 +4,7 @@ SOC Use Cases Manager es una aplicación Django para inventariar, administrar y 
 
 - Inventario de casos de uso con mapeos MITRE ATT&CK y D3FEND.
 - Dashboard ejecutivo de cobertura sobre casos productivos.
+- Cobertura D3FEND inferida desde técnicas ATT&CK relacionadas.
 - Exportación PDF del dashboard con branding configurable.
 - Exportación CSV del inventario filtrado.
 - Ciclo de vida periódico con responsables de control y evidencia histórica.
@@ -93,7 +94,7 @@ Las apps placeholder `core`, `catalog` y `workflow` fueron removidas porque no t
 
 | Archivo | Responsabilidad |
 | --- | --- |
-| `models.py` | Modelos de ATT&CK, D3FEND, casos de uso, lifecycle, report settings y changelog. |
+| `models.py` | Modelos de ATT&CK, D3FEND, correlación D3FEND→ATT&CK, casos de uso, lifecycle, report settings y changelog. |
 | `views.py` | Request/response: pantallas, acciones POST, CSV, PDF, autocomplete. |
 | `dashboard.py` | Agregación de métricas del dashboard compartida por UI y PDF. |
 | `reports.py` | Construcción de PDF con ReportLab y settings de reporte. |
@@ -175,12 +176,22 @@ Métricas incluidas:
 - Total de casos productivos.
 - Cobertura de técnicas ATT&CK habilitadas.
 - Cobertura de tácticas ATT&CK habilitadas.
-- Cobertura de controles D3FEND habilitados.
-- Casos productivos con D3FEND.
+- Cobertura D3FEND inferida desde ATT&CK: cada control D3FEND recibe cobertura parcial según cuántas de sus técnicas ATT&CK relacionadas están cubiertas por casos productivos.
+- Controles D3FEND totalmente cubiertos y parcialmente cubiertos.
+- Casos productivos con D3FEND manual.
 - Técnicas/controles pendientes.
 - Top técnicas ATT&CK y controles D3FEND por uso.
 
 La agregación está centralizada en `apps.usecases.dashboard.build_dashboard_context` para evitar que la vista y el PDF calculen cosas distintas.
+
+### Lógica de correlación D3FEND → ATT&CK
+
+D3FEND publica relaciones inferidas entre técnicas defensivas y técnicas ofensivas ATT&CK. El gestor permite cargar solo ATT&CK en los casos de uso y calcular cobertura D3FEND a partir de esas relaciones:
+
+- Cada `D3Fend` puede tener varias técnicas ATT&CK relacionadas en `related_attacks`.
+- Si un D3FEND tiene 4 ATT&CK relacionadas y los casos productivos cubren 1, ese control tiene 25% de cobertura.
+- La cobertura global D3FEND suma esos porcentajes parciales como "equivalente cubierto" sobre el total de controles D3FEND con mapeo.
+- Los mapeos se cargan con `python app/manage.py load_d3fend` después de haber cargado ATT&CK con `load_mitre_attack`.
 
 ## Exportación PDF
 
@@ -219,7 +230,7 @@ Comportamiento:
 ## Catálogos ATT&CK y D3FEND
 
 - `MitreAttack` representa técnicas ATT&CK con `external_id`, nombre, táctica y flag `is_enabled`.
-- `D3Fend` representa controles D3FEND con código, nombre, categoría y flag `is_enabled`.
+- `D3Fend` representa controles D3FEND con código, nombre, categoría, flag `is_enabled` y relaciones ATT&CK inferidas en `related_attacks`.
 - Los formularios/autocomplete solo ofrecen elementos habilitados para nuevos mapeos.
 
 ## Importaciones y comandos útiles
@@ -234,8 +245,11 @@ python app/manage.py import_usecases <archivo.xlsx>
 # Cargar técnicas MITRE ATT&CK
 python app/manage.py load_mitre_attack
 
-# Cargar controles D3FEND
+# Cargar controles D3FEND y relaciones inferidas D3FEND→ATT&CK
 python app/manage.py load_d3fend
+
+# Cargar D3FEND sin sincronizar relaciones
+python app/manage.py load_d3fend --skip-mappings
 ```
 
 ## Instalación local orientativa

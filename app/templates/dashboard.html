@@ -817,14 +817,14 @@
         </div>
 
         <div class="panel">
-            <div class="panel-head"><span class="panel-title">Técnicas D3FEND sin cobertura</span></div>
+            <div class="panel-head"><span class="panel-title">Técnicas D3FEND sin cobertura ATT&CK inferida</span></div>
             <div class="panel-body">
                 {% if uncovered_d3fends %}
                     {% for item in uncovered_d3fends %}
                     <a class="list-item" href="{% url 'usecase_list' %}?mapping_d3fend=without&d3fend_id={{ item.id }}">
                         <div>
                             <div class="list-item-main">{{ item.code }} — {{ item.name }}</div>
-                            {% if item.category %}<div class="list-item-sub">{{ item.category }}</div>{% endif %}
+                            <div class="list-item-sub">{{ item.covered_related_attacks|default:0 }} / {{ item.total_related_attacks|default:0 }} ATT&amp;CK relacionadas cubiertas{% if item.category %} · {{ item.category }}{% endif %}</div>
                         </div>
                     </a>
                     {% endfor %}
@@ -868,11 +868,15 @@
                     <span class="summary-row-value">{{ covered_tactics }} / {{ total_tactics }}</span>
                 </div>
                 <div class="summary-row">
-                    <span class="summary-row-label">Técnicas D3FEND cubiertas</span>
+                    <span class="summary-row-label">D3FEND equivalente cubierto por ATT&amp;CK</span>
                     <span class="summary-row-value">{{ covered_d3fend_techniques }} / {{ all_d3fend_techniques }}</span>
                 </div>
                 <div class="summary-row">
-                    <span class="summary-row-label">Casos productivos con D3FEND</span>
+                    <span class="summary-row-label">D3FEND al 100% / parcial</span>
+                    <span class="summary-row-value">{{ fully_covered_d3fend_techniques }} / {{ partially_covered_d3fend_techniques }}</span>
+                </div>
+                <div class="summary-row">
+                    <span class="summary-row-label">Casos productivos con D3FEND manual</span>
                     <span class="summary-row-value">{{ productive_with_d3fend }} / {{ total_cases }}</span>
                 </div>
             </div>

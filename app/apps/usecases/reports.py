@@ -110,8 +110,9 @@ def build_dashboard_pdf(buffer, context, report_settings, generated_by):
         ["Casos productivos", context["total_cases"]],
         ["ATT&CK técnicas", f'{context["covered_attack_techniques"]} / {context["all_attack_techniques"]}'],
         ["ATT&CK tácticas", f'{context["covered_tactics"]} / {context["total_tactics"]}'],
-        ["D3FEND técnicas", f'{context["covered_d3fend_techniques"]} / {context["all_d3fend_techniques"]}'],
-        ["Casos con D3FEND", f'{context["productive_with_d3fend"]} / {context["total_cases"]}'],
+        ["D3FEND inferido", f'{context["covered_d3fend_techniques"]} / {context["all_d3fend_techniques"]}'],
+        ["D3FEND 100% / parcial", f'{context["fully_covered_d3fend_techniques"]} / {context["partially_covered_d3fend_techniques"]}'],
+        ["Casos con D3FEND manual", f'{context["productive_with_d3fend"]} / {context["total_cases"]}'],
     ]
     kpi_table = Table(kpis, colWidths=[6.5 * cm, 3.0 * cm])
     kpi_table.setStyle(TableStyle([("BACKGROUND", (0, 0), (-1, -1), colors.HexColor("#f8fafc")), ("GRID", (0, 0), (-1, -1), 0.4, colors.HexColor("#e5e7eb")), ("FONTNAME", (0, 0), (0, -1), "Helvetica-Bold"), ("TEXTCOLOR", (0, 0), (-1, -1), colors.HexColor("#111827")), ("PADDING", (0, 0), (-1, -1), 7)]))

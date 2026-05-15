@@ -13,9 +13,10 @@ class MitreAttackAdmin(admin.ModelAdmin):
 @admin.register(D3Fend)
 class D3FendAdmin(admin.ModelAdmin):
     list_display = ("code", "name", "category", "is_enabled")
-    list_filter = ("is_enabled",)
+    list_filter = ("is_enabled", "category")
     list_editable = ("is_enabled",)
-    search_fields = ("code", "name", "category")
+    search_fields = ("code", "name", "category", "related_attacks__external_id", "related_attacks__name")
+    filter_horizontal = ("related_attacks",)
 
 
 @admin.register(UseCase)
