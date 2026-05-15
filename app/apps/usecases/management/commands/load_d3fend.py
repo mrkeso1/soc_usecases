@@ -7,6 +7,14 @@ from django.core.management.base import BaseCommand
 
 from apps.usecases.models import D3Fend, MitreAttack
 
+"""
+para actualizar solo defend detect:
+python manage.py load_d3fend
+
+para actualizar todos los módulos:
+python manage.py load_d3fend --all
+"""
+
 
 D3FEND_CSV_URL = "https://d3fend.mitre.org/ontologies/d3fend/1.4.0/d3fend.csv"
 D3FEND_ATTACK_MAPPINGS_URL = "https://d3fend.mitre.org/api/ontology/inference/d3fend-full-mappings.csv"
@@ -32,6 +40,22 @@ def _extract_d3fend_codes(row: dict) -> set[str]:
     return codes
 
 
+def clean(value):
+    return (value or "").strip()
+
+
+def get_first(row, *keys):
+    """
+    Busca el primer valor disponible en varias columnas posibles.
+    Sirve porque MITRE puede cambiar nombres de columnas entre versiones.
+    """
+    for key in keys:
+        value = row.get(key)
+        if value:
+            return clean(value)
+    return ""
+
+
 class Command(BaseCommand):
     help = "Carga D3FEND desde el CSV oficial y sus relaciones inferidas con ATT&CK"
 
@@ -43,7 +67,12 @@ class Command(BaseCommand):
         )
 
     def handle(self, *args, **options):
-        response = requests.get(D3FEND_CSV_URL, timeout=120)
+        load_all = options["all"]
+        url = options["url"]
+
+        self.stdout.write(f"Descargando D3FEND desde: {url}")
+
+        response = requests.get(url, timeout=120)
         response.raise_for_status()
 
         content = response.text
@@ -52,6 +81,13 @@ class Command(BaseCommand):
         created = 0
         updated = 0
         skipped = 0
+        skipped_not_detect = 0
+
+        # Detectamos campos reales del modelo para no romper si tu modelo no tiene description/url/etc.
+        model_fields = {
+            field.name
+            for field in D3Fend._meta.fields
+        }
 
         for row in reader:
             # Probamos varias columnas posibles porque el CSV puede cambiar levemente
@@ -84,12 +120,25 @@ class Command(BaseCommand):
                 skipped += 1
                 continue
 
+            # Por defecto solo cargamos Detect
+            if not load_all and category.lower() != "detect":
+                skipped_not_detect += 1
+                continue
+
+            defaults = {}
+
+            if "name" in model_fields:
+                defaults["name"] = name or code
+
+            if "category" in model_fields:
+                defaults["category"] = category
+
+            if "description" in model_fields:
+                defaults["description"] = description
+
             _, was_created = D3Fend.objects.update_or_create(
                 code=code,
-                defaults={
-                    "name": name,
-                    "category": category,
-                },
+                defaults=defaults,
             )
 
             if was_created:
