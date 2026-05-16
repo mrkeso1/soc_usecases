@@ -7,14 +7,6 @@ from django.core.management.base import BaseCommand
 
 from apps.usecases.models import D3Fend, MitreAttack
 
-"""
-para actualizar solo defend detect:
-python manage.py load_d3fend
-
-para actualizar todos los módulos:
-python manage.py load_d3fend --all
-"""
-
 
 D3FEND_CSV_URL = "https://d3fend.mitre.org/ontologies/d3fend/1.4.0/d3fend.csv"
 D3FEND_ATTACK_MAPPINGS_URL = "https://d3fend.mitre.org/api/ontology/inference/d3fend-full-mappings.csv"
@@ -38,22 +30,6 @@ def _extract_d3fend_codes(row: dict) -> set[str]:
     for value in row.values():
         codes.update(match.upper() for match in D3FEND_CODE_RE.findall(str(value or "")))
     return codes
-
-
-def clean(value):
-    return (value or "").strip()
-
-
-def get_first(row, *keys):
-    """
-    Busca el primer valor disponible en varias columnas posibles.
-    Sirve porque MITRE puede cambiar nombres de columnas entre versiones.
-    """
-    for key in keys:
-        value = row.get(key)
-        if value:
-            return clean(value)
-    return ""
 
 
 class Command(BaseCommand):

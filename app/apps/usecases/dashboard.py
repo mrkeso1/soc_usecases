@@ -7,6 +7,9 @@ that aggregation here avoids duplicating query logic in views and report renderi
 from collections import Counter
 import math
 
+from django.db import connection
+from django.db.utils import OperationalError, ProgrammingError
+
 from .models import D3Fend, MitreAttack, UseCase
 
 
@@ -28,6 +31,15 @@ def _svg_dashoffset(percent: float, radius: float = 80.0) -> float:
     """Return the SVG stroke offset needed for the radial progress widgets."""
     circumference = 2 * math.pi * radius
     return round(circumference * (1 - percent / 100), 2)
+
+
+def _d3fend_attack_mapping_table_exists() -> bool:
+    """Return whether the D3FEND→ATT&CK M2M table has been migrated."""
+    table_name = D3Fend.related_attacks.through._meta.db_table
+    try:
+        return table_name in connection.introspection.table_names()
+    except (OperationalError, ProgrammingError):
+        return False
 
 
 def _build_radial_metric(
@@ -99,43 +111,52 @@ def build_dashboard_context(request):
     uncovered_tactics = sorted(all_tactic_names - covered_tactic_names)
 
     # D3FEND coverage is inferred from the official D3FEND→ATT&CK relations.
-    # A defensive technique can map to multiple ATT&CK techniques, so each D3FEND
-    # item receives partial credit: covered related ATT&CK / total related ATT&CK.
-    covered_attack_ids = set(
-        MitreAttack.objects
-        .filter(is_enabled=True, use_cases__in=production_qs)
-        .distinct()
-        .values_list("id", flat=True)
-    )
-    mapped_d3fends = list(
-        D3Fend.objects
-        .filter(is_enabled=True, related_attacks__is_enabled=True)
-        .prefetch_related("related_attacks")
-        .distinct()
-        .order_by("code", "name")
-    )
-    all_d3fend_techniques = len(mapped_d3fends)
+    # Deployments that have not applied migration 0014 yet should keep rendering
+    # the dashboard, so we only use the inferred mapping when its M2M table exists.
+    d3fend_mapping_ready = _d3fend_attack_mapping_table_exists()
     d3fend_coverage_rows = []
-    covered_d3fend_techniques = 0.0
     fully_covered_d3fend_techniques = 0
     partially_covered_d3fend_techniques = 0
 
-    for d3fend in mapped_d3fends:
-        related_attack_ids = {attack.id for attack in d3fend.related_attacks.all() if attack.is_enabled}
-        total_related = len(related_attack_ids)
-        covered_related = len(related_attack_ids & covered_attack_ids)
-        coverage_ratio = (covered_related / total_related) if total_related else 0.0
-        covered_d3fend_techniques += coverage_ratio
-        if coverage_ratio >= 1:
-            fully_covered_d3fend_techniques += 1
-        elif coverage_ratio > 0:
-            partially_covered_d3fend_techniques += 1
-        d3fend.coverage_percent = round(coverage_ratio * 100, 1)
-        d3fend.covered_related_attacks = covered_related
-        d3fend.total_related_attacks = total_related
-        d3fend_coverage_rows.append((coverage_ratio, d3fend))
+    if d3fend_mapping_ready:
+        covered_attack_ids = set(
+            MitreAttack.objects
+            .filter(is_enabled=True, use_cases__in=production_qs)
+            .distinct()
+            .values_list("id", flat=True)
+        )
+        mapped_d3fends = list(
+            D3Fend.objects
+            .filter(is_enabled=True, related_attacks__is_enabled=True)
+            .prefetch_related("related_attacks")
+            .distinct()
+            .order_by("code", "name")
+        )
+        all_d3fend_techniques = len(mapped_d3fends)
+        covered_d3fend_techniques = 0.0
 
-    covered_d3fend_techniques = round(covered_d3fend_techniques, 1)
+        for d3fend in mapped_d3fends:
+            related_attack_ids = {attack.id for attack in d3fend.related_attacks.all() if attack.is_enabled}
+            total_related = len(related_attack_ids)
+            covered_related = len(related_attack_ids & covered_attack_ids)
+            coverage_ratio = (covered_related / total_related) if total_related else 0.0
+            covered_d3fend_techniques += coverage_ratio
+            if coverage_ratio >= 1:
+                fully_covered_d3fend_techniques += 1
+            elif coverage_ratio > 0:
+                partially_covered_d3fend_techniques += 1
+            d3fend.coverage_percent = round(coverage_ratio * 100, 1)
+            d3fend.covered_related_attacks = covered_related
+            d3fend.total_related_attacks = total_related
+            d3fend_coverage_rows.append((coverage_ratio, d3fend))
+
+        covered_d3fend_techniques = round(covered_d3fend_techniques, 1)
+    else:
+        all_d3fend_techniques = D3Fend.objects.filter(is_enabled=True).count()
+        covered_d3fend_techniques = (
+            D3Fend.objects.filter(is_enabled=True, use_cases__in=production_qs).distinct().count()
+        )
+
     productive_with_d3fend = (
         production_qs.filter(d3fends__isnull=False).distinct().count()
     )
@@ -148,7 +169,16 @@ def build_dashboard_context(request):
         .order_by("external_id", "name")[:20]
     )
 
-    uncovered_d3fends = [d3fend for coverage, d3fend in d3fend_coverage_rows if coverage == 0][:20]
+    if d3fend_mapping_ready:
+        uncovered_d3fends = [d3fend for coverage, d3fend in d3fend_coverage_rows if coverage == 0][:20]
+    else:
+        uncovered_d3fends = (
+            D3Fend.objects
+            .filter(is_enabled=True)
+            .exclude(use_cases__in=production_qs)
+            .distinct()
+            .order_by("code", "name")[:20]
+        )
 
     attack_counter: Counter = Counter()
     for uc in production_qs:
