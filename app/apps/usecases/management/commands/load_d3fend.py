@@ -43,7 +43,12 @@ class Command(BaseCommand):
         )
 
     def handle(self, *args, **options):
-        response = requests.get(D3FEND_CSV_URL, timeout=120)
+        load_all = options["all"]
+        url = options["url"]
+
+        self.stdout.write(f"Descargando D3FEND desde: {url}")
+
+        response = requests.get(url, timeout=120)
         response.raise_for_status()
 
         content = response.text
@@ -52,6 +57,13 @@ class Command(BaseCommand):
         created = 0
         updated = 0
         skipped = 0
+        skipped_not_detect = 0
+
+        # Detectamos campos reales del modelo para no romper si tu modelo no tiene description/url/etc.
+        model_fields = {
+            field.name
+            for field in D3Fend._meta.fields
+        }
 
         for row in reader:
             # Probamos varias columnas posibles porque el CSV puede cambiar levemente
@@ -84,12 +96,25 @@ class Command(BaseCommand):
                 skipped += 1
                 continue
 
+            # Por defecto solo cargamos Detect
+            if not load_all and category.lower() != "detect":
+                skipped_not_detect += 1
+                continue
+
+            defaults = {}
+
+            if "name" in model_fields:
+                defaults["name"] = name or code
+
+            if "category" in model_fields:
+                defaults["category"] = category
+
+            if "description" in model_fields:
+                defaults["description"] = description
+
             _, was_created = D3Fend.objects.update_or_create(
                 code=code,
-                defaults={
-                    "name": name,
-                    "category": category,
-                },
+                defaults=defaults,
             )
 
             if was_created:
