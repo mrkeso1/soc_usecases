@@ -20,6 +20,20 @@ class MitreAttack(models.Model):
     tactic = models.CharField("Táctica", max_length=100, blank=True)
     is_enabled = models.BooleanField("Habilitada", default=True)
 
+    disabled_reason = models.TextField(
+        "Motivo de deshabilitación",
+        blank=True,
+        default="",
+        help_text="Explica por qué esta técnica ATT&CK fue deshabilitada.",
+    )
+
+    notes = models.TextField(
+        "Notas internas",
+        blank=True,
+        default="",
+        help_text="Notas internas sobre la técnica ATT&CK o su aplicabilidad en el SOC.",
+    )
+
     class Meta:
         ordering = ["external_id"]
 
@@ -28,12 +42,65 @@ class MitreAttack(models.Model):
             return f"{self.external_id} - {self.name}"
         return self.external_id
 
+    @property
+    def related_d3fends_count(self):
+        return self.related_d3fends.count()
+
+    @property
+    def related_d3fends_display(self):
+        d3fends = self.related_d3fends.all().order_by("code", "name")
+        values = []
+
+        for d3fend in d3fends:
+            if d3fend.name:
+                values.append(f"{d3fend.code} - {d3fend.name}")
+            else:
+                values.append(d3fend.code)
+
+        return ", ".join(values)
+
+    @property
+    def enabled_related_d3fends_display(self):
+        d3fends = self.related_d3fends.filter(is_enabled=True).order_by("code", "name")
+        values = []
+
+        for d3fend in d3fends:
+            if d3fend.name:
+                values.append(f"{d3fend.code} - {d3fend.name}")
+            else:
+                values.append(d3fend.code)
+
+        return ", ".join(values)
+
 
 class D3Fend(models.Model):
     code = models.CharField("Código D3FEND", max_length=120, unique=True)
     name = models.CharField("Nombre", max_length=255, blank=True)
     category = models.CharField("Categoría", max_length=100, blank=True)
+
+    description = models.TextField(
+        "Descripción",
+        blank=True,
+        default="",
+        help_text="Descripción de la técnica D3FEND.",
+    )
+
     is_enabled = models.BooleanField("Habilitada", default=True)
+
+    disabled_reason = models.TextField(
+        "Motivo de deshabilitación",
+        blank=True,
+        default="",
+        help_text="Explica por qué esta técnica D3FEND fue deshabilitada.",
+    )
+
+    notes = models.TextField(
+        "Notas internas",
+        blank=True,
+        default="",
+        help_text="Notas internas sobre la técnica D3FEND o su aplicabilidad en el SOC.",
+    )
+
     related_attacks = models.ManyToManyField(
         MitreAttack,
         blank=True,
@@ -50,7 +117,26 @@ class D3Fend(models.Model):
             return f"{self.code} - {self.name}"
         return self.code
 
+    @property
+    def related_attacks_count(self):
+        return self.related_attacks.count()
 
+    @property
+    def related_attacks_display(self):
+        attacks = self.related_attacks.all().order_by("external_id", "name")
+        values = []
+
+        for attack in attacks:
+            if attack.name:
+                values.append(f"{attack.external_id} - {attack.name}")
+            else:
+                values.append(attack.external_id)
+
+        return ", ".join(values)
+
+    @property
+    def enabled_related_attacks_count(self):
+        return self.related_attacks.filter(is_enabled=True).count()
 
 
 class DashboardReportSettings(models.Model):
@@ -119,10 +205,11 @@ class LifecycleSettings(models.Model):
 
 
 def get_review_interval_days() -> int:
-    settings_obj = LifecycleSettings.objects.filter(is_active=True).order_by('-id').first()
+    settings_obj = LifecycleSettings.objects.filter(is_active=True).order_by("-id").first()
     if settings_obj and settings_obj.review_interval_days > 0:
         return settings_obj.review_interval_days
     return 120
+
 
 class UseCase(models.Model):
     BLOCKING_TYPE_CHOICES = [
