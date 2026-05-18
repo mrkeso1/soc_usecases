@@ -26,14 +26,18 @@ def build_d3fend_matrix_context(request):
     sort = request.GET.get("sort", "code").strip()
 
     production_qs = UseCase.objects.filter(status__iexact="Producción")
+
     if device:
         production_qs = production_qs.filter(device__iexact=device)
+
     if severity:
         production_qs = production_qs.filter(severity__iexact=severity)
+
     if enabled == "yes":
         production_qs = production_qs.filter(is_enabled=True)
     elif enabled == "no":
         production_qs = production_qs.filter(is_enabled=False)
+
     production_qs = production_qs.distinct()
 
     covered_attack_ids = set(
@@ -45,6 +49,7 @@ def build_d3fend_matrix_context(request):
 
     d3fends = (
         D3Fend.objects
+        .filter(is_enabled=True)
         .prefetch_related(
             Prefetch(
                 "related_attacks",
@@ -64,11 +69,15 @@ def build_d3fend_matrix_context(request):
     for d3fend in d3fends:
         attacks = []
         covered_count = 0
+
         related_attacks = list(d3fend.related_attacks.all())
+
         for attack in related_attacks:
             covered = attack.id in covered_attack_ids
+
             if covered:
                 covered_count += 1
+
             attacks.append({
                 "id": attack.id,
                 "external_id": attack.external_id,
@@ -78,8 +87,10 @@ def build_d3fend_matrix_context(request):
 
         total_attacks = len(attacks)
         percent = _safe_percent(covered_count, total_attacks)
+
         total_relations += total_attacks
         total_covered_relations += covered_count
+
         if total_attacks == 0:
             without_attacks += 1
         elif covered_count == total_attacks:
@@ -127,7 +138,10 @@ def build_d3fend_matrix_context(request):
         "total_cases": production_qs.count(),
         "total_relations": total_relations,
         "total_covered_relations": total_covered_relations,
-        "overall_coverage_percent": _safe_percent(total_covered_relations, total_relations),
+        "overall_coverage_percent": _safe_percent(
+            total_covered_relations,
+            total_relations,
+        ),
         "fully_covered": fully_covered,
         "partially_covered": partially_covered,
         "without_attacks": without_attacks,
