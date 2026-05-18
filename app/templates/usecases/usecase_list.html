@@ -683,6 +683,12 @@
             font-family: 'JetBrains Mono', monospace;
         }
 
+        .mapping-empty-inline {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 10px;
+            color: var(--text-muted);
+        }
+
         /* ── Responsive ── */
         @media (max-width: 1200px) {
             .summary-strip { flex-wrap: wrap; }
@@ -929,7 +935,6 @@
                         <td class="col-name sticky-l1">
                             <input type="hidden" name="uc_ids" value="{{ uc.pk }}">
                             <input type="hidden" name="mitre_attack_ids_{{ uc.pk }}" id="mitre-hidden-{{ uc.pk }}" value="{% for item in uc.mitre_attacks.all %}{% if not forloop.first %},{% endif %}{{ item.id }}{% endfor %}">
-                            <input type="hidden" name="d3fend_ids_{{ uc.pk }}" id="d3fend-hidden-{{ uc.pk }}" value="{% for item in uc.d3fends.all %}{% if not forloop.first %},{% endif %}{{ item.id }}{% endfor %}">
                             <span class="cell-readonly">{{ uc.name }}</span>
                         </td>
 
@@ -938,21 +943,17 @@
                         </td>
 
                         <td class="col-d3fend mapping-cell">
-                            <input type="text" class="mapping-input" placeholder="Buscar D3FEND…"
-                                oninput="searchMapping('d3fend','{{ uc.pk }}',this.value)"
-                                onfocus="searchMapping('d3fend','{{ uc.pk }}',this.value)"
-                                autocomplete="off" {% if not uc.can_manage_by_user %}disabled{% endif %}>
-                            <div class="mapping-chip-wrap" id="d3fend-chips-{{ uc.pk }}">
-                                {% for item in uc.d3fends.all %}
+                            <div class="mapping-chip-wrap auto-d3fend-wrap" id="d3fend-chips-{{ uc.pk }}">
+                                {% for item in uc.inferred_d3fends %}
                                 <span class="mapping-chip" data-id="{{ item.id }}">
                                     <span class="mapping-chip-label" title="{{ item.code }}{% if item.name %} — {{ item.name }}{% endif %}">
                                         {% if selected_view == "detailed" %}{{ item.code }}{% if item.name %} — {{ item.name }}{% endif %}{% else %}{{ item.code }}{% endif %}
                                     </span>
-                                    {% if uc.can_manage_by_user %}<button type="button" onclick="removeMapping('d3fend','{{ uc.pk }}','{{ item.id }}')">×</button>{% endif %}
                                 </span>
+                                {% empty %}
+                                <span class="mapping-empty-inline">Auto por ATT&CK</span>
                                 {% endfor %}
                             </div>
-                            <div class="mapping-suggestions" id="d3fend-results-{{ uc.pk }}"></div>
                         </td>
 
                         <td class="col-attack mapping-cell">

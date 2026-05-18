@@ -252,16 +252,6 @@
                         <div id="mitre-chips" class="chips"></div>
                     </div>
 
-                    <div class="field full">
-                        <label>D3FEND relacionado</label>
-                        <div class="autocomplete-box">
-                            <input type="text" id="d3fend-search" placeholder="Buscar D3FEND por código, nombre o categoría...">
-                            <div id="d3fend-results" class="autocomplete-results"></div>
-                        </div>
-                        {{ form.d3fends }}
-                        <div id="d3fend-chips" class="chips"></div>
-                    </div>
-
                     <div class="field">
                         <label>Escalamiento</label>
                         {{ form.escalation }}
@@ -414,14 +404,6 @@
             selectId: "id_mitre_attacks",
             chipsId: "mitre-chips",
             url: "{% url 'mitre_attack_autocomplete' %}"
-        });
-
-        setupAutocomplete({
-            inputId: "d3fend-search",
-            resultsId: "d3fend-results",
-            selectId: "id_d3fends",
-            chipsId: "d3fend-chips",
-            url: "{% url 'd3fend_autocomplete' %}"
         });
     </script>
 </body>

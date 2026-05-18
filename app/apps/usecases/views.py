@@ -133,6 +133,25 @@ def _serialize_d3fend(usecase) -> str:
     )
 
 
+def _inferred_d3fends_queryset(attack_ids):
+    return (
+        D3Fend.objects
+        .filter(is_enabled=True, related_attacks__id__in=attack_ids)
+        .distinct()
+        .order_by("code", "name")
+    )
+
+
+def _sync_d3fends_from_attacks(usecase) -> bool:
+    attack_ids = [item.id for item in usecase.mitre_attacks.all()]
+    current_ids = {item.id for item in usecase.d3fends.all()}
+    inferred_ids = set(_inferred_d3fends_queryset(attack_ids).values_list("id", flat=True))
+    if current_ids == inferred_ids:
+        return False
+    usecase.d3fends.set(D3Fend.objects.filter(id__in=inferred_ids))
+    return True
+
+
 def _snapshot_usecase(usecase) -> dict:
     """Capture all tracked fields into a flat dict for change-log comparison."""
     return {
@@ -313,6 +332,7 @@ def usecase_list(request):
 
     qs = list(qs)
     for usecase in qs:
+        usecase.inferred_d3fends = list(_inferred_d3fends_queryset([item.id for item in usecase.mitre_attacks.all()]))
         usecase.can_manage_by_user = can_manage_usecases(request.user, usecase)
         usecase.can_delete_by_user = can_delete_usecases(request.user, usecase)
 
@@ -397,6 +417,7 @@ def usecase_create(request):
                 usecase.owner_name = request.user.get_full_name() or request.user.username
             usecase.save()
             form.save_m2m()
+            _sync_d3fends_from_attacks(usecase)
             messages.success(request, "Caso de uso creado correctamente.")
             return redirect("usecase_detail", pk=usecase.pk)
     else:
@@ -429,6 +450,7 @@ def usecase_edit(request, pk):
             usecase.updated_by = request.user
             usecase.save()
             form.save_m2m()
+            _sync_d3fends_from_attacks(usecase)
             new_data = _snapshot_usecase(usecase)
             create_change_logs(usecase, old_data, new_data, request.user)
             messages.success(request, "Caso de uso actualizado correctamente.")
@@ -496,9 +518,7 @@ def usecase_quick_update(request, pk):
     usecase.mitre_attacks.set(
         MitreAttack.objects.filter(id__in=_parse_csv_ids(request.POST.get("mitre_attack_ids", "")))
     )
-    usecase.d3fends.set(
-        D3Fend.objects.filter(id__in=_parse_csv_ids(request.POST.get("d3fend_ids", "")))
-    )
+    _sync_d3fends_from_attacks(usecase)
 
     new_data = _snapshot_usecase(usecase)
     create_change_logs(usecase, old_data, new_data, request.user)
@@ -566,16 +586,13 @@ def usecase_bulk_update(request):
                     changed_fields.append(field_name)
 
             current_mitre_ids = {item.id for item in usecase.mitre_attacks.all()}
-            current_d3fend_ids = {item.id for item in usecase.d3fends.all()}
             posted_mitre_ids = set(_parse_csv_ids(request.POST.get(f"mitre_attack_ids_{pk}", "")))
-            posted_d3fend_ids = set(_parse_csv_ids(request.POST.get(f"d3fend_ids_{pk}", "")))
 
             m2m_changed = False
             if current_mitre_ids != posted_mitre_ids:
                 usecase.mitre_attacks.set(MitreAttack.objects.filter(id__in=posted_mitre_ids))
                 m2m_changed = True
-            if current_d3fend_ids != posted_d3fend_ids:
-                usecase.d3fends.set(D3Fend.objects.filter(id__in=posted_d3fend_ids))
+            if _sync_d3fends_from_attacks(usecase):
                 m2m_changed = True
 
             if changed_fields:
