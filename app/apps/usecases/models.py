@@ -30,7 +30,7 @@ class MitreAttack(models.Model):
 
 
 class D3Fend(models.Model):
-    code = models.CharField("Código D3FEND", max_length=30, unique=True)
+    code = models.CharField("Código D3FEND", max_length=120, unique=True)
     name = models.CharField("Nombre", max_length=255, blank=True)
     category = models.CharField("Categoría", max_length=100, blank=True)
     is_enabled = models.BooleanField("Habilitada", default=True)
