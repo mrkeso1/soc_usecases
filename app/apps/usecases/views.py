@@ -12,6 +12,7 @@ from django.http import HttpResponse, JsonResponse, HttpResponseForbidden, Query
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
 
+from .d3fend_matrix import build_d3fend_matrix_context
 from .dashboard import build_dashboard_context
 from .forms import UseCaseForm
 from .lifecycle import current_lifecycle_window
@@ -227,6 +228,12 @@ def dashboard_pdf_export(request):
     response["Content-Disposition"] = f'attachment; filename="dashboard-soc-{date.today():%Y%m%d}.pdf"'
     return response
 
+
+@login_required
+def d3fend_matrix_view(request):
+    if not can_access_usecases(request.user):
+        return HttpResponseForbidden("Solo usuarios autorizados pueden acceder a la matriz D3FEND.")
+    return render(request, "usecases/d3fend_matrix.html", build_d3fend_matrix_context(request))
 
 @login_required
 def usecase_list(request):
