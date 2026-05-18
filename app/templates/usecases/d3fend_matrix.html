@@ -13,7 +13,7 @@
     .summary-label { font-family:'JetBrains Mono', monospace; color:var(--text-muted); font-size:10px; text-transform:uppercase; letter-spacing:.08em; }
     .summary-value { margin-top:8px; color:var(--text-strong); font-family:'JetBrains Mono', monospace; font-size:1.45rem; font-weight:700; }
     .summary-value.good { color:var(--good); }
-    .filters { display:grid; grid-template-columns:repeat(5, minmax(150px, 1fr)); gap:10px; background:var(--surface); border:1px solid var(--border); border-radius:14px; padding:14px; margin-bottom:18px; }
+    .filters { display:grid; grid-template-columns:repeat(4, minmax(150px, 1fr)); gap:10px; background:var(--surface); border:1px solid var(--border); border-radius:14px; padding:14px; margin-bottom:18px; }
     .field label { display:block; font-family:'JetBrains Mono', monospace; color:var(--text-muted); font-size:10px; text-transform:uppercase; letter-spacing:.08em; margin-bottom:6px; }
     .field select { width:100%; background:var(--surface-2); color:var(--text-strong); border:1px solid var(--border); border-radius:8px; padding:10px; }
     .filter-actions { display:flex; gap:8px; align-items:end; }
@@ -53,17 +53,17 @@
         <div>
             <div class="page-eyebrow">// MATRIZ D3FEND</div>
             <h1 class="page-title">Cobertura D3FEND por ATT&CK</h1>
-            <p class="page-subtitle">La matriz cruza cada técnica D3FEND almacenada con sus ATT&CK relacionados en la base de datos y calcula la cobertura según los casos de uso en Producción que cubren esos ATT&CK.</p>
+            <p class="page-subtitle">La matriz cruza cada técnica D3FEND habilitada con sus ATT&CK habilitados relacionados en la base de datos y calcula la cobertura según los casos de uso habilitados en Producción que cubren esos ATT&CK.</p>
         </div>
     </div>
 
     <div class="summary-strip">
         <div class="summary-card"><div class="summary-label">Cobertura global</div><div class="summary-value good">{{ overall_coverage_percent }}%</div></div>
-        <div class="summary-card"><div class="summary-label">D3FEND en DB</div><div class="summary-value">{{ total_d3fends }}</div></div>
+        <div class="summary-card"><div class="summary-label">D3FEND habilitados</div><div class="summary-value">{{ total_d3fends }}</div></div>
         <div class="summary-card"><div class="summary-label">Relaciones cubiertas</div><div class="summary-value">{{ total_covered_relations }}/{{ total_relations }}</div></div>
         <div class="summary-card"><div class="summary-label">100% cubiertos</div><div class="summary-value">{{ fully_covered }}</div></div>
         <div class="summary-card"><div class="summary-label">Parciales</div><div class="summary-value">{{ partially_covered }}</div></div>
-        <div class="summary-card"><div class="summary-label">Casos productivos</div><div class="summary-value">{{ total_cases }}</div></div>
+        <div class="summary-card"><div class="summary-label">Casos productivos habilitados</div><div class="summary-value">{{ total_cases }}</div></div>
     </div>
 
     <form class="filters" method="get">
@@ -83,14 +83,6 @@
                 {% for value, label in severity_choices %}
                     <option value="{{ value }}" {% if selected_severity == value %}selected{% endif %}>{{ label }}</option>
                 {% endfor %}
-            </select>
-        </div>
-        <div class="field">
-            <label for="enabled">Casos habilitados</label>
-            <select id="enabled" name="enabled">
-                <option value="" {% if not selected_enabled %}selected{% endif %}>Todos</option>
-                <option value="yes" {% if selected_enabled == "yes" %}selected{% endif %}>Solo habilitados</option>
-                <option value="no" {% if selected_enabled == "no" %}selected{% endif %}>Solo deshabilitados</option>
             </select>
         </div>
         <div class="field">
@@ -122,7 +114,7 @@
                     {% for row in rows %}
                         <tr>
                             <td>
-                                <span class="d3-code">{{ row.d3fend.code }} <span class="status-chip {% if row.d3fend.is_enabled %}enabled{% endif %}">{% if row.d3fend.is_enabled %}Activa{% else %}Inactiva{% endif %}</span></span>
+                                <span class="d3-code">{{ row.d3fend.code }} <span class="status-chip enabled">Activa</span></span>
                                 <div class="d3-name">{{ row.d3fend.name|default:"Sin nombre" }}</div>
                                 {% if row.d3fend.category %}<div class="d3-category">{{ row.d3fend.category }}</div>{% endif %}
                             </td>
@@ -149,7 +141,7 @@
                 </tbody>
             </table>
         {% else %}
-            <div class="empty-state">No hay técnicas D3FEND cargadas en la base de datos.</div>
+            <div class="empty-state">No hay técnicas D3FEND habilitadas en la base de datos.</div>
         {% endif %}
     </div>
 </div>

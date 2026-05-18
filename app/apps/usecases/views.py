@@ -136,7 +136,7 @@ def _serialize_d3fend(usecase) -> str:
 def _inferred_d3fends_queryset(attack_ids):
     return (
         D3Fend.objects
-        .filter(is_enabled=True, related_attacks__id__in=attack_ids)
+        .filter(is_enabled=True, related_attacks__is_enabled=True, related_attacks__id__in=attack_ids)
         .distinct()
         .order_by("code", "name")
     )
