@@ -121,6 +121,9 @@
             background: #475569;
         }
 
+        .actions form { display:inline-block; }
+        .btn-danger { background:#b91c1c; color:#fff; border:0; padding:10px 14px; border-radius:8px; cursor:pointer; }
+
         .history-table-wrap {
             width: 100%;
             overflow-x: auto;
@@ -152,16 +155,10 @@
             color: #94a3b8;
         }
     </style>
+    {% include "includes/topbar_styles.html" %}
 </head>
 <body>
-    <div class="topbar">
-        <div><strong>SOC Use Cases Manager</strong></div>
-        <div>
-            <a href="/dashboard/">Dashboard</a>
-            <a href="/usecases/">Inventario</a>
-            <a href="{% url 'logout' %}">Salir</a>
-        </div>
-    </div>
+    {% include "includes/topbar.html" %}
 
     <div class="container">
         <div class="card">
@@ -271,8 +268,14 @@
             </div>
 
             <div class="actions">
-                <a href="{% url 'usecase_edit' usecase.pk %}">Editar</a>
+                {% if can_manage_usecases %}<a href="{% url 'usecase_edit' usecase.pk %}">Editar</a>{% endif %}
                 <a href="{% url 'usecase_list' %}" class="secondary">Volver</a>
+                {% if can_delete_usecases %}
+                <form method="post" action="{% url 'usecase_delete' usecase.pk %}" onsubmit="return confirm('¿Eliminar este caso de uso? Esta acción no se puede deshacer.');">
+                    {% csrf_token %}
+                    <button class="btn-danger" type="submit">Eliminar</button>
+                </form>
+                {% endif %}
             </div>
         </div>
 

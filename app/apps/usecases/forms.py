@@ -59,3 +59,8 @@ class UseCaseForm(forms.ModelForm):
             "mitre_attacks": "Mantené Ctrl presionado para seleccionar varias técnicas.",
             "d3fends": "Mantené Ctrl presionado para seleccionar varios controles.",
         }
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields["mitre_attacks"].queryset = self.fields["mitre_attacks"].queryset.filter(is_enabled=True)
+        self.fields["d3fends"].queryset = self.fields["d3fends"].queryset.filter(is_enabled=True)
