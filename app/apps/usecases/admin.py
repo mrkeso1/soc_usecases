@@ -1,5 +1,14 @@
 from django.contrib import admin
-from .models import D3Fend, DashboardReportSettings, LifecycleReview, LifecycleSettings, MitreAttack, UseCase, UseCaseChangeLog
+
+from .models import (
+    D3Fend,
+    DashboardReportSettings,
+    LifecycleReview,
+    LifecycleSettings,
+    MitreAttack,
+    UseCase,
+    UseCaseChangeLog,
+)
 
 
 @admin.register(MitreAttack)
@@ -15,7 +24,13 @@ class D3FendAdmin(admin.ModelAdmin):
     list_display = ("code", "name", "category", "is_enabled")
     list_filter = ("is_enabled", "category")
     list_editable = ("is_enabled",)
-    search_fields = ("code", "name", "category", "related_attacks__external_id", "related_attacks__name")
+    search_fields = (
+        "code",
+        "name",
+        "category",
+        "related_attacks__external_id",
+        "related_attacks__name",
+    )
     filter_horizontal = ("related_attacks",)
 
 
@@ -34,6 +49,7 @@ class UseCaseAdmin(admin.ModelAdmin):
         "mitre_count",
         "d3fend_count",
     )
+
     search_fields = (
         "name",
         "group_name",
@@ -48,6 +64,7 @@ class UseCaseAdmin(admin.ModelAdmin):
         "d3fends__code",
         "d3fends__name",
     )
+
     list_filter = (
         "group_name",
         "device",
@@ -56,8 +73,17 @@ class UseCaseAdmin(admin.ModelAdmin):
         "lifecycle_control_owner",
         "is_enabled",
     )
+
     autocomplete_fields = ("lifecycle_control_owner",)
     filter_horizontal = ("mitre_attacks", "d3fends")
+
+    @admin.display(description="MITRE")
+    def mitre_count(self, obj):
+        return obj.mitre_attacks.count()
+
+    @admin.display(description="D3FEND")
+    def d3fend_count(self, obj):
+        return obj.d3fends.count()
 
 
 @admin.register(LifecycleReview)
@@ -71,12 +97,14 @@ class LifecycleReviewAdmin(admin.ModelAdmin):
         "checked_at",
         "next_review_date",
     )
+
     search_fields = (
         "use_case__name",
         "control_owner__username",
         "completed_by__username",
         "notes",
     )
+
     list_filter = ("status", "result", "checked_at", "control_owner")
     autocomplete_fields = ("use_case", "control_owner", "completed_by")
 
@@ -91,6 +119,7 @@ class UseCaseChangeLogAdmin(admin.ModelAdmin):
         "changed_by",
         "changed_at",
     )
+
     search_fields = (
         "use_case__name",
         "field_name",
@@ -98,10 +127,12 @@ class UseCaseChangeLogAdmin(admin.ModelAdmin):
         "new_value",
         "changed_by__username",
     )
+
     list_filter = (
         "field_name",
         "changed_at",
     )
+
 
 @admin.register(LifecycleSettings)
 class LifecycleSettingsAdmin(admin.ModelAdmin):
