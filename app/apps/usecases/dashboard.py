@@ -157,9 +157,6 @@ def build_dashboard_context(request):
             D3Fend.objects.filter(is_enabled=True, use_cases__in=production_qs).distinct().count()
         )
 
-    productive_with_d3fend = (
-        production_qs.filter(d3fends__isnull=False).distinct().count()
-    )
 
     uncovered_attacks = (
         MitreAttack.objects
@@ -190,15 +187,6 @@ def build_dashboard_context(request):
         for (aid, eid, name), count in attack_counter.most_common(10)
     ]
 
-    d3fend_counter: Counter = Counter()
-    for uc in production_qs:
-        for d3 in uc.d3fends.all():
-            d3fend_counter[(d3.id, d3.code, d3.name)] += 1
-
-    top_d3fend_controls = [
-        {"id": did, "code": code, "name": name, "count": count}
-        for (did, code, name), count in d3fend_counter.most_common(10)
-    ]
 
     attack_radials = [
         _build_radial_metric(
@@ -229,10 +217,10 @@ def build_dashboard_context(request):
             covered_label="100% cubiertos",
         ),
         _build_radial_metric(
-            "Casos productivos con D3FEND manual",
-            productive_with_d3fend,
-            total_cases,
-            covered_label="Con D3FEND",
+            "D3FEND parcialmente cubiertos",
+            partially_covered_d3fend_techniques,
+            all_d3fend_techniques,
+            covered_label="Parcialmente cubiertos",
         ),
     ]
 
@@ -260,7 +248,6 @@ def build_dashboard_context(request):
         "uncovered_tactics": uncovered_tactics,
         "covered_d3fend_techniques": covered_d3fend_techniques,
         "all_d3fend_techniques": all_d3fend_techniques,
-        "productive_with_d3fend": productive_with_d3fend,
         "fully_covered_d3fend_techniques": fully_covered_d3fend_techniques,
         "partially_covered_d3fend_techniques": partially_covered_d3fend_techniques,
         "global_d3fend_coverage_percent": d3fend_global_metric["percent"],
@@ -268,5 +255,4 @@ def build_dashboard_context(request):
         "uncovered_attacks": uncovered_attacks,
         "uncovered_d3fends": uncovered_d3fends,
         "top_attack_techniques": top_attack_techniques,
-        "top_d3fend_controls": top_d3fend_controls,
     }

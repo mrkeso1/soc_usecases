@@ -821,12 +821,12 @@
             <div class="panel-body">
                 {% if uncovered_d3fends %}
                     {% for item in uncovered_d3fends %}
-                    <a class="list-item" href="{% url 'usecase_list' %}?mapping_d3fend=without&d3fend_id={{ item.id }}">
+                    <div class="list-item" style="display:block;">
                         <div>
                             <div class="list-item-main">{{ item.code }} — {{ item.name }}</div>
                             <div class="list-item-sub">{{ item.covered_related_attacks|default:0 }} / {{ item.total_related_attacks|default:0 }} ATT&amp;CK relacionadas cubiertas{% if item.category %} · {{ item.category }}{% endif %}</div>
                         </div>
-                    </a>
+                    </div>
                     {% endfor %}
                 {% else %}
                     <div class="empty-note">// Sin técnicas pendientes</div>
