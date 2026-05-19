@@ -1,0 +1,148 @@
+{% extends "base.html" %}
+
+{% block title %}Matriz D3FEND — SOC Use Cases Manager{% endblock %}
+
+{% block extra_css %}
+<style>
+    .page-header { display:flex; justify-content:space-between; align-items:flex-end; gap:18px; margin-bottom:22px; }
+    .page-eyebrow { font-family:'JetBrains Mono', monospace; font-size:11px; color:var(--accent); letter-spacing:.12em; text-transform:uppercase; }
+    .page-title { font-size:1.9rem; color:var(--text-strong); margin:4px 0; }
+    .page-subtitle { color:var(--text-muted); max-width:840px; line-height:1.5; }
+    .summary-strip { display:grid; grid-template-columns:repeat(6, minmax(140px, 1fr)); gap:10px; margin:18px 0 20px; }
+    .summary-card { background:var(--surface); border:1px solid var(--border); border-radius:14px; padding:14px; }
+    .summary-label { font-family:'JetBrains Mono', monospace; color:var(--text-muted); font-size:10px; text-transform:uppercase; letter-spacing:.08em; }
+    .summary-value { margin-top:8px; color:var(--text-strong); font-family:'JetBrains Mono', monospace; font-size:1.45rem; font-weight:700; }
+    .summary-value.good { color:var(--good); }
+    .filters { display:grid; grid-template-columns:repeat(4, minmax(150px, 1fr)); gap:10px; background:var(--surface); border:1px solid var(--border); border-radius:14px; padding:14px; margin-bottom:18px; }
+    .field label { display:block; font-family:'JetBrains Mono', monospace; color:var(--text-muted); font-size:10px; text-transform:uppercase; letter-spacing:.08em; margin-bottom:6px; }
+    .field select { width:100%; background:var(--surface-2); color:var(--text-strong); border:1px solid var(--border); border-radius:8px; padding:10px; }
+    .filter-actions { display:flex; gap:8px; align-items:end; }
+    .btn-primary, .btn-secondary { border:1px solid var(--border); border-radius:8px; padding:10px 13px; text-decoration:none; font-family:'JetBrains Mono', monospace; font-size:12px; cursor:pointer; }
+    .btn-primary { background:var(--accent); color:white; border-color:var(--accent); }
+    .btn-secondary { background:var(--surface-2); color:var(--text); }
+    .matrix-wrap { background:var(--surface); border:1px solid var(--border); border-radius:16px; overflow:auto; }
+    table { width:100%; min-width:1180px; border-collapse:collapse; }
+    th, td { padding:14px; border-bottom:1px solid var(--border); text-align:left; vertical-align:top; }
+    th { font-family:'JetBrains Mono', monospace; color:var(--text-muted); font-size:11px; text-transform:uppercase; letter-spacing:.08em; background:rgba(17,29,48,.8); position:sticky; top:0; z-index:1; }
+    .d3-code { display:inline-flex; align-items:center; gap:8px; font-family:'JetBrains Mono', monospace; color:var(--accent); font-weight:700; }
+    .d3-name { margin-top:5px; color:var(--text-strong); font-weight:700; }
+    .d3-category { margin-top:5px; color:var(--text-muted); font-size:.84rem; }
+    .status-chip { display:inline-flex; border-radius:999px; padding:3px 7px; font-size:10px; font-family:'JetBrains Mono', monospace; border:1px solid var(--border); color:var(--text-muted); }
+    .status-chip.enabled { color:var(--good); border-color:rgba(0,229,160,.35); background:rgba(0,229,160,.08); }
+    .coverage-cell { min-width:210px; }
+    .coverage-head { display:flex; justify-content:space-between; align-items:center; gap:10px; margin-bottom:8px; font-family:'JetBrains Mono', monospace; }
+    .coverage-percent { color:var(--text-strong); font-weight:700; }
+    .coverage-count { color:var(--text-muted); font-size:12px; }
+    .bar { height:9px; background:rgba(78,106,142,.22); border-radius:999px; overflow:hidden; }
+    .bar-fill { height:100%; border-radius:999px; }
+    .bar-fill.good { background:var(--good); }
+    .bar-fill.medium { background:var(--medium); }
+    .bar-fill.low, .bar-fill.empty { background:var(--bad); }
+    .attack-grid { display:flex; flex-wrap:wrap; gap:7px; }
+    .attack-chip { max-width:260px; border:1px solid var(--border); border-radius:999px; padding:6px 9px; font-size:.78rem; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; color:var(--text-muted); background:rgba(17,29,48,.65); }
+    .attack-chip.covered { color:#7cf7cf; border-color:rgba(0,229,160,.35); background:rgba(0,229,160,.08); }
+    .attack-chip.missing { color:#ff9aa3; border-color:rgba(255,71,87,.35); background:rgba(255,71,87,.08); }
+    .empty-state { padding:28px; color:var(--text-muted); text-align:center; }
+    @media (max-width: 1100px) { .summary-strip, .filters { grid-template-columns:repeat(2, 1fr); } .page-header { display:block; } }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container">
+    <div class="page-header">
+        <div>
+            <div class="page-eyebrow">// MATRIZ D3FEND</div>
+            <h1 class="page-title">Cobertura D3FEND por ATT&CK</h1>
+            <p class="page-subtitle">La matriz cruza cada técnica D3FEND habilitada con sus ATT&CK habilitados relacionados en la base de datos y calcula la cobertura según los casos de uso habilitados en Producción que cubren esos ATT&CK.</p>
+        </div>
+    </div>
+
+    <div class="summary-strip">
+        <div class="summary-card"><div class="summary-label">Cobertura global</div><div class="summary-value good">{{ overall_coverage_percent }}%</div></div>
+        <div class="summary-card"><div class="summary-label">D3FEND habilitados</div><div class="summary-value">{{ total_d3fends }}</div></div>
+        <div class="summary-card"><div class="summary-label">Relaciones cubiertas</div><div class="summary-value">{{ total_covered_relations }}/{{ total_relations }}</div></div>
+        <div class="summary-card"><div class="summary-label">100% cubiertos</div><div class="summary-value">{{ fully_covered }}</div></div>
+        <div class="summary-card"><div class="summary-label">Parciales</div><div class="summary-value">{{ partially_covered }}</div></div>
+        <div class="summary-card"><div class="summary-label">Casos productivos habilitados</div><div class="summary-value">{{ total_cases }}</div></div>
+    </div>
+
+    <form class="filters" method="get">
+        <div class="field">
+            <label for="device">Dispositivo</label>
+            <select id="device" name="device">
+                <option value="">Todos</option>
+                {% for device in devices %}
+                    <option value="{{ device }}" {% if selected_device == device %}selected{% endif %}>{{ device }}</option>
+                {% endfor %}
+            </select>
+        </div>
+        <div class="field">
+            <label for="severity">Severidad</label>
+            <select id="severity" name="severity">
+                <option value="">Todas</option>
+                {% for value, label in severity_choices %}
+                    <option value="{{ value }}" {% if selected_severity == value %}selected{% endif %}>{{ label }}</option>
+                {% endfor %}
+            </select>
+        </div>
+        <div class="field">
+            <label for="sort">Orden</label>
+            <select id="sort" name="sort">
+                <option value="code" {% if selected_sort == "code" %}selected{% endif %}>Código D3FEND</option>
+                <option value="coverage_desc" {% if selected_sort == "coverage_desc" %}selected{% endif %}>Mayor cobertura</option>
+                <option value="coverage_asc" {% if selected_sort == "coverage_asc" %}selected{% endif %}>Menor cobertura</option>
+                <option value="attacks_desc" {% if selected_sort == "attacks_desc" %}selected{% endif %}>Más ATT&CK relacionados</option>
+            </select>
+        </div>
+        <div class="filter-actions">
+            <button class="btn-primary" type="submit">Aplicar</button>
+            <a class="btn-secondary" href="{% url 'd3fend_matrix' %}">Limpiar</a>
+        </div>
+    </form>
+
+    <div class="matrix-wrap">
+        {% if rows %}
+            <table>
+                <thead>
+                    <tr>
+                        <th style="width:28%;">D3FEND</th>
+                        <th style="width:18%;">Cobertura</th>
+                        <th>ATT&CK correspondientes</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for row in rows %}
+                        <tr>
+                            <td>
+                                <span class="d3-code">{{ row.d3fend.code }} <span class="status-chip enabled">Activa</span></span>
+                                <div class="d3-name">{{ row.d3fend.name|default:"Sin nombre" }}</div>
+                                {% if row.d3fend.category %}<div class="d3-category">{{ row.d3fend.category }}</div>{% endif %}
+                            </td>
+                            <td class="coverage-cell">
+                                <div class="coverage-head">
+                                    <span class="coverage-percent">{{ row.coverage_label }}%</span>
+                                    <span class="coverage-count">{{ row.covered_attacks }}/{{ row.total_attacks }}</span>
+                                </div>
+                                <div class="bar"><div class="bar-fill {{ row.level }}" style="width: {{ row.coverage_width }}%;"></div></div>
+                            </td>
+                            <td>
+                                {% if row.attacks %}
+                                    <div class="attack-grid">
+                                        {% for attack in row.attacks %}
+                                            <span class="attack-chip {% if attack.covered %}covered{% else %}missing{% endif %}" title="{{ attack.external_id }} - {{ attack.name }}">{{ attack.external_id }} · {{ attack.name }}</span>
+                                        {% endfor %}
+                                    </div>
+                                {% else %}
+                                    <span class="attack-chip">Sin ATT&CK relacionados en DB</span>
+                                {% endif %}
+                            </td>
+                        </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        {% else %}
+            <div class="empty-state">No hay técnicas D3FEND habilitadas en la base de datos.</div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}
