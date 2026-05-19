@@ -20,6 +20,20 @@ class MitreAttack(models.Model):
     tactic = models.CharField("Táctica", max_length=100, blank=True)
     is_enabled = models.BooleanField("Habilitada", default=True)
 
+    disabled_reason = models.TextField(
+        "Motivo de deshabilitación",
+        blank=True,
+        default="",
+        help_text="Explica por qué esta técnica ATT&CK fue deshabilitada.",
+    )
+
+    notes = models.TextField(
+        "Notas internas",
+        blank=True,
+        default="",
+        help_text="Notas internas sobre la técnica ATT&CK o su aplicabilidad en el SOC.",
+    )
+
     class Meta:
         ordering = ["external_id"]
 
@@ -63,7 +77,30 @@ class D3Fend(models.Model):
     code = models.CharField("Código D3FEND", max_length=120, unique=True)
     name = models.CharField("Nombre", max_length=255, blank=True)
     category = models.CharField("Categoría", max_length=100, blank=True)
+
+    description = models.TextField(
+        "Descripción",
+        blank=True,
+        default="",
+        help_text="Descripción de la técnica D3FEND.",
+    )
+
     is_enabled = models.BooleanField("Habilitada", default=True)
+
+    disabled_reason = models.TextField(
+        "Motivo de deshabilitación",
+        blank=True,
+        default="",
+        help_text="Explica por qué esta técnica D3FEND fue deshabilitada.",
+    )
+
+    notes = models.TextField(
+        "Notas internas",
+        blank=True,
+        default="",
+        help_text="Notas internas sobre la técnica D3FEND o su aplicabilidad en el SOC.",
+    )
+
     related_attacks = models.ManyToManyField(
         MitreAttack,
         blank=True,
@@ -173,152 +210,6 @@ def get_review_interval_days() -> int:
         return settings_obj.review_interval_days
     return 120
 
-
-
-
-class DashboardReportSettings(models.Model):
-    name = models.CharField(max_length=100, default="Reporte principal", unique=True)
-    is_active = models.BooleanField(default=True)
-    logo = models.ImageField("Logo", upload_to="dashboard_reports/logos/", blank=True)
-    report_title = models.CharField("Título", max_length=160, default="Reporte ejecutivo SOC")
-    report_subtitle = models.CharField(
-        "Subtítulo",
-        max_length=255,
-        default="Cobertura ATT&CK y D3FEND sobre casos de uso en producción",
-        blank=True,
-    )
-    footer_text = models.CharField("Pie de página", max_length=255, blank=True, default="SOC Use Cases Manager")
-    updated_at = models.DateTimeField(auto_now=True)
-
-    class Meta:
-        verbose_name = "Configuración reporte dashboard"
-        verbose_name_plural = "Configuraciones reporte dashboard"
-        constraints = [
-            models.UniqueConstraint(
-                fields=["is_active"],
-                condition=Q(is_active=True),
-                name="unique_active_dashboard_report_settings",
-            )
-        ]
-
-    def __str__(self):
-        return f"{self.name} ({'Activo' if self.is_active else 'Inactivo'})"
-
-    def save(self, *args, **kwargs):
-        if self.is_active:
-            qs = DashboardReportSettings.objects.filter(is_active=True)
-            if self.pk:
-                qs = qs.exclude(pk=self.pk)
-            qs.update(is_active=False)
-        super().save(*args, **kwargs)
-
-
-class LifecycleSettings(models.Model):
-    name = models.CharField(max_length=100, default="Política principal", unique=True)
-    review_interval_days = models.PositiveIntegerField("Días entre controles", default=120)
-    is_active = models.BooleanField(default=True)
-
-    class Meta:
-        verbose_name = "Configuración ciclo de vida"
-        verbose_name_plural = "Configuraciones ciclo de vida"
-        constraints = [
-            models.UniqueConstraint(
-                fields=["is_active"],
-                condition=Q(is_active=True),
-                name="unique_active_lifecycle_settings",
-            )
-        ]
-
-    def __str__(self):
-        return f"{self.name} ({self.review_interval_days} días)"
-
-    def save(self, *args, **kwargs):
-        if self.is_active:
-            qs = LifecycleSettings.objects.filter(is_active=True)
-            if self.pk:
-                qs = qs.exclude(pk=self.pk)
-            qs.update(is_active=False)
-        super().save(*args, **kwargs)
-
-
-def get_review_interval_days() -> int:
-    settings_obj = LifecycleSettings.objects.filter(is_active=True).order_by('-id').first()
-    if settings_obj and settings_obj.review_interval_days > 0:
-        return settings_obj.review_interval_days
-    return 120
-
-
-
-class DashboardReportSettings(models.Model):
-    name = models.CharField(max_length=100, default="Reporte principal", unique=True)
-    is_active = models.BooleanField(default=True)
-    logo = models.ImageField("Logo", upload_to="dashboard_reports/logos/", blank=True)
-    report_title = models.CharField("Título", max_length=160, default="Reporte ejecutivo SOC")
-    report_subtitle = models.CharField(
-        "Subtítulo",
-        max_length=255,
-        default="Cobertura ATT&CK y D3FEND sobre casos de uso en producción",
-        blank=True,
-    )
-    footer_text = models.CharField("Pie de página", max_length=255, blank=True, default="SOC Use Cases Manager")
-    updated_at = models.DateTimeField(auto_now=True)
-
-    class Meta:
-        verbose_name = "Configuración reporte dashboard"
-        verbose_name_plural = "Configuraciones reporte dashboard"
-        constraints = [
-            models.UniqueConstraint(
-                fields=["is_active"],
-                condition=Q(is_active=True),
-                name="unique_active_dashboard_report_settings",
-            )
-        ]
-
-    def __str__(self):
-        return f"{self.name} ({'Activo' if self.is_active else 'Inactivo'})"
-
-    def save(self, *args, **kwargs):
-        if self.is_active:
-            qs = DashboardReportSettings.objects.filter(is_active=True)
-            if self.pk:
-                qs = qs.exclude(pk=self.pk)
-            qs.update(is_active=False)
-        super().save(*args, **kwargs)
-
-
-class LifecycleSettings(models.Model):
-    name = models.CharField(max_length=100, default="Política principal", unique=True)
-    review_interval_days = models.PositiveIntegerField("Días entre controles", default=120)
-    is_active = models.BooleanField(default=True)
-
-    class Meta:
-        verbose_name = "Configuración ciclo de vida"
-        verbose_name_plural = "Configuraciones ciclo de vida"
-        constraints = [
-            models.UniqueConstraint(
-                fields=["is_active"],
-                condition=Q(is_active=True),
-                name="unique_active_lifecycle_settings",
-            )
-        ]
-
-    def __str__(self):
-        return f"{self.name} ({self.review_interval_days} días)"
-
-    def save(self, *args, **kwargs):
-        if self.is_active:
-            qs = LifecycleSettings.objects.filter(is_active=True)
-            if self.pk:
-                qs = qs.exclude(pk=self.pk)
-            qs.update(is_active=False)
-        super().save(*args, **kwargs)
-
-
-def get_review_interval_days() -> int:
-    settings_obj = LifecycleSettings.objects.filter(is_active=True).order_by('-id').first()
-    if settings_obj and settings_obj.review_interval_days > 0:
-        return settings_obj.review_interval_days
-    return 120
 
 class UseCase(models.Model):
     BLOCKING_TYPE_CHOICES = [
