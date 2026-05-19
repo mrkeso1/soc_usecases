@@ -31,6 +31,8 @@ class UseCaseAdmin(admin.ModelAdmin):
         "production_date",
         "next_review_date",
         "is_enabled",
+        "mitre_count",
+        "d3fend_count",
     )
     search_fields = (
         "name",
@@ -41,6 +43,10 @@ class UseCaseAdmin(admin.ModelAdmin):
         "lifecycle_control_owner__first_name",
         "lifecycle_control_owner__last_name",
         "comments",
+        "mitre_attacks__external_id",
+        "mitre_attacks__name",
+        "d3fends__code",
+        "d3fends__name",
     )
     list_filter = (
         "group_name",
@@ -79,9 +85,9 @@ class LifecycleReviewAdmin(admin.ModelAdmin):
 class UseCaseChangeLogAdmin(admin.ModelAdmin):
     list_display = (
         "use_case",
-        "field_name",
-        "old_value",
-        "new_value",
+        "field_label",
+        "old_value_pretty",
+        "new_value_pretty",
         "changed_by",
         "changed_at",
     )

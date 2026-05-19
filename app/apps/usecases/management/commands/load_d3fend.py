@@ -43,18 +43,39 @@ class Command(BaseCommand):
         )
 
     def handle(self, *args, **options):
-        response = requests.get(D3FEND_CSV_URL, timeout=120)
+        if not options.get("mappings_only", False) and not options.get("skip_catalog", False):
+            self._load_d3fend_catalog(options)
+
+        if not options.get("skip_mappings", False):
+            self._load_attack_mappings()
+
+        if options.get("disable_non_detect", False):
+            self._disable_non_detect()
+
+    def _load_d3fend_catalog(self, options):
+        """
+        El CSV principal de D3FEND puede cambiar de estructura.
+        Para evitar registros basura tipo D3-AA / D3-AA / categoría vacía,
+        solo actualizamos filas que tengan nombre y categoría reales.
+        """
+        load_all = options.get("all", False)
+        url = options.get("url") or D3FEND_CSV_URL
+
+        self.stdout.write(f"Descargando catálogo D3FEND desde: {url}")
+
+        response = requests.get(url, timeout=120)
         response.raise_for_status()
 
-        content = response.text
-        reader = csv.DictReader(StringIO(content))
+        reader = csv.DictReader(StringIO(response.text))
 
         created = 0
         updated = 0
         skipped = 0
+        skipped_not_detect = 0
+
+        model_fields = self._get_d3fend_model_fields()
 
         for row in reader:
-            # Probamos varias columnas posibles porque el CSV puede cambiar levemente
             code = (
                 row.get("ID")
                 or row.get("id")
@@ -68,6 +89,7 @@ class Command(BaseCommand):
                 row.get("Name")
                 or row.get("name")
                 or row.get("label")
+                or row.get("Label")
                 or ""
             ).strip()
 
@@ -76,20 +98,45 @@ class Command(BaseCommand):
                 or row.get("type")
                 or row.get("Category")
                 or row.get("category")
+                or row.get("Tactic")
+                or row.get("tactic")
                 or ""
             ).strip()
 
-            # Nos quedamos solo con IDs que parecen técnicas/capacidades D3FEND
+            description = (
+                row.get("Description")
+                or row.get("description")
+                or row.get("definition")
+                or row.get("Definition")
+                or ""
+            ).strip()
+
             if not code or not code.startswith("D3"):
                 skipped += 1
                 continue
 
+            if not name or name.upper() == code.upper() or not category:
+                skipped += 1
+                continue
+
+            if not load_all and category.lower() != "detect":
+                skipped_not_detect += 1
+                continue
+
+            defaults = {}
+
+            if "name" in model_fields:
+                defaults["name"] = self._fit_field("name", name)
+
+            if "category" in model_fields:
+                defaults["category"] = self._fit_field("category", category)
+
+            if "description" in model_fields:
+                defaults["description"] = self._fit_field("description", description)
+
             _, was_created = D3Fend.objects.update_or_create(
-                code=code,
-                defaults={
-                    "name": name,
-                    "category": category,
-                },
+                code=self._fit_field("code", code),
+                defaults=defaults,
             )
 
             if was_created:
@@ -97,7 +144,7 @@ class Command(BaseCommand):
             else:
                 updated += 1
 
-        self.stdout.write(self.style.SUCCESS("Carga D3FEND finalizada"))
+        self.stdout.write(self.style.SUCCESS("Carga catálogo D3FEND finalizada"))
         self.stdout.write(f"Creados: {created}")
         self.stdout.write(f"Actualizados: {updated}")
         self.stdout.write(f"Omitidos: {skipped}")
