@@ -170,7 +170,7 @@ def build_dashboard_context(request):
     )
 
     if d3fend_mapping_ready:
-        uncovered_d3fends = [d3fend for coverage, d3fend in d3fend_coverage_rows if coverage == 0][:20]
+        uncovered_d3fends = [d3fend for coverage, d3fend in d3fend_coverage_rows if coverage < 1][:50]
     else:
         uncovered_d3fends = (
             D3Fend.objects
@@ -213,13 +213,15 @@ def build_dashboard_context(request):
         ),
     ]
 
+    d3fend_global_metric = _build_radial_metric(
+        "Cobertura D3FEND inferida por ATT&CK",
+        covered_d3fend_techniques,
+        all_d3fend_techniques,
+        covered_label="Equivalente cubierto",
+    )
+
     d3fend_radials = [
-        _build_radial_metric(
-            "Cobertura D3FEND inferida por ATT&CK",
-            covered_d3fend_techniques,
-            all_d3fend_techniques,
-            covered_label="Equivalente cubierto",
-        ),
+        d3fend_global_metric,
         _build_radial_metric(
             "D3FEND totalmente cubiertos",
             fully_covered_d3fend_techniques,
@@ -261,6 +263,8 @@ def build_dashboard_context(request):
         "productive_with_d3fend": productive_with_d3fend,
         "fully_covered_d3fend_techniques": fully_covered_d3fend_techniques,
         "partially_covered_d3fend_techniques": partially_covered_d3fend_techniques,
+        "global_d3fend_coverage_percent": d3fend_global_metric["percent"],
+        "d3fend_coverage_rows": d3fend_coverage_rows,
         "uncovered_attacks": uncovered_attacks,
         "uncovered_d3fends": uncovered_d3fends,
         "top_attack_techniques": top_attack_techniques,

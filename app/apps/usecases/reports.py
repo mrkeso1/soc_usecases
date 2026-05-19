@@ -46,6 +46,21 @@ def _safe_table_rows(items, code_attr, subtitle_attr=None, limit=10):
     return rows or [["-", "Sin pendientes", "-"]]
 
 
+
+def _d3fend_executive_rows(coverage_rows, limit=50):
+    rows = []
+    ordered_rows = sorted(coverage_rows, key=lambda item: item[0], reverse=True)
+    for coverage_ratio, d3fend in ordered_rows[:limit]:
+        if coverage_ratio >= 1:
+            continue
+        rows.append([
+            str(getattr(d3fend, "code", "-")),
+            str(getattr(d3fend, "name", "") or "-"),
+            str(getattr(d3fend, "category", "") or "-"),
+            f'{round(coverage_ratio * 100, 1)}%',
+        ])
+    return rows or [["-", "Sin pendientes", "-", "-"]]
+
 def build_dashboard_pdf(buffer, context, report_settings, generated_by):
     """Render the dashboard context into a PDF written to ``buffer``."""
     from reportlab.lib import colors
@@ -136,5 +151,20 @@ def build_dashboard_pdf(buffer, context, report_settings, generated_by):
     table = Table(d3_rows, colWidths=[2.4 * cm, 10.2 * cm, 4.0 * cm], repeatRows=1)
     table.setStyle(TableStyle([("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#ecfdf5")), ("TEXTCOLOR", (0, 0), (-1, 0), colors.HexColor("#047857")), ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"), ("GRID", (0, 0), (-1, -1), 0.35, colors.HexColor("#bbf7d0")), ("PADDING", (0, 0), (-1, -1), 5)]))
     story.append(table)
+
+    story.append(Paragraph("Informe ejecutivo D3FEND", section_style))
+    executive_kpis = [
+        ["Cobertura global D3FEND", f'{context.get("global_d3fend_coverage_percent", 0)}%'],
+        ["Técnicas 100% cubiertas", f'{context.get("fully_covered_d3fend_techniques", 0)} / {context.get("all_d3fend_techniques", 0)}'],
+    ]
+    executive_kpi_table = Table(executive_kpis, colWidths=[7.5 * cm, 4.0 * cm])
+    executive_kpi_table.setStyle(TableStyle([("BACKGROUND", (0, 0), (-1, -1), colors.HexColor("#f0fdf4")), ("GRID", (0, 0), (-1, -1), 0.35, colors.HexColor("#86efac")), ("FONTNAME", (0, 0), (0, -1), "Helvetica-Bold"), ("PADDING", (0, 0), (-1, -1), 6)]))
+    story.append(executive_kpi_table)
+
+    story.append(Spacer(1, 8))
+    executive_rows = [["Código", "Nombre", "Categoría", "% actual"]] + _d3fend_executive_rows(context.get("d3fend_coverage_rows", []), limit=50)
+    executive_table = Table(executive_rows, colWidths=[2.2 * cm, 8.3 * cm, 4.0 * cm, 2.1 * cm], repeatRows=1)
+    executive_table.setStyle(TableStyle([("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#dcfce7")), ("TEXTCOLOR", (0, 0), (-1, 0), colors.HexColor("#166534")), ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"), ("GRID", (0, 0), (-1, -1), 0.35, colors.HexColor("#bbf7d0")), ("PADDING", (0, 0), (-1, -1), 5)]))
+    story.append(executive_table)
 
     doc.build(story, onFirstPage=lambda c, d: _draw_pdf_footer(c, d, footer), onLaterPages=lambda c, d: _draw_pdf_footer(c, d, footer))

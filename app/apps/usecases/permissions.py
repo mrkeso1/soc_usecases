@@ -60,10 +60,6 @@ def is_usecase_owner(user, usecase: UseCase) -> bool:
     for token in _user_owner_tokens(user):
         if token == owner_name:
             return True
-        if len(token) >= 3 and token in owner_name:
-            return True
-        if len(owner_name) >= 3 and owner_name in token:
-            return True
     return False
 
 
