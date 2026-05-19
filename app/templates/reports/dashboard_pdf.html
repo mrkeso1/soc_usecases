@@ -1,0 +1,45 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<style>
+@page { size: A4; margin: 1.2cm; @bottom-right { content: "Página " counter(page); color:#6b7280; font-size:9px; } @bottom-left { content: "{{ report_footer }}"; color:#6b7280; font-size:9px; } }
+body { font-family: Arial, sans-serif; color:#111827; font-size:11px; }
+h1 { margin:0; font-size:20px; }
+h2 { margin:16px 0 8px; font-size:14px; }
+.subtitle { color:#4b5563; margin:4px 0 10px; }
+.meta { color:#6b7280; font-size:10px; margin-bottom:10px; }
+table { width:100%; border-collapse: collapse; margin-bottom:10px; table-layout: fixed; }
+th,td { border:1px solid #d1d5db; padding:5px; vertical-align: top; word-wrap: break-word; }
+th { background:#f3f4f6; text-align:left; }
+.small { font-size:10px; }
+</style>
+</head>
+<body>
+<h1>{{ report_title }}</h1>
+<div class="subtitle">{{ report_subtitle }}</div>
+<div class="meta">Generado: {{ generated_on }} · Usuario: {{ generated_by }}</div>
+<table>
+<tr><th>Casos productivos</th><td>{{ kpis.total_cases }}</td><th>ATT&CK técnicas</th><td>{{ kpis.attack_techniques }}</td></tr>
+<tr><th>ATT&CK tácticas</th><td>{{ kpis.attack_tactics }}</td><th>D3FEND inferido</th><td>{{ kpis.d3fend_inferred }}</td></tr>
+<tr><th>D3FEND 100% / parcial</th><td>{{ kpis.d3fend_full_partial }}</td><th>Filtros</th><td>{{ selected_device|default:'-' }} · {{ selected_severity|default:'-' }} · {{ selected_enabled|default:'-' }}</td></tr>
+</table>
+<h2>Cobertura ATT&CK</h2>
+<table>
+<tr><th>Métrica</th><th>%</th><th>Cubierto</th></tr>
+{% for row in attack_metrics %}<tr><td>{{ row.title }}</td><td>{{ row.percent }}%</td><td>{{ row.covered }} / {{ row.total }}</td></tr>{% endfor %}
+</table>
+<h2>Cobertura D3FEND</h2>
+<table>
+<tr><th>Métrica</th><th>%</th><th>Cubierto</th></tr>
+{% for row in d3fend_metrics %}<tr><td>{{ row.title }}</td><td>{{ row.percent }}%</td><td>{{ row.covered }} / {{ row.total }}</td></tr>{% endfor %}
+</table>
+<h2>Informe ejecutivo D3FEND</h2>
+<table>
+<tr><th>Cobertura global D3FEND</th><td>{{ executive_global }}%</td><th>Técnicas 100% cubiertas</th><td>{{ executive_full }} / {{ executive_total }}</td></tr>
+</table>
+<table class="small">
+<tr><th style="width:16%">Código</th><th style="width:44%">Nombre</th><th style="width:24%">Categoría</th><th style="width:16%">% actual</th></tr>
+{% for row in executive_rows %}<tr><td>{{ row.code }}</td><td>{{ row.name }}</td><td>{{ row.category }}</td><td>{{ row.coverage_percent }}%</td></tr>{% empty %}<tr><td colspan="4">Sin pendientes</td></tr>{% endfor %}
+</table>
+</body></html>

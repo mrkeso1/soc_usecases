@@ -321,7 +321,7 @@
 
         .filter-grid {
             display: grid;
-            grid-template-columns: 1.5fr repeat(9, minmax(0, 1fr)) auto auto;
+            grid-template-columns: 1.5fr repeat(8, minmax(0, 1fr)) auto auto;
             gap: 8px;
             align-items: end;
         }
@@ -683,6 +683,12 @@
             font-family: 'JetBrains Mono', monospace;
         }
 
+        .mapping-empty-inline {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 10px;
+            color: var(--text-muted);
+        }
+
         /* ── Responsive ── */
         @media (max-width: 1200px) {
             .summary-strip { flex-wrap: wrap; }
@@ -695,24 +701,11 @@
             .filter-grid { grid-template-columns: 1fr; }
         }
     </style>
+    {% include "includes/topbar_styles.html" %}
 </head>
 <body>
 
-<nav class="topbar">
-    <div class="brand">
-        <div class="brand-icon">
-            <svg viewBox="0 0 16 16"><path d="M2 2h5v5H2zM9 2h5v5H9zM2 9h5v5H2zM9 9h5v5H9z"/></svg>
-        </div>
-        SOC Use Cases Manager
-    </div>
-    <div class="topbar-nav">
-        <a href="/dashboard/">Dashboard</a>
-        <a href="/usecases/" class="active">Inventario</a>
-        <div class="topbar-divider"></div>
-        <a href="/admin/">Admin</a>
-        <a href="{% url 'logout' %}">Salir</a>
-    </div>
-</nav>
+{% include "includes/topbar.html" %}
 
 <div class="container">
     <div class="page-header">
@@ -741,12 +734,6 @@
             <div>
                 <div class="chip-label">Por vencer</div>
                 <div class="chip-value warn">{{ visible_soon }}</div>
-            </div>
-        </a>
-        <a class="summary-chip {% if selected_quick == 'failed' %}active{% endif %}" href="?quick=failed&view={{ selected_view }}">
-            <div>
-                <div class="chip-label">Falló</div>
-                <div class="chip-value danger">{{ visible_failed }}</div>
             </div>
         </a>
         <a class="summary-chip {% if selected_quick == 'without_attack' %}active{% endif %}" href="?quick=without_attack&view={{ selected_view }}">
@@ -787,11 +774,18 @@
            href="?{% if request.GET %}{% for k,v in request.GET.items %}{% if k != 'view' %}{{ k }}={{ v|urlencode }}&{% endif %}{% endfor %}{% endif %}view=detailed">
             Detallado
         </a>
+        {% if can_add_usecases %}
+        <a class="btn-export" href="{% url 'usecase_create' %}">
+            + Nuevo caso de uso
+        </a>
+        {% endif %}
         <a class="btn-export" href="{% url 'export_usecases_csv' %}?{% for k,v in request.GET.items %}{{ k }}={{ v|urlencode }}&{% endfor %}">
             ↓ Exportar CSV
         </a>
         <div class="spacer"></div>
+        {% if can_manage_usecases %}
         <button type="submit" form="bulk-update-form" class="btn-save">✓ Guardar cambios</button>
+        {% endif %}
     </div>
 
     <!-- Filters -->
@@ -817,20 +811,6 @@
                 <option value="">Severidad</option>
                 {% for value, label in severity_choices %}
                     <option value="{{ value }}" {% if selected_severity == value %}selected{% endif %}>{{ label }}</option>
-                {% endfor %}
-            </select>
-
-            <select name="validation_status">
-                <option value="">Ciclo</option>
-                {% for value, label in validation_status_choices %}
-                    <option value="{{ value }}" {% if selected_validation_status == value %}selected{% endif %}>{{ label }}</option>
-                {% endfor %}
-            </select>
-
-            <select name="validation_result">
-                <option value="">Resultado</option>
-                {% for value, label in validation_result_choices %}
-                    <option value="{{ value }}" {% if selected_validation_result == value %}selected{% endif %}>{{ label }}</option>
                 {% endfor %}
             </select>
 
@@ -876,6 +856,7 @@
     <form id="bulk-update-form" method="post" action="{% url 'usecase_bulk_update' %}">
         {% csrf_token %}
         <input type="hidden" name="return_qs" value="{{ request.GET.urlencode }}">
+        <input type="hidden" name="changed_ids" id="changed-ids" value="">
 
         <div class="table-wrap">
             <table class="{{ selected_view }}">
@@ -898,7 +879,7 @@
                         <th class="col-owner">
                             <a class="sort-link {% if selected_sort == 'owner' %}sort-active{% endif %}"
                                href="?{% for k,v in request.GET.items %}{% if k != 'sort' and k != 'dir' %}{{ k }}={{ v|urlencode }}&{% endif %}{% endfor %}sort=owner&dir={% if selected_sort == 'owner' and selected_dir == 'asc' %}desc{% else %}asc{% endif %}">
-                                Responsable {% if selected_sort == 'owner' %}<span class="sort-arrow">{% if selected_dir == 'asc' %}▲{% else %}▼{% endif %}</span>{% endif %}
+                                Resp. desarrollo {% if selected_sort == 'owner' %}<span class="sort-arrow">{% if selected_dir == 'asc' %}▲{% else %}▼{% endif %}</span>{% endif %}
                             </a>
                         </th>
                         <th class="col-status">
@@ -911,18 +892,6 @@
                             <a class="sort-link {% if selected_sort == 'severity' %}sort-active{% endif %}"
                                href="?{% for k,v in request.GET.items %}{% if k != 'sort' and k != 'dir' %}{{ k }}={{ v|urlencode }}&{% endif %}{% endfor %}sort=severity&dir={% if selected_sort == 'severity' and selected_dir == 'asc' %}desc{% else %}asc{% endif %}">
                                 Severidad {% if selected_sort == 'severity' %}<span class="sort-arrow">{% if selected_dir == 'asc' %}▲{% else %}▼{% endif %}</span>{% endif %}
-                            </a>
-                        </th>
-                        <th class="col-vs">
-                            <a class="sort-link {% if selected_sort == 'validation_status' %}sort-active{% endif %}"
-                               href="?{% for k,v in request.GET.items %}{% if k != 'sort' and k != 'dir' %}{{ k }}={{ v|urlencode }}&{% endif %}{% endfor %}sort=validation_status&dir={% if selected_sort == 'validation_status' and selected_dir == 'asc' %}desc{% else %}asc{% endif %}">
-                                Estado ciclo {% if selected_sort == 'validation_status' %}<span class="sort-arrow">{% if selected_dir == 'asc' %}▲{% else %}▼{% endif %}</span>{% endif %}
-                            </a>
-                        </th>
-                        <th class="col-vr">
-                            <a class="sort-link {% if selected_sort == 'validation_result' %}sort-active{% endif %}"
-                               href="?{% for k,v in request.GET.items %}{% if k != 'sort' and k != 'dir' %}{{ k }}={{ v|urlencode }}&{% endif %}{% endfor %}sort=validation_result&dir={% if selected_sort == 'validation_result' and selected_dir == 'asc' %}desc{% else %}asc{% endif %}">
-                                Resultado {% if selected_sort == 'validation_result' %}<span class="sort-arrow">{% if selected_dir == 'asc' %}▲{% else %}▼{% endif %}</span>{% endif %}
                             </a>
                         </th>
                         <th class="col-lv">
@@ -949,12 +918,11 @@
                 </thead>
                 <tbody>
                     {% for uc in usecases %}
-                    <tr class="{% if uc.is_review_overdue %}row-overdue{% elif uc.next_review_date and uc.days_until_review is not None and uc.days_until_review >= 0 and uc.days_until_review <= 30 %}row-soon{% endif %}{% if request.GET.updated == uc.pk|stringformat:'s' %} row-updated{% endif %}">
+                    <tr data-usecase-row="{{ uc.pk }}" class="{% if uc.is_review_overdue %}row-overdue{% elif uc.next_review_date and uc.days_until_review is not None and uc.days_until_review >= 0 and uc.days_until_review <= 30 %}row-soon{% endif %}">
 
                         <td class="col-name sticky-l1">
                             <input type="hidden" name="uc_ids" value="{{ uc.pk }}">
                             <input type="hidden" name="mitre_attack_ids_{{ uc.pk }}" id="mitre-hidden-{{ uc.pk }}" value="{% for item in uc.mitre_attacks.all %}{% if not forloop.first %},{% endif %}{{ item.id }}{% endfor %}">
-                            <input type="hidden" name="d3fend_ids_{{ uc.pk }}" id="d3fend-hidden-{{ uc.pk }}" value="{% for item in uc.d3fends.all %}{% if not forloop.first %},{% endif %}{{ item.id }}{% endfor %}">
                             <span class="cell-readonly">{{ uc.name }}</span>
                         </td>
 
@@ -963,35 +931,31 @@
                         </td>
 
                         <td class="col-d3fend mapping-cell">
-                            <input type="text" class="mapping-input" placeholder="Buscar D3FEND…"
-                                oninput="searchMapping('d3fend','{{ uc.pk }}',this.value)"
-                                onfocus="searchMapping('d3fend','{{ uc.pk }}',this.value)"
-                                autocomplete="off">
-                            <div class="mapping-chip-wrap" id="d3fend-chips-{{ uc.pk }}">
-                                {% for item in uc.d3fends.all %}
+                            <div class="mapping-chip-wrap auto-d3fend-wrap" id="d3fend-chips-{{ uc.pk }}">
+                                {% for item in uc.inferred_d3fends %}
                                 <span class="mapping-chip" data-id="{{ item.id }}">
                                     <span class="mapping-chip-label" title="{{ item.code }}{% if item.name %} — {{ item.name }}{% endif %}">
                                         {% if selected_view == "detailed" %}{{ item.code }}{% if item.name %} — {{ item.name }}{% endif %}{% else %}{{ item.code }}{% endif %}
                                     </span>
-                                    <button type="button" onclick="removeMapping('d3fend','{{ uc.pk }}','{{ item.id }}')">×</button>
                                 </span>
+                                {% empty %}
+                                <span class="mapping-empty-inline">Auto por ATT&CK</span>
                                 {% endfor %}
                             </div>
-                            <div class="mapping-suggestions" id="d3fend-results-{{ uc.pk }}"></div>
                         </td>
 
                         <td class="col-attack mapping-cell">
                             <input type="text" class="mapping-input" placeholder="Buscar ATT&CK…"
                                 oninput="searchMapping('mitre','{{ uc.pk }}',this.value)"
                                 onfocus="searchMapping('mitre','{{ uc.pk }}',this.value)"
-                                autocomplete="off">
+                                autocomplete="off" {% if not uc.can_manage_by_user %}disabled{% endif %}>
                             <div class="mapping-chip-wrap" id="mitre-chips-{{ uc.pk }}">
                                 {% for item in uc.mitre_attacks.all %}
                                 <span class="mapping-chip" data-id="{{ item.id }}">
                                     <span class="mapping-chip-label" title="{{ item.external_id }}{% if item.name %} — {{ item.name }}{% endif %}">
                                         {% if selected_view == "detailed" %}{{ item.external_id }}{% if item.name %} — {{ item.name }}{% endif %}{% else %}{{ item.external_id }}{% endif %}
                                     </span>
-                                    <button type="button" onclick="removeMapping('mitre','{{ uc.pk }}','{{ item.id }}')">×</button>
+                                    {% if uc.can_manage_by_user %}<button type="button" onclick="removeMapping('mitre','{{ uc.pk }}','{{ item.id }}')">×</button>{% endif %}
                                 </span>
                                 {% endfor %}
                             </div>
@@ -999,11 +963,11 @@
                         </td>
 
                         <td class="col-owner">
-                            <input class="cell-input" type="text" name="owner_name_{{ uc.pk }}" value="{{ uc.owner_name|default:'' }}">
+                            <input class="cell-input" type="text" name="owner_name_{{ uc.pk }}" value="{{ uc.owner_name|default:'' }}" {% if not uc.can_manage_by_user %}disabled{% endif %}>
                         </td>
 
                         <td class="col-status">
-                            <select class="cell-select" name="status_{{ uc.pk }}">
+                            <select class="cell-select" name="status_{{ uc.pk }}" {% if not uc.can_manage_by_user %}disabled{% endif %}>
                                 <option value="">—</option>
                                 {% for value, label in uc.STATUS_CHOICES %}
                                     <option value="{{ value }}" {% if uc.status == value %}selected{% endif %}>{{ label }}</option>
@@ -1012,7 +976,7 @@
                         </td>
 
                         <td class="col-sev">
-                            <select class="cell-select" name="severity_{{ uc.pk }}">
+                            <select class="cell-select" name="severity_{{ uc.pk }}" {% if not uc.can_manage_by_user %}disabled{% endif %}>
                                 <option value="">—</option>
                                 {% for value, label in uc.SEVERITY_CHOICES %}
                                     <option value="{{ value }}" {% if uc.severity == value %}selected{% endif %}>{{ label }}</option>
@@ -1020,25 +984,9 @@
                             </select>
                         </td>
 
-                        <td class="col-vs">
-                            <select class="cell-select" name="validation_status_{{ uc.pk }}">
-                                {% for value, label in uc.VALIDATION_STATUS_CHOICES %}
-                                    <option value="{{ value }}" {% if uc.validation_status == value %}selected{% endif %}>{{ label }}</option>
-                                {% endfor %}
-                            </select>
-                        </td>
-
-                        <td class="col-vr">
-                            <select class="cell-select" name="validation_result_{{ uc.pk }}">
-                                {% for value, label in uc.VALIDATION_RESULT_CHOICES %}
-                                    <option value="{{ value }}" {% if uc.validation_result == value %}selected{% endif %}>{{ label }}</option>
-                                {% endfor %}
-                            </select>
-                        </td>
-
                         <td class="col-lv">
                             <input class="cell-date" type="date" name="last_validation_date_{{ uc.pk }}"
-                                value="{% if uc.last_validation_date %}{{ uc.last_validation_date|date:'Y-m-d' }}{% endif %}">
+                                value="{% if uc.last_validation_date %}{{ uc.last_validation_date|date:'Y-m-d' }}{% endif %}" {% if not uc.can_manage_by_user %}disabled{% endif %}>
                         </td>
 
                         <td class="col-nr">
@@ -1058,19 +1006,19 @@
                         </td>
 
                         <td class="col-en">
-                            <input class="cell-checkbox" type="checkbox" name="is_enabled_{{ uc.pk }}" {% if uc.is_enabled %}checked{% endif %}>
+                            <input class="cell-checkbox" type="checkbox" name="is_enabled_{{ uc.pk }}" {% if uc.is_enabled %}checked{% endif %} {% if not uc.can_manage_by_user %}disabled{% endif %}>
                         </td>
 
                         <td class="col-act sticky-r">
                             <div class="action-links">
                                 <a href="{% url 'usecase_detail' uc.pk %}">→ Ver</a>
-                                <a href="{% url 'usecase_edit' uc.pk %}">✎ Editar</a>
+                                {% if uc.can_manage_by_user %}<a href="{% url 'usecase_edit' uc.pk %}">✎ Editar</a>{% endif %}
                             </div>
                         </td>
                     </tr>
                     {% empty %}
                     <tr class="empty-row">
-                        <td colspan="14">// No hay casos de uso con los filtros actuales</td>
+                        <td colspan="12">// No hay casos de uso con los filtros actuales</td>
                     </tr>
                     {% endfor %}
                 </tbody>
@@ -1080,6 +1028,21 @@
 </div>
 
 <script>
+    const changedUseCaseIds = new Set();
+
+    function syncChangedIds() {
+        const field = document.getElementById('changed-ids');
+        if (field) field.value = Array.from(changedUseCaseIds).join(',');
+    }
+
+    function markUseCaseChanged(pk) {
+        if (!pk) return;
+        changedUseCaseIds.add(String(pk));
+        syncChangedIds();
+        const row = document.querySelector(`[data-usecase-row="${pk}"]`);
+        if (row) row.classList.add('row-updated');
+    }
+
     function getHiddenField(type, pk) { return document.getElementById(type + '-hidden-' + pk); }
     function getChipWrap(type, pk)    { return document.getElementById(type + '-chips-' + pk); }
     function getResultsBox(type, pk)  { return document.getElementById(type + '-results-' + pk); }
@@ -1100,6 +1063,7 @@
         const chip = wrap.querySelector(`.mapping-chip[data-id="${id}"]`);
         if (chip) chip.remove();
         setSelectedIds(type, pk, getSelectedIds(type, pk).filter(x => x !== String(id)));
+        markUseCaseChanged(pk);
     }
 
     function addMapping(type, pk, item) {
@@ -1107,6 +1071,7 @@
         if (ids.includes(String(item.id))) return;
         ids.push(String(item.id));
         setSelectedIds(type, pk, ids);
+        markUseCaseChanged(pk);
 
         const wrap = getChipWrap(type, pk);
         const chip = document.createElement('span');
@@ -1136,7 +1101,8 @@
 
         const url = type === 'mitre'
             ? `{% url 'mitre_attack_autocomplete' %}?q=${encodeURIComponent(q)}`
-            : `{% url 'd3fend_autocomplete' %}?q=${encodeURIComponent(q)}`;
+            : '';
+        if (type !== 'mitre') return;
 
         try {
             const res = await fetch(url, { headers: { 'X-Requested-With': 'XMLHttpRequest' } });
@@ -1168,6 +1134,18 @@
             box.style.display = 'none';
         }
     }
+
+    document.getElementById('bulk-update-form')?.addEventListener('input', e => {
+        if (e.target.matches('.cell-input, .cell-date')) {
+            markUseCaseChanged(e.target.closest('[data-usecase-row]')?.dataset.usecaseRow);
+        }
+    });
+
+    document.getElementById('bulk-update-form')?.addEventListener('change', e => {
+        if (e.target.matches('.cell-select, .cell-checkbox, .cell-date')) {
+            markUseCaseChanged(e.target.closest('[data-usecase-row]')?.dataset.usecaseRow);
+        }
+    });
 
     document.addEventListener('click', e => {
         if (!e.target.closest('.mapping-cell')) {
