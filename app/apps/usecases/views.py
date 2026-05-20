@@ -1,7 +1,6 @@
 from collections import Counter
 from datetime import date, timedelta, datetime
 import csv
-from io import BytesIO
 
 from django.contrib import messages
 from django.contrib.auth import get_user_model
@@ -229,9 +228,12 @@ def dashboard_view(request):
 def dashboard_pdf_export(request):
     context = build_dashboard_context(request)
     report_settings = get_active_dashboard_report_settings()
-    buffer = BytesIO()
-    build_dashboard_pdf(buffer, context, report_settings, request.user)
-    response = HttpResponse(buffer.getvalue(), content_type="application/pdf")
+    try:
+        pdf_bytes = build_dashboard_pdf(context, report_settings, request.user)
+    except RuntimeError:
+        messages.error(request, "No se pudo generar el PDF en este entorno.")
+        return redirect("dashboard")
+    response = HttpResponse(pdf_bytes, content_type="application/pdf")
     response["Content-Disposition"] = f'attachment; filename="dashboard-soc-{date.today():%Y%m%d}.pdf"'
     return response
 
@@ -254,20 +256,20 @@ def usecase_list(request):
     if legacy_query.urlencode() != request.GET.urlencode():
         return _redirect_usecase_list_with_query(legacy_query.urlencode())
 
-    qs, filters = _get_filtered_usecases(request, with_prefetch=True)
+    qs = _get_filtered_usecases(request, with_prefetch=True)
 
-    q              = filters["q"]
-    status         = filters["status"]
-    device         = filters["device"]
-    severity       = filters["severity"]
-    enabled        = filters["enabled"]
-    owner          = filters["owner"]
-    review_state   = filters["review_state"]
-    mapping_attack = filters["mapping_attack"]
-    mapping_d3fend = filters["mapping_d3fend"]
-    mitre_id       = filters["mitre_id"]
-    d3fend_id      = filters["d3fend_id"]
-    quick          = filters["quick"]
+    q                 = request.GET.get("q", "").strip()
+    status            = request.GET.get("status", "").strip()
+    device            = request.GET.get("device", "").strip()
+    severity          = request.GET.get("severity", "").strip()
+    enabled           = request.GET.get("enabled", "").strip()
+    owner             = request.GET.get("owner", "").strip()
+    review_state      = request.GET.get("review_state", "").strip()
+    mapping_attack    = request.GET.get("mapping_attack", "").strip()
+    mapping_d3fend    = request.GET.get("mapping_d3fend", "").strip()
+    mitre_id          = request.GET.get("mitre_id", "").strip()
+    d3fend_id         = request.GET.get("d3fend_id", "").strip()
+    quick             = request.GET.get("quick", "").strip()
 
     selected_view = request.GET.get("view", "compact").strip()
     if selected_view not in ("compact", "detailed"):
@@ -399,8 +401,7 @@ def export_usecases_csv(request):
     if not can_access_usecases(request.user):
         return HttpResponseForbidden("Solo el grupo ReadOnly puede acceder al dashboard.")
 
-    qs, _ = _get_filtered_usecases(request, with_prefetch=True)
-    qs = qs.order_by("name")
+    qs = _get_filtered_usecases(request, with_prefetch=True).order_by("name")
 
     response = HttpResponse(content_type="text/csv; charset=utf-8-sig")
     response["Content-Disposition"] = 'attachment; filename="usecases_export.csv"'
@@ -494,7 +495,7 @@ def usecase_edit(request, pk):
 @login_required
 def usecase_detail(request, pk):
     if not can_access_usecases(request.user):
-        return HttpResponseForbidden("No tenés permisos para ver este caso de uso.")
+        return HttpResponseForbidden("Solo el grupo ReadOnly puede acceder al dashboard.")
 
     usecase = get_object_or_404(
         UseCase.objects.prefetch_related("mitre_attacks", "d3fends", "change_logs__changed_by"),
@@ -624,11 +625,13 @@ def usecase_bulk_update(request):
             if _sync_d3fends_from_attacks(usecase):
                 m2m_changed = True
 
-            if changed_fields or m2m_changed:
+            if changed_fields:
                 usecase.updated_by = request.user
-                if changed_fields:
-                    usecase.save()
-                else:
+                usecase.save()
+
+            if changed_fields or m2m_changed:
+                if m2m_changed and not changed_fields:
+                    usecase.updated_by = request.user
                     usecase.save(update_fields=["updated_by", "updated_at"])
                 new_data = _snapshot_usecase(usecase)
                 create_change_logs(usecase, old_data, new_data, request.user)
@@ -671,34 +674,6 @@ def mitre_attack_autocomplete(request):
 
 
 @login_required
-def d3fend_autocomplete(request):
-    if not can_access_usecases(request.user):
-        return HttpResponseForbidden("Solo el grupo ReadOnly puede acceder al dashboard.")
-
-    q  = request.GET.get("q", "").strip()
-    qs = D3Fend.objects.filter(is_enabled=True)
-    if q:
-        qs = qs.filter(
-            Q(code__icontains=q)
-            | Q(name__icontains=q)
-            | Q(category__icontains=q)
-        )
-
-    data = [
-        {
-            "id": obj.id,
-            "label": f"{obj.code} - {obj.name}",
-            "code": obj.code,
-            "name": obj.name,
-            "category": obj.category,
-        }
-        for obj in qs.order_by("code", "name")[:20]
-    ]
-
-    return JsonResponse({"results": data})
-
-
-@login_required
 def lifecycle_management_view(request):
     if not can_access_usecases(request.user):
         return HttpResponseForbidden("Solo el grupo ReadOnly puede acceder al dashboard.")
@@ -708,7 +683,7 @@ def lifecycle_management_view(request):
     only_pending = request.GET.get("only_pending") == "1"
 
     lifecycle_admin = user_is_lifecycle_admin(request.user)
-    usecases = list(UseCase.objects.select_related("lifecycle_control_owner").all().order_by("name"))
+    usecases = UseCase.objects.select_related("lifecycle_control_owner").all().order_by("name")
 
     User = get_user_model()
     lifecycle_users = (
@@ -764,7 +739,7 @@ def lifecycle_management_view(request):
             "review_level": review_level,
         })
 
-    total = len(usecases)
+    total = usecases.count()
     pending = total - completed_in_cycle
     days_left = (cycle_end - today).days
 

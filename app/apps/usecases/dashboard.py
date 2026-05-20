@@ -157,7 +157,6 @@ def build_dashboard_context(request):
             D3Fend.objects.filter(is_enabled=True, use_cases__in=production_qs).distinct().count()
         )
 
-
     uncovered_attacks = (
         MitreAttack.objects
         .filter(is_enabled=True)
@@ -187,6 +186,15 @@ def build_dashboard_context(request):
         for (aid, eid, name), count in attack_counter.most_common(10)
     ]
 
+    d3fend_counter: Counter = Counter()
+    for uc in production_qs:
+        for d3 in uc.d3fends.all():
+            d3fend_counter[(d3.id, d3.code, d3.name)] += 1
+
+    top_d3fend_controls = [
+        {"id": did, "code": code, "name": name, "count": count}
+        for (did, code, name), count in d3fend_counter.most_common(10)
+    ]
 
     attack_radials = [
         _build_radial_metric(
@@ -215,12 +223,6 @@ def build_dashboard_context(request):
             fully_covered_d3fend_techniques,
             all_d3fend_techniques,
             covered_label="100% cubiertos",
-        ),
-        _build_radial_metric(
-            "D3FEND parcialmente cubiertos",
-            partially_covered_d3fend_techniques,
-            all_d3fend_techniques,
-            covered_label="Parcialmente cubiertos",
         ),
     ]
 
@@ -255,4 +257,5 @@ def build_dashboard_context(request):
         "uncovered_attacks": uncovered_attacks,
         "uncovered_d3fends": uncovered_d3fends,
         "top_attack_techniques": top_attack_techniques,
+        "top_d3fend_controls": top_d3fend_controls,
     }
