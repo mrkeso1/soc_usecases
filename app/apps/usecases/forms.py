@@ -18,7 +18,6 @@ class UseCaseForm(forms.ModelForm):
             "created_or_adjusted_at",
             "production_date",
             "mitre_attacks",
-            "d3fends",
             "severity",
             "escalation",
             "sent_to_ho",
@@ -43,7 +42,6 @@ class UseCaseForm(forms.ModelForm):
             "created_or_adjusted_at": forms.DateInput(attrs={"class": "form-control", "type": "date"}),
             "production_date": forms.DateInput(attrs={"class": "form-control", "type": "date"}),
             "mitre_attacks": forms.SelectMultiple(attrs={"class": "form-control", "style": "display:none;"}),
-            "d3fends": forms.SelectMultiple(attrs={"class": "form-control", "style": "display:none;"}),
             "severity": forms.Select(attrs={"class": "form-control"}),
             "escalation": forms.Select(attrs={"class": "form-control"}),
             "sent_to_ho": forms.Select(attrs={"class": "form-control"}),
@@ -57,5 +55,8 @@ class UseCaseForm(forms.ModelForm):
         }
         help_texts = {
             "mitre_attacks": "Mantené Ctrl presionado para seleccionar varias técnicas.",
-            "d3fends": "Mantené Ctrl presionado para seleccionar varios controles.",
         }
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields["mitre_attacks"].queryset = self.fields["mitre_attacks"].queryset.filter(is_enabled=True)

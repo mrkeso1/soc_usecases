@@ -162,16 +162,10 @@
             font-size: 14px;
         }
     </style>
+    {% include "includes/topbar_styles.html" %}
 </head>
 <body>
-    <div class="topbar">
-        <div><strong>SOC Use Cases Manager</strong></div>
-        <div>
-            <a href="/dashboard/">Dashboard</a>
-            <a href="/usecases/">Inventario</a>
-            <a href="{% url 'logout' %}">Salir</a>
-        </div>
-    </div>
+    {% include "includes/topbar.html" %}
 
     <div class="container">
         <div class="card">
@@ -258,16 +252,6 @@
                         <div id="mitre-chips" class="chips"></div>
                     </div>
 
-                    <div class="field full">
-                        <label>D3FEND relacionado</label>
-                        <div class="autocomplete-box">
-                            <input type="text" id="d3fend-search" placeholder="Buscar D3FEND por código, nombre o categoría...">
-                            <div id="d3fend-results" class="autocomplete-results"></div>
-                        </div>
-                        {{ form.d3fends }}
-                        <div id="d3fend-chips" class="chips"></div>
-                    </div>
-
                     <div class="field">
                         <label>Escalamiento</label>
                         {{ form.escalation }}
@@ -312,14 +296,14 @@
                     <div class="field">
                         <label>Próxima revisión</label>
                         <div class="readonly-box">
-                            {{ usecase.next_review_date|default:"Se calculará al guardar" }}
+                            {% if usecase %}{{ usecase.next_review_date|default:"Se calculará al guardar" }}{% else %}Se calculará al guardar{% endif %}
                         </div>
                     </div>
 
                     <div class="field">
                         <label>Contador</label>
                         <div class="readonly-box">
-                            {{ usecase.review_countdown_label }}
+                            {% if usecase %}{{ usecase.review_countdown_label }}{% else %}Sin fecha{% endif %}
                         </div>
                     </div>
 
@@ -331,7 +315,7 @@
 
                 <div class="actions">
                     <button type="submit">Guardar cambios</button>
-                    <a href="{% url 'usecase_detail' usecase.pk %}">Cancelar</a>
+                    {% if usecase %}<a href="{% url 'usecase_detail' usecase.pk %}">Cancelar</a>{% else %}<a href="{% url 'usecase_list' %}">Cancelar</a>{% endif %}
                 </div>
             </form>
         </div>
@@ -420,14 +404,6 @@
             selectId: "id_mitre_attacks",
             chipsId: "mitre-chips",
             url: "{% url 'mitre_attack_autocomplete' %}"
-        });
-
-        setupAutocomplete({
-            inputId: "d3fend-search",
-            resultsId: "d3fend-results",
-            selectId: "id_d3fends",
-            chipsId: "d3fend-chips",
-            url: "{% url 'd3fend_autocomplete' %}"
         });
     </script>
 </body>
