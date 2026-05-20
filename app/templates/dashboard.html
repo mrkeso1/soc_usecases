@@ -556,6 +556,18 @@
             font-family: 'JetBrains Mono', monospace;
         }
 
+        .scope-note {
+            margin: -18px 0 28px;
+            padding: 11px 16px;
+            border-radius: 10px;
+            background: var(--accent-dim);
+            border: 1px solid rgba(45, 122, 255, 0.26);
+            color: #c5d9ff;
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 0.78rem;
+            line-height: 1.45;
+        }
+
         /* ── Summary panel ── */
         .summary-rows { }
 
@@ -624,7 +636,7 @@
         <div class="page-title-block">
             <div class="page-eyebrow">// COBERTURA &amp; MÉTRICAS</div>
             <h1 class="page-title">Dashboard</h1>
-            <p class="page-subtitle">Vista ejecutiva de cobertura ATT&amp;CK y D3FEND sobre casos de uso en producción.</p>
+            <p class="page-subtitle">Vista ejecutiva de cobertura ATT&amp;CK y D3FEND. Solo se computan casos de uso en Producción.</p>
         </div>
     </div>
 
@@ -664,6 +676,8 @@
             </div>
         </form>
     </div>
+
+    <div class="scope-note">// Alcance de cobertura: {{ coverage_scope_label }}. Los casos en Test, Desarrollo, Propuesta o Baja no suman cobertura ni aparecen en los filtros de inventario.</div>
 
     <!-- ATT&CK -->
     <div class="section-header">
@@ -766,12 +780,42 @@
     <div class="stats-grid">
 
         <div class="panel">
-            <div class="panel-head"><span class="panel-title">Tácticas ATT&amp;CK sin cobertura</span></div>
+            <div class="panel-head"><span class="panel-title">Cobertura por táctica ATT&amp;CK</span></div>
+            <div class="panel-body">
+                {% if tactic_coverage_rows %}
+                    {% for row in tactic_coverage_rows %}
+                        {% if row.production_cases > 0 %}
+                        <a class="list-item" href="{% url 'usecase_list' %}?mitre_tactic={{ row.name|urlencode }}">
+                            <div>
+                                <div class="list-item-main">{{ row.name }}</div>
+                                <div class="list-item-sub">{{ row.covered }} / {{ row.total }} técnicas · {{ row.production_cases }} caso(s) productivo(s)</div>
+                            </div>
+                            <span class="count-badge">{{ row.percent_label }}%</span>
+                        </a>
+                        {% else %}
+                        <div class="list-item">
+                            <div>
+                                <div class="list-item-main">{{ row.name }}</div>
+                                <div class="list-item-sub">{{ row.covered }} / {{ row.total }} técnicas · sin casos productivos</div>
+                            </div>
+                            <span class="count-badge">{{ row.percent_label }}%</span>
+                        </div>
+                        {% endif %}
+                    {% endfor %}
+                {% else %}
+                    <div class="empty-note">// Sin tácticas ATT&amp;CK cargadas</div>
+                {% endif %}
+            </div>
+        </div>
+
+        <div class="panel">
+            <div class="panel-head"><span class="panel-title">Tácticas ATT&amp;CK sin cobertura productiva</span></div>
             <div class="panel-body">
                 {% if uncovered_tactics %}
                     {% for tactic in uncovered_tactics %}
                     <div class="list-item" style="display:block;">
                         <div class="list-item-main">{{ tactic }}</div>
+                        <div class="list-item-sub">No existe ningún caso en Producción que cubra esta táctica</div>
                     </div>
                     {% endfor %}
                 {% else %}
@@ -781,17 +825,18 @@
         </div>
 
         <div class="panel">
-            <div class="panel-head"><span class="panel-title">Técnicas ATT&amp;CK sin cobertura</span></div>
+            <div class="panel-head"><span class="panel-title">Técnicas ATT&amp;CK sin cobertura productiva</span></div>
             <div class="panel-body">
                 {% if uncovered_attacks %}
                     {% for item in uncovered_attacks %}
-                    <a class="list-item" href="{% url 'usecase_list' %}?mapping_attack=without&mitre_id={{ item.id }}">
-                        <div>
-                            <div class="list-item-main">{{ item.external_id }} — {{ item.name }}</div>
-                            {% if item.tactic %}<div class="list-item-sub">{{ item.tactic }}</div>{% endif %}
-                        </div>
-                    </a>
+                    <div class="list-item" style="display:block;">
+                        <div class="list-item-main">{{ item.external_id }} — {{ item.name }}</div>
+                        {% if item.tactic %}<div class="list-item-sub">{{ item.tactic }}</div>{% endif %}
+                    </div>
                     {% endfor %}
+                    {% if uncovered_attack_techniques > 30 %}
+                    <div class="empty-note">// Mostrando 30 de {{ uncovered_attack_techniques }} técnicas pendientes</div>
+                    {% endif %}
                 {% else %}
                     <div class="empty-note">// Sin técnicas pendientes</div>
                 {% endif %}
@@ -799,25 +844,26 @@
         </div>
 
         <div class="panel">
-            <div class="panel-head"><span class="panel-title">Top técnicas ATT&amp;CK</span></div>
+            <div class="panel-head"><span class="panel-title">Top técnicas ATT&amp;CK cubiertas por Producción</span></div>
             <div class="panel-body">
                 {% if top_attack_techniques %}
                     {% for item in top_attack_techniques %}
                     <a class="list-item" href="{% url 'usecase_list' %}?mitre_id={{ item.id }}">
                         <div>
                             <div class="list-item-main">{{ item.external_id }} — {{ item.name }}</div>
+                            <div class="list-item-sub">Ver casos productivos asociados</div>
                         </div>
                         <span class="count-badge">{{ item.count }}</span>
                     </a>
                     {% endfor %}
                 {% else %}
-                    <div class="empty-note">// Sin técnicas vinculadas</div>
+                    <div class="empty-note">// Sin técnicas vinculadas en Producción</div>
                 {% endif %}
             </div>
         </div>
 
         <div class="panel">
-            <div class="panel-head"><span class="panel-title">Técnicas D3FEND sin cobertura ATT&CK inferida</span></div>
+            <div class="panel-head"><span class="panel-title">Técnicas D3FEND sin cobertura ATT&amp;CK productiva</span></div>
             <div class="panel-body">
                 {% if uncovered_d3fends %}
                     {% for item in uncovered_d3fends %}
@@ -834,21 +880,23 @@
             </div>
         </div>
 
-
-
         <div class="panel">
-            <div class="panel-head"><span class="panel-title">Resumen rápido</span></div>
+            <div class="panel-head"><span class="panel-title">Resumen productivo</span></div>
             <div class="panel-body summary-rows">
                 <div class="summary-row">
                     <span class="summary-row-label">Casos productivos analizados</span>
                     <span class="summary-row-value">{{ total_cases }}</span>
                 </div>
                 <div class="summary-row">
-                    <span class="summary-row-label">Técnicas ATT&amp;CK cubiertas</span>
+                    <span class="summary-row-label">Técnicas ATT&amp;CK cubiertas por Producción</span>
                     <span class="summary-row-value">{{ covered_attack_techniques }} / {{ all_attack_techniques }}</span>
                 </div>
                 <div class="summary-row">
-                    <span class="summary-row-label">Tácticas ATT&amp;CK cubiertas</span>
+                    <span class="summary-row-label">Técnicas ATT&amp;CK sin cobertura productiva</span>
+                    <span class="summary-row-value">{{ uncovered_attack_techniques }}</span>
+                </div>
+                <div class="summary-row">
+                    <span class="summary-row-label">Tácticas ATT&amp;CK cubiertas por Producción</span>
                     <span class="summary-row-value">{{ covered_tactics }} / {{ total_tactics }}</span>
                 </div>
                 <div class="summary-row">
@@ -859,7 +907,6 @@
                     <span class="summary-row-label">D3FEND al 100% / parcial</span>
                     <span class="summary-row-value">{{ fully_covered_d3fend_techniques }} / {{ partially_covered_d3fend_techniques }}</span>
                 </div>
-
             </div>
         </div>
 

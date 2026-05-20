@@ -19,9 +19,23 @@ class MitreAttack(models.Model):
     name = models.CharField("Nombre", max_length=255)
     tactic = models.CharField("Táctica", max_length=100, blank=True)
     is_enabled = models.BooleanField("Habilitada", default=True)
+    disabled_reason = models.TextField(
+        "Motivo de deshabilitación",
+        blank=True,
+        default="",
+        help_text="Explica por qué esta técnica ATT&CK fue deshabilitada.",
+    )
+    notes = models.TextField(
+        "Notas internas",
+        blank=True,
+        default="",
+        help_text="Notas internas sobre la técnica ATT&CK o su aplicabilidad en el SOC.",
+    )
 
     class Meta:
         ordering = ["external_id"]
+        verbose_name = "MITRE ATT&CK"
+        verbose_name_plural = "MITRE ATT&CK"
 
     def __str__(self):
         if self.name:
@@ -92,6 +106,8 @@ class D3Fend(models.Model):
 
     class Meta:
         ordering = ["code"]
+        verbose_name = "D3FEND"
+        verbose_name_plural = "D3FEND"
 
     def __str__(self):
         if self.name:
@@ -362,6 +378,44 @@ class UseCase(models.Model):
     def __str__(self):
         return self.name
 
+    def inferred_d3fends_queryset(self):
+        """D3FEND calculado automáticamente desde las técnicas ATT&CK del caso.
+
+        La relación UseCase.d3fends se conserva como caché interno para filtros,
+        dashboard y exportaciones, pero no debe cargarse manualmente.
+        """
+        attack_ids = list(self.mitre_attacks.values_list("id", flat=True))
+        if not attack_ids:
+            return D3Fend.objects.none()
+
+        return (
+            D3Fend.objects
+            .filter(
+                is_enabled=True,
+                related_attacks__is_enabled=True,
+                related_attacks__id__in=attack_ids,
+            )
+            .distinct()
+            .order_by("code", "name")
+        )
+
+    def inferred_d3fend_ids(self):
+        return set(self.inferred_d3fends_queryset().values_list("id", flat=True))
+
+    def sync_d3fends_from_attacks(self) -> bool:
+        """Sincroniza el caché D3FEND con lo inferido por ATT&CK.
+
+        Devuelve True si la relación cambió.
+        """
+        current_ids = set(self.d3fends.values_list("id", flat=True))
+        inferred_ids = self.inferred_d3fend_ids()
+
+        if current_ids == inferred_ids:
+            return False
+
+        self.d3fends.set(D3Fend.objects.filter(id__in=inferred_ids))
+        return True
+
     def save(self, *args, **kwargs):
         if isinstance(self.last_validation_date, str):
             raw = self.last_validation_date.strip()
@@ -443,24 +497,29 @@ class LifecycleReview(models.Model):
 
 
 class UseCaseChangeLog(models.Model):
+    # Campos auditados por el historial de cambios del caso de uso.
+    # Mantener esta lista alineada con views._snapshot_usecase().
     FIELD_LABELS = {
+        "name": "Nombre NetWitness",
         "group_name": "Grupo",
         "device": "Dispositivo",
         "case_type": "Tipo",
         "objective": "Objetivo",
         "blocking_type": "Tipo de bloqueo",
-        "name": "Nombre",
         "owner_name": "Responsable desarrollo",
+        "lifecycle_control_owner": "Responsable control",
         "monitoring": "Monitoreo",
         "status": "Estado",
         "created_or_adjusted_at": "Fecha alta/ajuste",
         "production_date": "Fecha puesta en producción",
+        "mitre_attacks": "MITRE ATT&CK",
+        "d3fends": "D3FEND inferido",
         "severity": "Severidad",
         "escalation": "Escalamiento",
         "sent_to_ho": "Envío HO",
         "ho_flag": "HO",
         "last_validation_date": "Última validación",
-        "validation_status": "Estado ciclo de vida",
+        "validation_status": "Estado de validación",
         "validation_result": "Resultado",
         "is_enabled": "Habilitado",
         "last_review_date": "Última revisión",

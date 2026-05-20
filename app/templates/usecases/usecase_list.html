@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Inventario — SOC Use Cases Manager</title>
+    <title>Inventario Producción — SOC Use Cases Manager</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;600;700&family=Syne:wght@400;500;600;700;800&display=swap" rel="stylesheet">
@@ -321,7 +321,7 @@
 
         .filter-grid {
             display: grid;
-            grid-template-columns: 1.5fr repeat(8, minmax(0, 1fr)) auto auto;
+            grid-template-columns: 1.5fr repeat(7, minmax(0, 1fr)) auto auto;
             gap: 8px;
             align-items: end;
         }
@@ -749,12 +749,12 @@
     <div class="page-header">
         <div>
             <div class="page-eyebrow">// INVENTARIO</div>
-            <h1 class="page-title">Casos de uso</h1>
+            <h1 class="page-title">Inventario Producción</h1>
             <p class="page-subtitle">
                 {% if saved_only %}
                     {{ visible_total }} caso(s) modificados en el último guardado
                 {% else %}
-                    {{ visible_total }} caso(s) con los filtros actuales
+                    {{ visible_total }} caso(s) en Producción con los filtros actuales
                 {% endif %}
             </p>
         </div>
@@ -788,7 +788,7 @@
         </a>
         <a class="summary-chip {% if selected_quick == 'without_d3fend' %}active{% endif %}" href="?quick=without_d3fend&view={{ selected_view }}">
             <div>
-                <div class="chip-label">Sin D3FEND</div>
+                <div class="chip-label">Sin D3FEND inferido</div>
                 <div class="chip-value warn">{{ visible_without_d3fend }}</div>
             </div>
         </a>
@@ -806,11 +806,12 @@
         </div>
     {% endif %}
 
-    {% if selected_mitre or selected_d3fend %}
+    {% if selected_mitre or selected_mitre_tactic or selected_d3fend %}
         <div class="mapping-filter-bar">
-            {% if selected_mitre %}Filtro ATT&amp;CK: <strong>{{ selected_mitre.external_id }}{% if selected_mitre.name %} — {{ selected_mitre.name }}{% endif %}</strong>{% endif %}
-            {% if selected_mitre and selected_d3fend %} &nbsp;|&nbsp; {% endif %}
-            {% if selected_d3fend %}Filtro D3FEND: <strong>{{ selected_d3fend.code }}{% if selected_d3fend.name %} — {{ selected_d3fend.name }}{% endif %}</strong>{% endif %}
+            Alcance: <strong>solo Producción</strong>
+            {% if selected_mitre %} &nbsp;|&nbsp; Filtro ATT&amp;CK: <strong>{{ selected_mitre.external_id }}{% if selected_mitre.name %} — {{ selected_mitre.name }}{% endif %}</strong>{% endif %}
+            {% if selected_mitre_tactic %} &nbsp;|&nbsp; Filtro táctica: <strong>{{ selected_mitre_tactic }}</strong>{% endif %}
+            {% if selected_d3fend %} &nbsp;|&nbsp; Filtro D3FEND inferido: <strong>{{ selected_d3fend.code }}{% if selected_d3fend.name %} — {{ selected_d3fend.name }}{% endif %}</strong>{% endif %}
         </div>
     {% endif %}
 
@@ -842,13 +843,6 @@
     <div class="filter-bar">
         <form method="get" class="filter-grid">
             <input type="text" name="q" placeholder="Buscar por nombre…" value="{{ q }}">
-
-            <select name="status">
-                <option value="">Estado</option>
-                {% for item in statuses %}
-                    <option value="{{ item }}" {% if selected_status == item %}selected{% endif %}>{{ item }}</option>
-                {% endfor %}
-            </select>
 
             <select name="device">
                 <option value="">Dispositivo</option>
@@ -884,7 +878,7 @@
             </select>
 
             <select name="mapping_d3fend">
-                <option value="">D3FEND</option>
+                <option value="">D3FEND inferido</option>
                 <option value="with"    {% if selected_mapping_d3fend == "with"    %}selected{% endif %}>Con</option>
                 <option value="without" {% if selected_mapping_d3fend == "without" %}selected{% endif %}>Sin</option>
             </select>
@@ -924,18 +918,12 @@
                                 Dispositivo {% if selected_sort == 'device' %}<span class="sort-arrow">{% if selected_dir == 'asc' %}▲{% else %}▼{% endif %}</span>{% endif %}
                             </a>
                         </th>
-                        <th class="col-d3fend">D3FEND</th>
+                        <th class="col-d3fend">D3FEND inferido</th>
                         <th class="col-attack">ATT&amp;CK</th>
                         <th class="col-owner">
                             <a class="sort-link {% if selected_sort == 'owner' %}sort-active{% endif %}"
                                href="?{% for k,v in request.GET.items %}{% if k != 'sort' and k != 'dir' %}{{ k }}={{ v|urlencode }}&{% endif %}{% endfor %}sort=owner&dir={% if selected_sort == 'owner' and selected_dir == 'asc' %}desc{% else %}asc{% endif %}">
                                 Resp. desarrollo {% if selected_sort == 'owner' %}<span class="sort-arrow">{% if selected_dir == 'asc' %}▲{% else %}▼{% endif %}</span>{% endif %}
-                            </a>
-                        </th>
-                        <th class="col-status">
-                            <a class="sort-link {% if selected_sort == 'status' %}sort-active{% endif %}"
-                               href="?{% for k,v in request.GET.items %}{% if k != 'sort' and k != 'dir' %}{{ k }}={{ v|urlencode }}&{% endif %}{% endfor %}sort=status&dir={% if selected_sort == 'status' and selected_dir == 'asc' %}desc{% else %}asc{% endif %}">
-                                Estado {% if selected_sort == 'status' %}<span class="sort-arrow">{% if selected_dir == 'asc' %}▲{% else %}▼{% endif %}</span>{% endif %}
                             </a>
                         </th>
                         <th class="col-sev">
@@ -981,9 +969,10 @@
                         </td>
 
                         <td class="col-d3fend mapping-cell">
+                            {% with total_d3fends=uc.inferred_d3fends|length %}
                             <div class="mapping-chip-wrap auto-d3fend-wrap" id="d3fend-chips-{{ uc.pk }}">
                                 {% for item in uc.inferred_d3fends %}
-                                <span class="mapping-chip" data-id="{{ item.id }}">
+                                <span class="mapping-chip{% if not forloop.first %} d3fend-extra-chip{% endif %}" data-id="{{ item.id }}">
                                     <span class="mapping-chip-label" title="{{ item.code }}{% if item.name %} — {{ item.name }}{% endif %}">
                                         {% if selected_view == "detailed" %}{{ item.code }}{% if item.name %} — {{ item.name }}{% endif %}{% else %}{{ item.code }}{% endif %}
                                     </span>
@@ -991,7 +980,18 @@
                                 {% empty %}
                                 <span class="mapping-empty-inline">Auto por ATT&CK</span>
                                 {% endfor %}
+
+                                {% if total_d3fends > 1 %}
+                                <button type="button"
+                                        class="mapping-more-chip"
+                                        onclick="toggleD3fendChips('{{ uc.pk }}', this)"
+                                        aria-expanded="false"
+                                        title="Mostrar/Ocultar D3FEND restantes">
+                                    +{{ total_d3fends|add:"-1" }}
+                                </button>
+                                {% endif %}
                             </div>
+                            {% endwith %}
                         </td>
 
                         <td class="col-attack mapping-cell">
@@ -1014,15 +1014,6 @@
 
                         <td class="col-owner">
                             <input class="cell-input" type="text" name="owner_name_{{ uc.pk }}" value="{{ uc.owner_name|default:'' }}" {% if not uc.can_manage_by_user %}disabled{% endif %}>
-                        </td>
-
-                        <td class="col-status">
-                            <select class="cell-select" name="status_{{ uc.pk }}" {% if not uc.can_manage_by_user %}disabled{% endif %}>
-                                <option value="">—</option>
-                                {% for value, label in uc.STATUS_CHOICES %}
-                                    <option value="{{ value }}" {% if uc.status == value %}selected{% endif %}>{{ label }}</option>
-                                {% endfor %}
-                            </select>
                         </td>
 
                         <td class="col-sev">

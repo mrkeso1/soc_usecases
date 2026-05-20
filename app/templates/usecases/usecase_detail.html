@@ -154,6 +154,78 @@
         .muted {
             color: #94a3b8;
         }
+
+        .history-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 12px;
+            margin-bottom: 14px;
+        }
+
+        .history-header h2 {
+            margin: 0;
+        }
+
+        .history-count {
+            color: #94a3b8;
+            font-size: 13px;
+            white-space: nowrap;
+        }
+
+        .pagination {
+            display: flex;
+            justify-content: flex-end;
+            align-items: center;
+            gap: 8px;
+            margin-top: 14px;
+            flex-wrap: wrap;
+        }
+
+        .pagination a,
+        .pagination span {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            min-width: 34px;
+            min-height: 34px;
+            padding: 6px 10px;
+            border-radius: 8px;
+            border: 1px solid #334155;
+            background: #0f172a;
+            color: #cbd5e1;
+            text-decoration: none;
+            font-size: 13px;
+            box-sizing: border-box;
+        }
+
+        .pagination a:hover {
+            border-color: #60a5fa;
+            color: #ffffff;
+        }
+
+        .pagination .current {
+            background: #2563eb;
+            border-color: #2563eb;
+            color: #ffffff;
+            font-weight: bold;
+        }
+
+        .pagination .disabled {
+            opacity: .45;
+            cursor: not-allowed;
+        }
+
+        @media (max-width: 700px) {
+            .history-header {
+                align-items: flex-start;
+                flex-direction: column;
+            }
+
+            .pagination {
+                justify-content: flex-start;
+            }
+        }
     </style>
     {% include "includes/topbar_styles.html" %}
 </head>
@@ -205,9 +277,9 @@
                     {% endfor %}
                 </div>
 
-                <div class="label">D3FEND relacionado</div>
+                <div class="label">D3FEND inferido por ATT&amp;CK</div>
                 <div class="value-box">
-                    {% for item in usecase.d3fends.all %}
+                    {% for item in usecase.inferred_d3fends %}
                         <div>{{ item }}</div>
                     {% empty %}
                         -
@@ -279,8 +351,16 @@
             </div>
         </div>
 
-        <div class="card">
-            <h2 style="margin-top: 0;">Historial de cambios</h2>
+        <div class="card" id="historial-cambios">
+            <div class="history-header">
+                <h2>Historial de cambios</h2>
+                {% if change_logs_page.paginator.count %}
+                    <div class="history-count">
+                        Mostrando {{ change_logs_page.start_index }}-{{ change_logs_page.end_index }}
+                        de {{ change_logs_page.paginator.count }} cambios
+                    </div>
+                {% endif %}
+            </div>
 
             <div class="history-table-wrap">
                 <table class="history-table">
@@ -316,6 +396,32 @@
                     </tbody>
                 </table>
             </div>
+
+            {% if change_logs_page.has_other_pages %}
+                <nav class="pagination" aria-label="Paginación del historial de cambios">
+                    {% if change_logs_page.has_previous %}
+                        <a href="?history_page={{ change_logs_page.previous_page_number }}#historial-cambios">Anterior</a>
+                    {% else %}
+                        <span class="disabled">Anterior</span>
+                    {% endif %}
+
+                    {% for page_num in change_logs_page_range %}
+                        {% if page_num == change_logs_page.paginator.ELLIPSIS %}
+                            <span class="disabled">{{ page_num }}</span>
+                        {% elif page_num == change_logs_page.number %}
+                            <span class="current">{{ page_num }}</span>
+                        {% else %}
+                            <a href="?history_page={{ page_num }}#historial-cambios">{{ page_num }}</a>
+                        {% endif %}
+                    {% endfor %}
+
+                    {% if change_logs_page.has_next %}
+                        <a href="?history_page={{ change_logs_page.next_page_number }}#historial-cambios">Siguiente</a>
+                    {% else %}
+                        <span class="disabled">Siguiente</span>
+                    {% endif %}
+                </nav>
+            {% endif %}
         </div>
     </div>
 </body>

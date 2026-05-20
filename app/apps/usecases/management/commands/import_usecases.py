@@ -1,11 +1,12 @@
 from datetime import datetime, date
 from pathlib import Path
 import re
+import unicodedata
 
 from django.core.management.base import BaseCommand, CommandError
 from openpyxl import load_workbook
 
-from apps.usecases.models import UseCase, MitreAttack, D3Fend
+from apps.usecases.models import UseCase, MitreAttack
 
 
 COLUMN_MAP = {
@@ -22,8 +23,6 @@ COLUMN_MAP = {
     "Fecha puesta en producción": "production_date",
     "MITRE ATTACK": "mitre_attack_rel",
     "MITRE ATT&CK": "mitre_attack_rel",
-    "D3F3ND": "d3fend_rel",
-    "D3FEND": "d3fend_rel",
     "Severidad": "severity",
     "Escalamiento": "escalation",
     "ENVIO.HO": "sent_to_ho",
@@ -38,7 +37,7 @@ DATE_FIELDS = {
 }
 
 ATTACK_ID_RE = re.compile(r"\bT\d{4}(?:\.\d{3})?\b", re.IGNORECASE)
-D3FEND_ID_RE = re.compile(r"\bD3[A-Z0-9\-_.]+\b", re.IGNORECASE)
+D3FEND_HEADERS = {"D3FEND", "D3F3ND"}
 
 
 def normalize_header(value):
@@ -49,60 +48,121 @@ def normalize_text(value):
     return "" if value is None else str(value).strip()
 
 
-def normalize_status(value):
+def normalize_key(value):
+    """Clave estable para comparar valores importados sin depender de acentos o formato."""
+    text = normalize_text(value).lower()
+    text = unicodedata.normalize("NFKD", text)
+    text = "".join(char for char in text if not unicodedata.combining(char))
+    text = re.sub(r"[\s_\-./]+", "", text)
+    return text
+
+
+def normalize_choice(value, choices, aliases=None):
+    """
+    Normaliza un valor de Excel contra los choices reales del modelo.
+
+    Evita guardar variantes como "automatico", "semiautomatico" o "Si"
+    cuando el modelo espera exactamente "Automático", "Semiautomático" o "Sí".
+    Si no reconoce el valor, lo devuelve sin modificar para no ocultar datos inesperados.
+    """
     text = normalize_text(value)
-    mapping = {
+    if not text:
+        return ""
+
+    aliases = aliases or {}
+    key = normalize_key(text)
+
+    if key in aliases:
+        return aliases[key]
+
+    valid_values = [choice_value for choice_value, _label in choices]
+    valid_by_key = {normalize_key(choice_value): choice_value for choice_value in valid_values}
+
+    return valid_by_key.get(key, text)
+
+
+def normalize_status(value):
+    aliases = {
         "testing": "Test",
         "test": "Test",
+        "prueba": "Test",
+        "qa": "Test",
+        "prod": "Producción",
+        "productivo": "Producción",
         "produccion": "Producción",
-        "producción": "Producción",
+        "enproduccion": "Producción",
         "desarrollo": "Desarrollo",
+        "dev": "Desarrollo",
         "baja": "Baja",
+        "inactivo": "Baja",
+        "disabled": "Baja",
         "propuesta": "Propuesta",
+        "propuesto": "Propuesta",
         "rechazado": "Propuesta",
     }
-    return mapping.get(text.lower(), text)
+    return normalize_choice(value, UseCase.STATUS_CHOICES, aliases)
 
 
 def normalize_blocking_type(value):
-    text = normalize_text(value)
-    mapping = {
-        "aut": "automatico",
-        "automatico": "automatico",
-        "automático": "automatico",
-        "manual": "manual",
-        "semi": "semiautomatico",
-        "semiautomatico": "semiautomatico",
-        "semiautomático": "semiautomatico",
+    aliases = {
+        "aut": "Automático",
+        "auto": "Automático",
+        "automatico": "Automático",
+        "automatizado": "Automático",
+        "manual": "Manual",
+        "semi": "Semiautomático",
+        "semiauto": "Semiautomático",
+        "semiautomatico": "Semiautomático",
     }
-    return mapping.get(text.lower(), text)
+    return normalize_choice(value, UseCase.BLOCKING_TYPE_CHOICES, aliases)
 
 
 def normalize_severity(value):
-    text = normalize_text(value)
-    mapping = {
+    aliases = {
         "critical": "Critical",
+        "critica": "Critical",
+        "critico": "Critical",
+        "alta": "High",
+        "alto": "High",
         "high": "High",
+        "media": "Medium",
+        "medio": "Medium",
         "medium": "Medium",
+        "baja": "Low",
+        "bajo": "Low",
         "low": "Low",
     }
-    return mapping.get(text.lower(), text)
+    return normalize_choice(value, UseCase.SEVERITY_CHOICES, aliases)
+
+
+def normalize_escalation(value):
+    aliases = {
+        "irt": "IRT",
+        "csirt": "IRT",
+        "soc": "SOC",
+        "otro": "Otro",
+        "otros": "Otro",
+        "n/a": "Otro",
+        "na": "Otro",
+    }
+    return normalize_choice(value, UseCase.ESCALATION_CHOICES, aliases)
 
 
 def normalize_yes_no(value):
-    text = normalize_text(value)
-    mapping = {
-        "1": "Si",
-        "si": "Si",
-        "sí": "Si",
-        "s": "Si",
-        "true": "Si",
+    aliases = {
+        "1": "Sí",
+        "si": "Sí",
+        "s": "Sí",
+        "yes": "Sí",
+        "y": "Sí",
+        "true": "Sí",
+        "x": "Sí",
         "0": "No",
         "no": "No",
         "n": "No",
         "false": "No",
     }
-    return mapping.get(text.lower(), text)
+    return normalize_choice(value, UseCase.YES_NO_CHOICES, aliases)
 
 
 def parse_date(value):
@@ -131,22 +191,6 @@ def extract_attack_ids(value):
     found = ATTACK_ID_RE.findall(str(value))
     return sorted(set(item.upper() for item in found))
 
-
-def extract_d3fend_codes(value):
-    if not value:
-        return []
-    text = str(value).replace(",", ";")
-    codes = []
-
-    regex_found = D3FEND_ID_RE.findall(text)
-    if regex_found:
-        codes.extend(regex_found)
-
-    if not codes:
-        parts = [p.strip() for p in text.split(";") if p and p.strip()]
-        codes.extend(parts)
-
-    return sorted(set(item.upper() for item in codes))
 
 
 class Command(BaseCommand):
@@ -185,6 +229,12 @@ class Command(BaseCommand):
             raise CommandError("La hoja está vacía.")
 
         headers = [normalize_header(h) for h in rows[0]]
+        ignored_d3fend_headers = [header for header in headers if header in D3FEND_HEADERS]
+        if ignored_d3fend_headers:
+            self.stdout.write(self.style.WARNING(
+                "La columna D3FEND del Excel será ignorada: D3FEND se infiere automáticamente desde MITRE ATT&CK."
+            ))
+
         mapped_indexes = {}
 
         for idx, header in enumerate(headers):
@@ -203,17 +253,12 @@ class Command(BaseCommand):
             try:
                 payload = {}
                 attack_raw = ""
-                d3fend_raw = ""
 
                 for idx, field_name in mapped_indexes.items():
                     raw_value = row[idx] if idx < len(row) else None
 
                     if field_name == "mitre_attack_rel":
                         attack_raw = normalize_text(raw_value)
-                        continue
-
-                    if field_name == "d3fend_rel":
-                        d3fend_raw = normalize_text(raw_value)
                         continue
 
                     if field_name in DATE_FIELDS:
@@ -224,6 +269,7 @@ class Command(BaseCommand):
                 payload["status"] = normalize_status(payload.get("status", ""))
                 payload["blocking_type"] = normalize_blocking_type(payload.get("blocking_type", ""))
                 payload["severity"] = normalize_severity(payload.get("severity", ""))
+                payload["escalation"] = normalize_escalation(payload.get("escalation", ""))
                 payload["sent_to_ho"] = normalize_yes_no(payload.get("sent_to_ho", ""))
                 payload["ho_flag"] = normalize_yes_no(payload.get("ho_flag", ""))
 
@@ -252,8 +298,6 @@ class Command(BaseCommand):
                     created_count += 1
 
                 attack_ids = extract_attack_ids(attack_raw)
-                d3fend_codes = extract_d3fend_codes(d3fend_raw)
-
                 if hasattr(instance, "mitre_attacks"):
                     if allow_update:
                         instance.mitre_attacks.clear()
@@ -262,13 +306,7 @@ class Command(BaseCommand):
                         if attack_obj:
                             instance.mitre_attacks.add(attack_obj)
 
-                if hasattr(instance, "d3fends"):
-                    if allow_update:
-                        instance.d3fends.clear()
-                    for code in d3fend_codes:
-                        d3fend_obj = D3Fend.objects.filter(code__iexact=code).first()
-                        if d3fend_obj:
-                            instance.d3fends.add(d3fend_obj)
+                instance.sync_d3fends_from_attacks()
 
                 self.stdout.write(self.style.SUCCESS(f"Fila {row_num}: {action} '{name}'"))
 

@@ -1,5 +1,5 @@
 from django import forms
-from .models import D3Fend, UseCase
+from .models import UseCase
 
 
 class UseCaseForm(forms.ModelForm):
@@ -18,7 +18,6 @@ class UseCaseForm(forms.ModelForm):
             "created_or_adjusted_at",
             "production_date",
             "mitre_attacks",
-            "d3fends",
             "severity",
             "escalation",
             "sent_to_ho",
@@ -48,7 +47,6 @@ class UseCaseForm(forms.ModelForm):
                 attrs={"class": "form-control", "type": "date"}, format="%Y-%m-%d"
             ),
             "mitre_attacks": forms.SelectMultiple(attrs={"class": "form-control", "style": "display:none;"}),
-            "d3fends": forms.SelectMultiple(attrs={"class": "form-control", "style": "display:none;"}),
             "severity": forms.Select(attrs={"class": "form-control"}),
             "escalation": forms.Select(attrs={"class": "form-control"}),
             "sent_to_ho": forms.Select(attrs={"class": "form-control"}),
@@ -63,10 +61,8 @@ class UseCaseForm(forms.ModelForm):
         }
         help_texts = {
             "mitre_attacks": "Mantené Ctrl presionado para seleccionar varias técnicas.",
-            "d3fends": "Controles D3FEND asignados manualmente a este caso de uso.",
         }
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.fields["mitre_attacks"].queryset = self.fields["mitre_attacks"].queryset.filter(is_enabled=True)
-        self.fields["d3fends"].queryset = D3Fend.objects.filter(is_enabled=True).order_by("code", "name")

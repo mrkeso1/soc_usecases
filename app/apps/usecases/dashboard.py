@@ -13,6 +13,9 @@ from django.db.utils import OperationalError, ProgrammingError
 from .models import D3Fend, MitreAttack, UseCase
 
 
+PRODUCTION_STATUS = "Producción"
+
+
 def _coverage_color_class(percent: float) -> str:
     if percent >= 80:
         return "good"
@@ -31,6 +34,10 @@ def _svg_dashoffset(percent: float, radius: float = 80.0) -> float:
     """Return the SVG stroke offset needed for the radial progress widgets."""
     circumference = 2 * math.pi * radius
     return round(circumference * (1 - percent / 100), 2)
+
+
+def _split_tactics(raw_value: str) -> list[str]:
+    return [item.strip() for item in str(raw_value or "").split(",") if item.strip()]
 
 
 def _d3fend_attack_mapping_table_exists() -> bool:
@@ -63,10 +70,15 @@ def _build_radial_metric(
 
 
 def build_dashboard_context(request):
-    """Build the production coverage context shared by the dashboard UI and PDF."""
+    """Build coverage context using production use cases only.
+
+    Draft/Test/Desarrollo/Baja cases are deliberately excluded from all coverage
+    metrics so they cannot inflate ATT&CK/D3FEND coverage. The dashboard links
+    point back to the inventory, whose front-end filters are also production-only.
+    """
     base_qs = (
         UseCase.objects
-        .filter(status__iexact="Producción")
+        .filter(status__iexact=PRODUCTION_STATUS)
         .prefetch_related("mitre_attacks", "d3fends")
     )
 
@@ -86,45 +98,70 @@ def build_dashboard_context(request):
     production_qs = base_qs.distinct()
     total_cases = production_qs.count()
 
-    # ATT&CK coverage uses enabled techniques as the denominator and
-    # production use-case mappings as the numerator.
-    all_attack_techniques = MitreAttack.objects.filter(is_enabled=True).count()
-    covered_attack_techniques = (
-        MitreAttack.objects.filter(is_enabled=True, use_cases__in=production_qs).distinct().count()
+    # ATT&CK coverage uses enabled techniques as denominator and production
+    # use-case mappings as numerator. Non-production use cases never count.
+    all_attack_qs = MitreAttack.objects.filter(is_enabled=True).order_by("external_id", "name")
+    covered_attack_qs = (
+        MitreAttack.objects
+        .filter(is_enabled=True, use_cases__in=production_qs)
+        .distinct()
+        .order_by("external_id", "name")
     )
 
-    covered_tactic_names: set[str] = set()
-    for attack in MitreAttack.objects.filter(is_enabled=True, use_cases__in=production_qs).distinct():
-        if attack.tactic:
-            covered_tactic_names.update(
-                t.strip() for t in str(attack.tactic).split(",") if t.strip()
-            )
+    all_attack_techniques = all_attack_qs.count()
+    covered_attack_ids = set(covered_attack_qs.values_list("id", flat=True))
+    covered_attack_techniques = len(covered_attack_ids)
 
-    all_tactic_names: set[str] = set()
-    for attack in MitreAttack.objects.filter(is_enabled=True).exclude(tactic=""):
-        all_tactic_names.update(
-            t.strip() for t in str(attack.tactic).split(",") if t.strip()
-        )
+    tactic_attack_ids: dict[str, set[int]] = {}
+    for attack in all_attack_qs:
+        for tactic in _split_tactics(attack.tactic):
+            tactic_attack_ids.setdefault(tactic, set()).add(attack.id)
+
+    production_case_ids_by_tactic: dict[str, set[int]] = {}
+    for usecase in production_qs:
+        for attack in usecase.mitre_attacks.all():
+            if not attack.is_enabled:
+                continue
+            for tactic in _split_tactics(attack.tactic):
+                production_case_ids_by_tactic.setdefault(tactic, set()).add(usecase.id)
+
+    all_tactic_names = set(tactic_attack_ids)
+    covered_tactic_names = {
+        tactic
+        for tactic, attack_ids in tactic_attack_ids.items()
+        if attack_ids & covered_attack_ids
+    }
+    uncovered_tactics = sorted(all_tactic_names - covered_tactic_names)
+
+    tactic_coverage_rows = []
+    for tactic in sorted(all_tactic_names):
+        attack_ids = tactic_attack_ids[tactic]
+        covered_count = len(attack_ids & covered_attack_ids)
+        total_count = len(attack_ids)
+        percent = _safe_percent(covered_count, total_count)
+        production_cases = len(production_case_ids_by_tactic.get(tactic, set()))
+        tactic_coverage_rows.append({
+            "name": tactic,
+            "covered": covered_count,
+            "total": total_count,
+            "uncovered": total_count - covered_count,
+            "percent": percent,
+            "percent_label": str(percent).replace(".", ","),
+            "color_class": _coverage_color_class(percent),
+            "production_cases": production_cases,
+        })
 
     total_tactics = len(all_tactic_names)
     covered_tactics = len(covered_tactic_names)
-    uncovered_tactics = sorted(all_tactic_names - covered_tactic_names)
 
-    # D3FEND coverage is inferred from the official D3FEND→ATT&CK relations.
-    # Deployments that have not applied migration 0014 yet should keep rendering
-    # the dashboard, so we only use the inferred mapping when its M2M table exists.
+    # D3FEND coverage is inferred from official D3FEND→ATT&CK relations and
+    # from the production-covered ATT&CK set.
     d3fend_mapping_ready = _d3fend_attack_mapping_table_exists()
     d3fend_coverage_rows = []
     fully_covered_d3fend_techniques = 0
     partially_covered_d3fend_techniques = 0
 
     if d3fend_mapping_ready:
-        covered_attack_ids = set(
-            MitreAttack.objects
-            .filter(is_enabled=True, use_cases__in=production_qs)
-            .distinct()
-            .values_list("id", flat=True)
-        )
         mapped_d3fends = list(
             D3Fend.objects
             .filter(is_enabled=True, related_attacks__is_enabled=True)
@@ -157,13 +194,15 @@ def build_dashboard_context(request):
             D3Fend.objects.filter(is_enabled=True, use_cases__in=production_qs).distinct().count()
         )
 
-    uncovered_attacks = (
+    uncovered_attacks_qs = (
         MitreAttack.objects
         .filter(is_enabled=True)
         .exclude(use_cases__in=production_qs)
         .distinct()
-        .order_by("external_id", "name")[:20]
+        .order_by("external_id", "name")
     )
+    uncovered_attack_techniques = uncovered_attacks_qs.count()
+    uncovered_attacks = uncovered_attacks_qs[:30]
 
     if d3fend_mapping_ready:
         uncovered_d3fends = [d3fend for coverage, d3fend in d3fend_coverage_rows if coverage < 1][:50]
@@ -173,13 +212,14 @@ def build_dashboard_context(request):
             .filter(is_enabled=True)
             .exclude(use_cases__in=production_qs)
             .distinct()
-            .order_by("code", "name")[:20]
+            .order_by("code", "name")[:30]
         )
 
     attack_counter: Counter = Counter()
     for uc in production_qs:
         for attack in uc.mitre_attacks.all():
-            attack_counter[(attack.id, attack.external_id, attack.name)] += 1
+            if attack.is_enabled:
+                attack_counter[(attack.id, attack.external_id, attack.name)] += 1
 
     top_attack_techniques = [
         {"id": aid, "external_id": eid, "name": name, "count": count}
@@ -189,7 +229,8 @@ def build_dashboard_context(request):
     d3fend_counter: Counter = Counter()
     for uc in production_qs:
         for d3 in uc.d3fends.all():
-            d3fend_counter[(d3.id, d3.code, d3.name)] += 1
+            if d3.is_enabled:
+                d3fend_counter[(d3.id, d3.code, d3.name)] += 1
 
     top_d3fend_controls = [
         {"id": did, "code": code, "name": name, "count": count}
@@ -228,6 +269,7 @@ def build_dashboard_context(request):
 
     devices = (
         UseCase.objects
+        .filter(status__iexact=PRODUCTION_STATUS)
         .exclude(device="")
         .values_list("device", flat=True)
         .distinct()
@@ -235,6 +277,8 @@ def build_dashboard_context(request):
     )
 
     return {
+        "production_status": PRODUCTION_STATUS,
+        "coverage_scope_label": "Solo casos de uso en Producción",
         "total_cases": total_cases,
         "devices": devices,
         "selected_device": device,
@@ -245,9 +289,11 @@ def build_dashboard_context(request):
         "d3fend_radials": d3fend_radials,
         "covered_attack_techniques": covered_attack_techniques,
         "all_attack_techniques": all_attack_techniques,
+        "uncovered_attack_techniques": uncovered_attack_techniques,
         "covered_tactics": covered_tactics,
         "total_tactics": total_tactics,
         "uncovered_tactics": uncovered_tactics,
+        "tactic_coverage_rows": tactic_coverage_rows,
         "covered_d3fend_techniques": covered_d3fend_techniques,
         "all_d3fend_techniques": all_d3fend_techniques,
         "fully_covered_d3fend_techniques": fully_covered_d3fend_techniques,

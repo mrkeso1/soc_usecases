@@ -8,16 +8,34 @@ from apps.accounts.roles import is_admin_role, is_analyst_role, is_readonly_role
 from .models import UseCase
 
 
-def can_access_usecases(user) -> bool:
-    """Return whether the user may access inventory/lifecycle screens."""
+def _roles_from_user(user, _roles: dict | None) -> dict:
+    """Return a resolved roles dict, computing it from the user if not supplied.
+
+    Pass a pre-computed dict (from views._resolve_user_roles) to avoid one
+    groups DB query per permission call inside loops.
+    """
+    if _roles is not None:
+        return _roles
+    if not getattr(user, "is_authenticated", False):
+        return {"is_admin": False, "is_analyst": False, "is_readonly": False}
+    group_names = set(user.groups.values_list("name", flat=True))
+    is_admin    = bool(getattr(user, "is_superuser", False) or "Admin" in group_names)
+    return {
+        "is_admin":    is_admin,
+        "is_analyst":  "Analyst" in group_names,
+        "is_readonly": "ReadOnly" in group_names and not is_admin,
+    }
+
+
+def can_access_usecases(user, *, _roles: dict | None = None) -> bool:
+    r = _roles_from_user(user, _roles)
+    if r["is_admin"] or r["is_analyst"]:
+        return True
+    if r["is_readonly"]:
+        return False
     return bool(
-        is_admin_role(user)
-        or is_analyst_role(user)
-        or (
-            getattr(user, "is_authenticated", False)
-            and not is_readonly_role(user)
-            and user.has_perm("usecases.view_usecase")
-        )
+        getattr(user, "is_authenticated", False)
+        and user.has_perm("usecases.view_usecase")
     )
 
 
@@ -38,12 +56,11 @@ def _user_owner_tokens(user) -> set[str]:
     ]
     full_name = user.get_full_name() if hasattr(user, "get_full_name") else ""
     values.append(full_name)
-
-    tokens = {_normalize_owner_value(value) for value in values if str(value).strip()}
+    tokens = {_normalize_owner_value(v) for v in values if str(v).strip()}
     email = getattr(user, "email", "") or ""
     if "@" in email:
         tokens.add(_normalize_owner_value(email.split("@", 1)[0]))
-    return {token for token in tokens if token}
+    return {t for t in tokens if t}
 
 
 def is_usecase_owner(user, usecase: UseCase) -> bool:
@@ -52,61 +69,67 @@ def is_usecase_owner(user, usecase: UseCase) -> bool:
         return False
     if usecase.created_by_id == user.id or usecase.lifecycle_control_owner_id == user.id:
         return True
-
     owner_name = _normalize_owner_value(usecase.owner_name)
     if not owner_name:
         return False
-
     for token in _user_owner_tokens(user):
         if token == owner_name:
             return True
     return False
 
 
-def can_add_usecases(user) -> bool:
-    return bool(
-        is_admin_role(user)
-        or is_analyst_role(user)
-        or (not is_readonly_role(user) and user.has_perm("usecases.add_usecase"))
-    )
-
-
-def can_manage_usecases(user, usecase: UseCase | None = None) -> bool:
-    if is_admin_role(user):
+def can_add_usecases(user, *, _roles: dict | None = None) -> bool:
+    r = _roles_from_user(user, _roles)
+    if r["is_admin"] or r["is_analyst"]:
         return True
-    if is_readonly_role(user):
+    if r["is_readonly"]:
         return False
-    if not (is_analyst_role(user) or user.has_perm("usecases.change_usecase")):
+    return bool(user.has_perm("usecases.add_usecase"))
+
+
+def can_manage_usecases(user, usecase: UseCase | None = None, *, _roles: dict | None = None) -> bool:
+    r = _roles_from_user(user, _roles)
+    if r["is_admin"]:
+        return True
+    if r["is_readonly"]:
         return False
-    if usecase is None:
-        return True
-    return is_usecase_owner(user, usecase)
-
-
-def can_delete_usecases(user, usecase: UseCase | None = None) -> bool:
-    if is_admin_role(user):
-        return True
-    if is_readonly_role(user) or not user.has_perm("usecases.delete_usecase"):
+    if not (r["is_analyst"] or user.has_perm("usecases.change_usecase")):
         return False
     if usecase is None:
         return True
     return is_usecase_owner(user, usecase)
 
 
-def is_lifecycle_admin(user) -> bool:
-    return bool(is_admin_role(user) or user.has_perm("usecases.manage_lifecycle_controls"))
+def can_delete_usecases(user, usecase: UseCase | None = None, *, _roles: dict | None = None) -> bool:
+    r = _roles_from_user(user, _roles)
+    if r["is_admin"]:
+        return True
+    if r["is_readonly"] or not user.has_perm("usecases.delete_usecase"):
+        return False
+    if usecase is None:
+        return True
+    return is_usecase_owner(user, usecase)
 
 
-def can_finish_lifecycle_review(user, usecase: UseCase) -> bool:
-    return bool(
-        is_lifecycle_admin(user)
-        or (
-            not is_readonly_role(user)
-            and (is_analyst_role(user) or user.has_perm("usecases.add_lifecyclereview"))
-            and usecase.lifecycle_control_owner_id == user.id
-        )
-    )
+def is_lifecycle_admin(user, *, _roles: dict | None = None) -> bool:
+    r = _roles_from_user(user, _roles)
+    if r["is_admin"]:
+        return True
+    return bool(user.has_perm("usecases.manage_lifecycle_controls"))
 
 
-def can_assign_lifecycle_owner(user) -> bool:
-    return is_lifecycle_admin(user)
+def can_finish_lifecycle_review(user, usecase: UseCase | None, *, _roles: dict | None = None) -> bool:
+    r = _roles_from_user(user, _roles)
+    if is_lifecycle_admin(user, _roles=r):
+        return True
+    if r["is_readonly"]:
+        return False
+    if not (r["is_analyst"] or user.has_perm("usecases.add_lifecyclereview")):
+        return False
+    if usecase is None:
+        return False
+    return usecase.lifecycle_control_owner_id == user.id
+
+
+def can_assign_lifecycle_owner(user, *, _roles: dict | None = None) -> bool:
+    return is_lifecycle_admin(user, _roles=_roles)
