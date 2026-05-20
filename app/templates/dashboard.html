@@ -821,12 +821,12 @@
             <div class="panel-body">
                 {% if uncovered_d3fends %}
                     {% for item in uncovered_d3fends %}
-                    <a class="list-item" href="{% url 'usecase_list' %}?mapping_d3fend=without&d3fend_id={{ item.id }}">
+                    <div class="list-item" style="display:block;">
                         <div>
                             <div class="list-item-main">{{ item.code }} — {{ item.name }}</div>
                             <div class="list-item-sub">{{ item.covered_related_attacks|default:0 }} / {{ item.total_related_attacks|default:0 }} ATT&amp;CK relacionadas cubiertas{% if item.category %} · {{ item.category }}{% endif %}</div>
                         </div>
-                    </a>
+                    </div>
                     {% endfor %}
                 {% else %}
                     <div class="empty-note">// Sin técnicas pendientes</div>
@@ -834,23 +834,7 @@
             </div>
         </div>
 
-        <div class="panel">
-            <div class="panel-head"><span class="panel-title">Top técnicas D3FEND</span></div>
-            <div class="panel-body">
-                {% if top_d3fend_controls %}
-                    {% for item in top_d3fend_controls %}
-                    <a class="list-item" href="{% url 'usecase_list' %}?d3fend_id={{ item.id }}">
-                        <div>
-                            <div class="list-item-main">{{ item.code }} — {{ item.name }}</div>
-                        </div>
-                        <span class="count-badge">{{ item.count }}</span>
-                    </a>
-                    {% endfor %}
-                {% else %}
-                    <div class="empty-note">// Sin controles vinculados</div>
-                {% endif %}
-            </div>
-        </div>
+
 
         <div class="panel">
             <div class="panel-head"><span class="panel-title">Resumen rápido</span></div>
@@ -875,6 +859,7 @@
                     <span class="summary-row-label">D3FEND al 100% / parcial</span>
                     <span class="summary-row-value">{{ fully_covered_d3fend_techniques }} / {{ partially_covered_d3fend_techniques }}</span>
                 </div>
+
             </div>
         </div>
 

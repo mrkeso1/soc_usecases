@@ -28,9 +28,39 @@ class MitreAttack(models.Model):
             return f"{self.external_id} - {self.name}"
         return self.external_id
 
+    @property
+    def related_d3fends_count(self):
+        return self.related_d3fends.count()
+
+    @property
+    def related_d3fends_display(self):
+        d3fends = self.related_d3fends.all().order_by("code", "name")
+        values = []
+
+        for d3fend in d3fends:
+            if d3fend.name:
+                values.append(f"{d3fend.code} - {d3fend.name}")
+            else:
+                values.append(d3fend.code)
+
+        return ", ".join(values)
+
+    @property
+    def enabled_related_d3fends_display(self):
+        d3fends = self.related_d3fends.filter(is_enabled=True).order_by("code", "name")
+        values = []
+
+        for d3fend in d3fends:
+            if d3fend.name:
+                values.append(f"{d3fend.code} - {d3fend.name}")
+            else:
+                values.append(d3fend.code)
+
+        return ", ".join(values)
+
 
 class D3Fend(models.Model):
-    code = models.CharField("Código D3FEND", max_length=30, unique=True)
+    code = models.CharField("Código D3FEND", max_length=120, unique=True)
     name = models.CharField("Nombre", max_length=255, blank=True)
     category = models.CharField("Categoría", max_length=100, blank=True)
     is_enabled = models.BooleanField("Habilitada", default=True)
@@ -49,6 +79,99 @@ class D3Fend(models.Model):
         if self.name:
             return f"{self.code} - {self.name}"
         return self.code
+
+    @property
+    def related_attacks_count(self):
+        return self.related_attacks.count()
+
+    @property
+    def related_attacks_display(self):
+        attacks = self.related_attacks.all().order_by("external_id", "name")
+        values = []
+
+        for attack in attacks:
+            if attack.name:
+                values.append(f"{attack.external_id} - {attack.name}")
+            else:
+                values.append(attack.external_id)
+
+        return ", ".join(values)
+
+    @property
+    def enabled_related_attacks_count(self):
+        return self.related_attacks.filter(is_enabled=True).count()
+
+
+class DashboardReportSettings(models.Model):
+    name = models.CharField(max_length=100, default="Reporte principal", unique=True)
+    is_active = models.BooleanField(default=True)
+    logo = models.ImageField("Logo", upload_to="dashboard_reports/logos/", blank=True)
+    report_title = models.CharField("Título", max_length=160, default="Reporte ejecutivo SOC")
+    report_subtitle = models.CharField(
+        "Subtítulo",
+        max_length=255,
+        default="Cobertura ATT&CK y D3FEND sobre casos de uso en producción",
+        blank=True,
+    )
+    footer_text = models.CharField("Pie de página", max_length=255, blank=True, default="SOC Use Cases Manager")
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name = "Configuración reporte dashboard"
+        verbose_name_plural = "Configuraciones reporte dashboard"
+        constraints = [
+            models.UniqueConstraint(
+                fields=["is_active"],
+                condition=Q(is_active=True),
+                name="unique_active_dashboard_report_settings",
+            )
+        ]
+
+    def __str__(self):
+        return f"{self.name} ({'Activo' if self.is_active else 'Inactivo'})"
+
+    def save(self, *args, **kwargs):
+        if self.is_active:
+            qs = DashboardReportSettings.objects.filter(is_active=True)
+            if self.pk:
+                qs = qs.exclude(pk=self.pk)
+            qs.update(is_active=False)
+        super().save(*args, **kwargs)
+
+
+class LifecycleSettings(models.Model):
+    name = models.CharField(max_length=100, default="Política principal", unique=True)
+    review_interval_days = models.PositiveIntegerField("Días entre controles", default=120)
+    is_active = models.BooleanField(default=True)
+
+    class Meta:
+        verbose_name = "Configuración ciclo de vida"
+        verbose_name_plural = "Configuraciones ciclo de vida"
+        constraints = [
+            models.UniqueConstraint(
+                fields=["is_active"],
+                condition=Q(is_active=True),
+                name="unique_active_lifecycle_settings",
+            )
+        ]
+
+    def __str__(self):
+        return f"{self.name} ({self.review_interval_days} días)"
+
+    def save(self, *args, **kwargs):
+        if self.is_active:
+            qs = LifecycleSettings.objects.filter(is_active=True)
+            if self.pk:
+                qs = qs.exclude(pk=self.pk)
+            qs.update(is_active=False)
+        super().save(*args, **kwargs)
+
+
+def get_review_interval_days() -> int:
+    settings_obj = LifecycleSettings.objects.filter(is_active=True).order_by("-id").first()
+    if settings_obj and settings_obj.review_interval_days > 0:
+        return settings_obj.review_interval_days
+    return 120
 
 
 

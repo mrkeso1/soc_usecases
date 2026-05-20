@@ -32,6 +32,7 @@ from .reports import build_dashboard_pdf, get_active_dashboard_report_settings
 
 def _get_filtered_usecases(request, *, with_prefetch: bool = True):
     qs = UseCase.objects.all()
+
     if with_prefetch:
         qs = qs.prefetch_related("mitre_attacks", "d3fends")
 
@@ -63,7 +64,7 @@ def _get_filtered_usecases(request, *, with_prefetch: bool = True):
     if owner:
         qs = qs.filter(owner_name__iexact=owner)
 
-    today      = date.today()
+    today = date.today()
     soon_limit = today + timedelta(days=30)
 
     if review_state == "overdue":
@@ -97,7 +98,13 @@ def _get_filtered_usecases(request, *, with_prefetch: bool = True):
     elif quick == "without_d3fend":
         qs = qs.filter(d3fends__isnull=True)
 
-    return qs.distinct()
+    filters = {
+        "q": q, "status": status, "device": device, "severity": severity,
+        "enabled": enabled, "owner": owner, "review_state": review_state,
+        "mapping_attack": mapping_attack, "mapping_d3fend": mapping_d3fend,
+        "mitre_id": mitre_id, "d3fend_id": d3fend_id, "quick": quick,
+    }
+    return qs.distinct(), filters
 
 
 def _redirect_usecase_list_with_query(return_qs: str = ""):
@@ -115,7 +122,12 @@ def _redirect_usecase_list_with_query(return_qs: str = ""):
 def _parse_csv_ids(raw_value: str) -> list[int]:
     if not raw_value:
         return []
-    return [int(x) for x in raw_value.split(",") if x.strip().isdigit()]
+
+    return [
+        int(x)
+        for x in raw_value.split(",")
+        if x.strip().isdigit()
+    ]
 
 
 def _serialize_mitre(usecase) -> str:
@@ -152,7 +164,6 @@ def _sync_d3fends_from_attacks(usecase) -> bool:
 
 
 def _snapshot_usecase(usecase) -> dict:
-    """Capture all tracked fields into a flat dict for change-log comparison."""
     return {
         "name":                 usecase.name,
         "group_name":           usecase.group_name,
@@ -171,11 +182,11 @@ def _snapshot_usecase(usecase) -> dict:
         "validation_status":    usecase.validation_status,
         "validation_result":    usecase.validation_result,
         "last_validation_date": usecase.last_validation_date,
-        "next_review_date":     usecase.next_review_date,
-        "is_enabled":           usecase.is_enabled,
-        "comments":             usecase.comments,
-        "mitre_attacks":        _serialize_mitre(usecase),
-        "d3fends":              _serialize_d3fend(usecase),
+        "next_review_date": usecase.next_review_date,
+        "is_enabled": usecase.is_enabled,
+        "comments": usecase.comments,
+        "mitre_attacks": _serialize_mitre(usecase),
+        "d3fends": _serialize_d3fend(usecase),
     }
 
 
@@ -185,6 +196,7 @@ def create_change_logs(usecase, old_data: dict, new_data: dict, user) -> None:
     for field in UseCaseChangeLog.FIELD_LABELS:
         old_val = "" if old_data.get(field) is None else str(old_data[field])
         new_val = "" if new_data.get(field) is None else str(new_data[field])
+
         if old_val != new_val:
             UseCaseChangeLog.objects.create(
                 use_case=usecase,
@@ -196,12 +208,12 @@ def create_change_logs(usecase, old_data: dict, new_data: dict, user) -> None:
 
 
 def _parse_date_field(raw: str):
-    """Parse a YYYY-MM-DD string, returning a date or None."""
     if raw:
         try:
             return datetime.strptime(raw, "%Y-%m-%d").date()
         except ValueError:
             pass
+
     return None
 
 
@@ -264,7 +276,8 @@ def usecase_list(request):
         selected_view = "compact"
 
     selected_sort = request.GET.get("sort", "name").strip()
-    selected_dir  = request.GET.get("dir", "asc").strip()
+    selected_dir = request.GET.get("dir", "asc").strip()
+
     if selected_dir not in ("asc", "desc"):
         selected_dir = "asc"
 
@@ -275,31 +288,45 @@ def usecase_list(request):
         "status":               "status",
         "severity":             "severity",
         "last_validation_date": "last_validation_date",
-        "next_review_date":     "next_review_date",
-        "enabled":              "is_enabled",
+        "next_review_date": "next_review_date",
+        "enabled": "is_enabled",
     }
+
     sort_field = sort_map.get(selected_sort, "name")
+
     if selected_dir == "desc":
         sort_field = f"-{sort_field}"
+
     qs = qs.order_by(sort_field, "name")
 
     statuses = (
-        UseCase.objects.exclude(status="")
-        .values_list("status", flat=True).distinct().order_by("status")
-    )
-    devices = (
-        UseCase.objects.exclude(device="")
-        .values_list("device", flat=True).distinct().order_by("device")
-    )
-    owners = (
-        UseCase.objects.exclude(owner_name="")
-        .values_list("owner_name", flat=True).distinct().order_by("owner_name")
+        UseCase.objects
+        .exclude(status="")
+        .values_list("status", flat=True)
+        .distinct()
+        .order_by("status")
     )
 
-    selected_mitre  = MitreAttack.objects.filter(id=int(mitre_id)).first() if mitre_id.isdigit() else None
+    devices = (
+        UseCase.objects
+        .exclude(device="")
+        .values_list("device", flat=True)
+        .distinct()
+        .order_by("device")
+    )
+
+    owners = (
+        UseCase.objects
+        .exclude(owner_name="")
+        .values_list("owner_name", flat=True)
+        .distinct()
+        .order_by("owner_name")
+    )
+
+    selected_mitre = MitreAttack.objects.filter(id=int(mitre_id)).first() if mitre_id.isdigit() else None
     selected_d3fend = D3Fend.objects.filter(id=int(d3fend_id)).first() if d3fend_id.isdigit() else None
 
-    today      = date.today()
+    today = date.today()
     soon_limit = today + timedelta(days=30)
 
     visible_total         = qs.count()
@@ -365,6 +392,7 @@ def usecase_list(request):
         "can_manage_usecases":        any(uc.can_manage_by_user for uc in qs),
         "can_delete_usecases":        any(uc.can_delete_by_user for uc in qs),
     }
+
     return render(request, "usecases/usecase_list.html", context)
 
 
@@ -432,7 +460,8 @@ def usecase_create(request):
 @login_required
 def usecase_edit(request, pk):
     usecase = get_object_or_404(
-        UseCase.objects.prefetch_related("mitre_attacks", "d3fends"), pk=pk
+        UseCase.objects.prefetch_related("mitre_attacks", "d3fends"),
+        pk=pk,
     )
     if not can_manage_usecases(request.user, usecase):
         return HttpResponseForbidden("Solo podés editar casos de uso propios.")
@@ -441,6 +470,7 @@ def usecase_edit(request, pk):
 
     if request.method == "POST":
         form = UseCaseForm(request.POST, instance=usecase)
+
         if form.is_valid():
             usecase = form.save(commit=False)
             usecase.updated_by = request.user
@@ -449,6 +479,7 @@ def usecase_edit(request, pk):
             _sync_d3fends_from_attacks(usecase)
             new_data = _snapshot_usecase(usecase)
             create_change_logs(usecase, old_data, new_data, request.user)
+
             messages.success(request, "Caso de uso actualizado correctamente.")
             return redirect("usecase_detail", pk=usecase.pk)
     else:
@@ -470,7 +501,9 @@ def usecase_detail(request, pk):
         UseCase.objects.prefetch_related("mitre_attacks", "d3fends", "change_logs__changed_by"),
         pk=pk,
     )
+
     change_logs = usecase.change_logs.all().order_by("-changed_at")
+
     return render(
         request,
         "usecases/usecase_detail.html",
@@ -489,23 +522,24 @@ def usecase_quick_update(request, pk):
         return redirect("usecase_list")
 
     usecase = get_object_or_404(
-        UseCase.objects.prefetch_related("mitre_attacks", "d3fends"), pk=pk
+        UseCase.objects.prefetch_related("mitre_attacks", "d3fends"),
+        pk=pk,
     )
     if not can_manage_usecases(request.user, usecase):
         return HttpResponseForbidden("Solo podés actualizar casos de uso propios.")
 
     old_data = _snapshot_usecase(usecase)
 
-    usecase.owner_name        = request.POST.get("owner_name", "").strip()
-    usecase.status            = request.POST.get("status", "").strip()
-    usecase.severity          = request.POST.get("severity", "").strip()
+    usecase.owner_name = request.POST.get("owner_name", "").strip()
+    usecase.status = request.POST.get("status", "").strip()
+    usecase.severity = request.POST.get("severity", "").strip()
     usecase.validation_status = request.POST.get("validation_status", "").strip()
     usecase.validation_result = request.POST.get("validation_result", "").strip()
     usecase.last_validation_date = _parse_date_field(
         request.POST.get("last_validation_date", "").strip()
     )
-    usecase.is_enabled  = request.POST.get("is_enabled") == "on"
-    usecase.updated_by  = request.user
+    usecase.is_enabled = request.POST.get("is_enabled") == "on"
+    usecase.updated_by = request.user
     usecase.save()
 
     usecase.mitre_attacks.set(
@@ -515,7 +549,9 @@ def usecase_quick_update(request, pk):
 
     new_data = _snapshot_usecase(usecase)
     create_change_logs(usecase, old_data, new_data, request.user)
+
     messages.success(request, f"Se actualizó '{usecase.name}'.")
+
     return redirect("usecase_list")
 
 
@@ -546,6 +582,7 @@ def usecase_bulk_update(request):
     )
 
     updated_count = 0
+
     with transaction.atomic():
         for usecase in usecases:
             if not can_manage_usecases(request.user, usecase):
@@ -617,18 +654,22 @@ def mitre_attack_autocomplete(request):
     qs = MitreAttack.objects.filter(is_enabled=True)
     if q:
         qs = qs.filter(
-            Q(external_id__icontains=q) | Q(name__icontains=q) | Q(tactic__icontains=q)
+            Q(external_id__icontains=q)
+            | Q(name__icontains=q)
+            | Q(tactic__icontains=q)
         )
+
     data = [
         {
-            "id":          obj.id,
-            "label":       f"{obj.external_id} - {obj.name}",
+            "id": obj.id,
+            "label": f"{obj.external_id} - {obj.name}",
             "external_id": obj.external_id,
-            "name":        obj.name,
-            "tactic":      obj.tactic,
+            "name": obj.name,
+            "tactic": obj.tactic,
         }
         for obj in qs.order_by("external_id", "name")[:20]
     ]
+
     return JsonResponse({"results": data})
 
 

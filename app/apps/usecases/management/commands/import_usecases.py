@@ -25,7 +25,6 @@ COLUMN_MAP = {
     "D3F3ND": "d3fend_rel",
     "D3FEND": "d3fend_rel",
     "Severidad": "severity",
-    "Severidad ": "severity",
     "Escalamiento": "escalation",
     "ENVIO.HO": "sent_to_ho",
     "HO": "ho_flag",

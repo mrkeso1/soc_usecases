@@ -28,6 +28,9 @@ services:
       - "8000:8000"
     depends_on:
       - db
+    dns:
+      - 8.8.8.8
+      - 1.1.1.1
     command: python manage.py runserver 0.0.0.0:8000
 
 volumes:

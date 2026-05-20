@@ -649,6 +649,44 @@
 
         .mapping-chip button:hover { opacity: 1; }
 
+        .auto-d3fend-wrap {
+            align-items: flex-start;
+        }
+
+        .auto-d3fend-wrap:not(.is-expanded) .d3fend-extra-chip {
+            display: none;
+        }
+
+        .mapping-more-chip {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            min-height: 21px;
+            padding: 3px 8px;
+            border-radius: 999px;
+            border: 1px solid rgba(45, 122, 255, 0.32);
+            background: rgba(45, 122, 255, 0.10);
+            color: #a8c8ff;
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 10px;
+            font-weight: 700;
+            cursor: pointer;
+            white-space: nowrap;
+            transition: background 0.15s, border-color 0.15s, color 0.15s;
+        }
+
+        .mapping-more-chip:hover {
+            background: rgba(45, 122, 255, 0.18);
+            border-color: var(--border-bright);
+            color: var(--text-strong);
+        }
+
+        .auto-d3fend-wrap.is-expanded .mapping-more-chip {
+            background: rgba(78, 106, 142, 0.14);
+            border-color: rgba(78, 106, 142, 0.35);
+            color: var(--text-muted);
+        }
+
         .mapping-suggestions {
             position: absolute;
             left: 0; right: 0;
@@ -712,7 +750,13 @@
         <div>
             <div class="page-eyebrow">// INVENTARIO</div>
             <h1 class="page-title">Casos de uso</h1>
-            <p class="page-subtitle">{{ visible_total }} caso(s) con los filtros actuales</p>
+            <p class="page-subtitle">
+                {% if saved_only %}
+                    {{ visible_total }} caso(s) modificados en el último guardado
+                {% else %}
+                    {{ visible_total }} caso(s) con los filtros actuales
+                {% endif %}
+            </p>
         </div>
     </div>
 
@@ -754,6 +798,12 @@
         {% for message in messages %}
             <div class="feedback-bar">{{ message }}</div>
         {% endfor %}
+    {% endif %}
+
+    {% if saved_only %}
+        <div class="feedback-bar">
+            Vista filtrada por el último guardado. <a href="{% url 'usecase_list' %}{% if full_view_query %}?{{ full_view_query }}{% endif %}">Volver a la vista completa</a>
+        </div>
     {% endif %}
 
     {% if selected_mitre or selected_d3fend %}
@@ -1046,6 +1096,17 @@
     function getHiddenField(type, pk) { return document.getElementById(type + '-hidden-' + pk); }
     function getChipWrap(type, pk)    { return document.getElementById(type + '-chips-' + pk); }
     function getResultsBox(type, pk)  { return document.getElementById(type + '-results-' + pk); }
+
+    function toggleD3fendChips(pk, button) {
+        const wrap = document.getElementById('d3fend-chips-' + pk);
+        if (!wrap || !button) return;
+
+        const expanded = wrap.classList.toggle('is-expanded');
+        const remaining = wrap.querySelectorAll('.d3fend-extra-chip').length;
+
+        button.setAttribute('aria-expanded', expanded ? 'true' : 'false');
+        button.textContent = expanded ? '− ocultar' : '+' + remaining;
+    }
 
     function getSelectedIds(type, pk) {
         const h = getHiddenField(type, pk);
