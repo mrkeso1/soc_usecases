@@ -472,16 +472,20 @@ def usecase_edit(request, pk):
         form = UseCaseForm(request.POST, instance=usecase)
 
         if form.is_valid():
-            usecase = form.save(commit=False)
-            usecase.updated_by = request.user
-            usecase.save()
+            updated = form.save(commit=False)
+            # Preservar fechas de control del ciclo de vida — son gestionadas
+            # exclusivamente por el sistema de lifecycle reviews, no por este form.
+            updated.last_review_date = usecase.last_review_date
+            updated.next_review_date = usecase.next_review_date
+            updated.updated_by = request.user
+            updated.save()
             form.save_m2m()
-            _sync_d3fends_from_attacks(usecase)
-            new_data = _snapshot_usecase(usecase)
-            create_change_logs(usecase, old_data, new_data, request.user)
+            _sync_d3fends_from_attacks(updated)
+            new_data = _snapshot_usecase(updated)
+            create_change_logs(updated, old_data, new_data, request.user)
 
             messages.success(request, "Caso de uso actualizado correctamente.")
-            return redirect("usecase_detail", pk=usecase.pk)
+            return redirect("usecase_detail", pk=updated.pk)
     else:
         form = UseCaseForm(instance=usecase)
 

@@ -3,7 +3,14 @@ from pathlib import Path
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 
-SECRET_KEY = os.getenv("SECRET_KEY", "django-insecure-dev-key")
+_SECRET_KEY = os.getenv("SECRET_KEY")
+if not _SECRET_KEY:
+    from django.core.exceptions import ImproperlyConfigured
+    raise ImproperlyConfigured(
+        "La variable de entorno SECRET_KEY no está definida. "
+        "Definila antes de iniciar la aplicación."
+    )
+SECRET_KEY = _SECRET_KEY
 DEBUG = os.getenv("DEBUG", "0") == "1"
 
 ALLOWED_HOSTS = [
