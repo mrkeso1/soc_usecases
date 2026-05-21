@@ -1,0 +1,222 @@
+{% extends "base.html" %}
+
+{% block title %}Administración de cobertura — SOC Use Cases Manager{% endblock %}
+
+{% block extra_css %}
+<style>
+    .page-header { display:flex; justify-content:space-between; align-items:flex-end; gap:18px; margin-bottom:22px; }
+    .page-eyebrow { font-family:'JetBrains Mono', monospace; font-size:11px; color:var(--accent); letter-spacing:.12em; text-transform:uppercase; }
+    .page-title { font-size:clamp(1.45rem, 2.2vw, 2rem); color:var(--text-strong); margin:4px 0; line-height:1.08; }
+    .page-subtitle { color:var(--text-muted); max-width:920px; line-height:1.5; }
+    .page-actions { display:flex; gap:8px; flex-wrap:wrap; justify-content:flex-end; }
+
+    .btn-primary, .btn-secondary, .btn-ghost { display:inline-flex; align-items:center; justify-content:center; gap:6px; border:1px solid var(--border); border-radius:9px; padding:10px 13px; text-decoration:none; font-family:'JetBrains Mono', monospace; font-size:12px; cursor:pointer; min-height:40px; white-space:nowrap; }
+    .btn-primary { background:var(--accent); color:white; border-color:var(--accent); }
+    .btn-secondary { background:var(--surface-2); color:var(--text); }
+    .btn-ghost { background:transparent; color:var(--text-muted); }
+    .btn-primary:hover, .btn-secondary:hover, .btn-ghost:hover { border-color:var(--border-bright); color:var(--text-strong); }
+
+    .messages { display:grid; gap:8px; margin-bottom:14px; }
+    .message { border:1px solid var(--border); border-radius:12px; padding:11px 13px; background:var(--surface); color:var(--text); }
+    .message.success { border-color:rgba(0,229,160,.32); background:rgba(0,229,160,.08); color:#bdfce8; }
+    .message.error { border-color:rgba(255,71,87,.35); background:rgba(255,71,87,.08); color:#ffc3ca; }
+
+    .summary-strip { display:grid; grid-template-columns:repeat(4, minmax(140px, 1fr)); gap:10px; margin:18px 0 20px; }
+    .summary-card { background:var(--surface); border:1px solid var(--border); border-radius:14px; padding:14px; min-width:0; }
+    .summary-label { font-family:'JetBrains Mono', monospace; color:var(--text-muted); font-size:10px; text-transform:uppercase; letter-spacing:.08em; }
+    .summary-value { margin-top:8px; color:var(--text-strong); font-family:'JetBrains Mono', monospace; font-size:1.45rem; font-weight:700; white-space:nowrap; }
+    .summary-value.good { color:var(--good); }
+    .summary-value.medium { color:var(--medium); }
+    .summary-value.bad { color:var(--bad); }
+
+    .tab-shell { display:flex; gap:8px; flex-wrap:wrap; margin-bottom:10px; }
+    .tab-link { text-decoration:none; color:var(--text-muted); border:1px solid var(--border); background:var(--surface); border-radius:999px; padding:9px 13px; font-family:'JetBrains Mono', monospace; font-size:12px; }
+    .tab-link.active { color:white; border-color:var(--accent); background:rgba(45,122,255,.18); }
+
+    .filters { display:grid; grid-template-columns:minmax(220px, 1fr) 180px 190px auto; gap:10px; background:var(--surface); border:1px solid var(--border); border-radius:14px; padding:14px; margin-bottom:18px; align-items:end; }
+    .field label { display:block; font-family:'JetBrains Mono', monospace; color:var(--text-muted); font-size:10px; text-transform:uppercase; letter-spacing:.08em; margin-bottom:6px; }
+    .field input, .field select, .row-form select, .row-form textarea { width:100%; background:var(--surface-2); color:var(--text-strong); border:1px solid var(--border); border-radius:8px; padding:10px; outline:none; }
+    .field input:focus, .field select:focus, .row-form select:focus, .row-form textarea:focus { border-color:var(--border-bright); }
+    .filter-actions { display:flex; gap:8px; align-items:end; }
+
+    .explain-box { display:flex; gap:12px; align-items:flex-start; background:rgba(45,122,255,.08); border:1px solid rgba(45,122,255,.22); color:var(--text); border-radius:14px; padding:13px 14px; margin-bottom:18px; }
+    .explain-icon { width:28px; height:28px; border-radius:999px; display:flex; align-items:center; justify-content:center; flex:0 0 auto; background:rgba(45,122,255,.18); color:var(--accent); font-family:'JetBrains Mono', monospace; font-weight:700; }
+    .explain-box strong { color:var(--text-strong); }
+    .explain-box p { margin:0; line-height:1.45; color:var(--text-muted); }
+
+    .rows { display:grid; gap:10px; }
+    .coverage-row { display:grid; grid-template-columns:minmax(260px, 1fr) minmax(160px, 210px) minmax(260px, 420px) 96px; gap:12px; align-items:start; background:var(--surface); border:1px solid var(--border); border-radius:16px; padding:14px; }
+    .coverage-row:hover { border-color:var(--border-bright); }
+    .row-head { min-width:0; }
+    .row-kicker { display:flex; flex-wrap:wrap; align-items:center; gap:7px; margin-bottom:7px; }
+    .object-type { font-family:'JetBrains Mono', monospace; color:var(--accent); font-size:11px; letter-spacing:.08em; text-transform:uppercase; }
+    .row-title { color:var(--text-strong); font-weight:700; line-height:1.25; overflow-wrap:anywhere; }
+    .row-subtitle { color:var(--text-muted); margin-top:5px; font-size:.84rem; line-height:1.35; overflow-wrap:anywhere; }
+    .status-chip { display:inline-flex; align-items:center; border-radius:999px; padding:4px 8px; font-size:10px; font-family:'JetBrains Mono', monospace; border:1px solid var(--border); color:var(--text-muted); background:rgba(17,29,48,.65); white-space:nowrap; }
+    .status-chip.enabled { color:var(--good); border-color:rgba(0,229,160,.35); background:rgba(0,229,160,.08); }
+    .status-chip.fulfilled { color:#9ec5ff; border-color:rgba(45,122,255,.42); background:rgba(45,122,255,.12); }
+    .status-chip.disabled { color:#ff9aa3; border-color:rgba(255,71,87,.35); background:rgba(255,71,87,.08); }
+    .status-chip.catalog { color:var(--medium); border-color:rgba(245,166,35,.35); background:rgba(245,166,35,.08); }
+
+    .row-form { display:contents; }
+    .reason-field textarea { min-height:74px; resize:vertical; font-size:.88rem; }
+    .row-actions { display:flex; justify-content:flex-end; }
+    .save-btn { width:100%; display:inline-flex; align-items:center; justify-content:center; border:1px solid var(--accent); border-radius:9px; padding:10px 12px; background:var(--accent); color:white; font-family:'JetBrains Mono', monospace; font-size:12px; cursor:pointer; }
+
+    .empty-state { padding:28px; color:var(--text-muted); text-align:center; background:var(--surface); border:1px solid var(--border); border-radius:16px; }
+    .pagination { display:flex; justify-content:center; gap:8px; flex-wrap:wrap; margin:18px 0 0; }
+    .pagination a, .pagination span { border:1px solid var(--border); background:var(--surface); color:var(--text); text-decoration:none; border-radius:8px; padding:8px 11px; font-family:'JetBrains Mono', monospace; font-size:12px; }
+    .pagination .current { color:white; background:rgba(45,122,255,.18); border-color:var(--accent); }
+
+    @media (max-width: 1180px) {
+        .summary-strip { grid-template-columns:repeat(2, 1fr); }
+        .filters { grid-template-columns:1fr 1fr; }
+        .coverage-row { grid-template-columns:1fr; }
+        .row-form { display:grid; grid-template-columns:1fr; gap:10px; }
+        .row-actions { justify-content:flex-start; }
+        .save-btn { width:auto; }
+    }
+    @media (max-width: 720px) {
+        .page-header { display:block; }
+        .page-actions { justify-content:flex-start; margin-top:12px; }
+        .summary-strip, .filters { grid-template-columns:1fr; }
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container">
+    <div class="page-header">
+        <div>
+            <div class="page-eyebrow">// ADMINISTRACIÓN DE COBERTURA</div>
+            <h1 class="page-title">ATT&CK y D3FEND: habilitada, cumplida o no aplica</h1>
+            <p class="page-subtitle">Esta pantalla no carga casos de uso. Solo administra excepciones de cobertura: técnicas/tácticas cubiertas por herramientas externas o elementos que no aplican y deben salir del cálculo.</p>
+        </div>
+        <div class="page-actions">
+            <a class="btn-secondary" href="{% url 'attack_matrix' %}">Ver Matriz ATT&CK</a>
+            <a class="btn-secondary" href="{% url 'd3fend_matrix' %}">Ver Matriz D3FEND</a>
+        </div>
+    </div>
+
+    {% if messages %}
+        <div class="messages">
+            {% for message in messages %}
+                <div class="message {{ message.tags }}">{{ message }}</div>
+            {% endfor %}
+        </div>
+    {% endif %}
+
+    <div class="summary-strip">
+        <div class="summary-card"><div class="summary-label">Filas visibles</div><div class="summary-value">{{ total_rows }}</div></div>
+        <div class="summary-card"><div class="summary-label">Habilitadas</div><div class="summary-value good">{{ counter_enabled }}</div></div>
+        <div class="summary-card"><div class="summary-label">Cumplidas por herramienta</div><div class="summary-value medium">{{ counter_fulfilled }}</div></div>
+        <div class="summary-card"><div class="summary-label">Deshabilitadas / no aplica</div><div class="summary-value bad">{{ counter_disabled }}</div></div>
+    </div>
+
+    <div class="tab-shell">
+        <a class="tab-link {% if tab == attack_framework %}active{% endif %}" href="?tab={{ attack_framework }}&scope={{ object_tactic }}">ATT&CK</a>
+        <a class="tab-link {% if tab == d3fend_framework %}active{% endif %}" href="?tab={{ d3fend_framework }}&scope={{ object_category }}">D3FEND</a>
+        {% if tab == attack_framework %}
+            <a class="tab-link {% if scope == object_tactic %}active{% endif %}" href="?tab={{ attack_framework }}&scope={{ object_tactic }}">Tácticas</a>
+            <a class="tab-link {% if scope == object_technique %}active{% endif %}" href="?tab={{ attack_framework }}&scope={{ object_technique }}">Técnicas/Subtécnicas</a>
+        {% else %}
+            <a class="tab-link {% if scope == object_category %}active{% endif %}" href="?tab={{ d3fend_framework }}&scope={{ object_category }}">Categorías</a>
+            <a class="tab-link {% if scope == object_technique %}active{% endif %}" href="?tab={{ d3fend_framework }}&scope={{ object_technique }}">Técnicas</a>
+        {% endif %}
+    </div>
+
+    <form class="filters" method="get">
+        <input type="hidden" name="tab" value="{{ tab }}">
+        <input type="hidden" name="scope" value="{{ scope }}">
+        <div class="field">
+            <label for="q">Buscar</label>
+            <input id="q" name="q" type="search" value="{{ q }}" placeholder="Código, nombre, táctica, categoría...">
+        </div>
+        <div class="field">
+            <label for="status">Estado</label>
+            <select id="status" name="status">
+                <option value="">Todos</option>
+                {% for value, label in status_options %}
+                    <option value="{{ value }}" {% if status_filter == value %}selected{% endif %}>{{ label }}</option>
+                {% endfor %}
+            </select>
+        </div>
+        <div class="field">
+            <label>Alcance</label>
+            <select disabled>
+                {% if tab == attack_framework and scope == object_tactic %}<option>Tácticas ATT&CK</option>{% endif %}
+                {% if tab == attack_framework and scope == object_technique %}<option>Técnicas ATT&CK</option>{% endif %}
+                {% if tab == d3fend_framework and scope == object_category %}<option>Categorías D3FEND</option>{% endif %}
+                {% if tab == d3fend_framework and scope == object_technique %}<option>Técnicas D3FEND</option>{% endif %}
+            </select>
+        </div>
+        <div class="filter-actions">
+            <button class="btn-primary" type="submit">Aplicar</button>
+            <a class="btn-secondary" href="{% url 'coverage_admin' %}?tab={{ tab }}&scope={{ scope }}">Limpiar</a>
+        </div>
+    </form>
+
+    <div class="explain-box">
+        <div class="explain-icon">i</div>
+        <p><strong>Regla de cálculo:</strong> “Cumplida por herramienta” suma como cubierta al 100% aunque no exista caso de uso. “Deshabilitada / no aplica” se excluye del denominador. “Habilitada” vuelve al comportamiento normal: se cubre solo si hay caso productivo o si hereda una táctica/categoría marcada como cumplida.</p>
+    </div>
+
+    {% if rows %}
+        <div class="rows">
+            {% for row in rows %}
+                <div class="coverage-row">
+                    <div class="row-head">
+                        <div class="row-kicker">
+                            <span class="object-type">{{ row.object_type_label }}</span>
+                            <span class="status-chip {{ row.status_class }}">{{ row.status_label }}</span>
+                            {% if row.source == "catalog" %}<span class="status-chip catalog">desde catálogo</span>{% endif %}
+                        </div>
+                        <div class="row-title">{{ row.title }}</div>
+                        <div class="row-subtitle">{{ row.subtitle }}</div>
+                    </div>
+
+                    <form class="row-form" method="post" action="{% url 'coverage_override_update' %}">
+                        {% csrf_token %}
+                        <input type="hidden" name="framework" value="{{ row.framework }}">
+                        <input type="hidden" name="object_type" value="{{ row.object_type }}">
+                        <input type="hidden" name="object_key" value="{{ row.object_key }}">
+                        <input type="hidden" name="object_name" value="{{ row.object_name }}">
+                        <input type="hidden" name="default_enabled" value="{% if row.default_enabled %}1{% else %}0{% endif %}">
+                        <input type="hidden" name="next" value="{{ request.get_full_path }}">
+
+                        <div class="field">
+                            <label>Estado</label>
+                            <select name="status">
+                                {% for value, label in status_options %}
+                                    <option value="{{ value }}" {% if row.status == value %}selected{% endif %}>{{ label }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <div class="field reason-field">
+                            <label>Motivo / herramienta / evidencia</label>
+                            <textarea name="reason" placeholder="Ej: cubierto por EDR, no aplica a nuestro entorno, control compensatorio...">{{ row.reason }}</textarea>
+                        </div>
+                        <div class="row-actions">
+                            <button class="save-btn" type="submit">Guardar</button>
+                        </div>
+                    </form>
+                </div>
+            {% endfor %}
+        </div>
+
+        {% if paginator.num_pages > 1 %}
+            <div class="pagination">
+                {% if page_obj.has_previous %}
+                    <a href="?tab={{ tab }}&scope={{ scope }}&q={{ q|urlencode }}&status={{ status_filter }}&page={{ page_obj.previous_page_number }}">Anterior</a>
+                {% endif %}
+                <span class="current">Página {{ page_obj.number }} de {{ paginator.num_pages }}</span>
+                {% if page_obj.has_next %}
+                    <a href="?tab={{ tab }}&scope={{ scope }}&q={{ q|urlencode }}&status={{ status_filter }}&page={{ page_obj.next_page_number }}">Siguiente</a>
+                {% endif %}
+            </div>
+        {% endif %}
+    {% else %}
+        <div class="empty-state">No hay resultados para los filtros aplicados.</div>
+    {% endif %}
+</div>
+{% endblock %}

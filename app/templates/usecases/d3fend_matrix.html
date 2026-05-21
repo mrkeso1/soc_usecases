@@ -5,10 +5,11 @@
 {% block extra_css %}
 <style>
     .page-header { display:flex; justify-content:space-between; align-items:flex-end; gap:18px; margin-bottom:22px; }
+    .page-actions { display:flex; gap:8px; flex-wrap:wrap; justify-content:flex-end; }
     .page-eyebrow { font-family:'JetBrains Mono', monospace; font-size:11px; color:var(--accent); letter-spacing:.12em; text-transform:uppercase; }
     .page-title { font-size:1.9rem; color:var(--text-strong); margin:4px 0; }
     .page-subtitle { color:var(--text-muted); max-width:840px; line-height:1.5; }
-    .summary-strip { display:grid; grid-template-columns:repeat(6, minmax(140px, 1fr)); gap:10px; margin:18px 0 20px; }
+    .summary-strip { display:grid; grid-template-columns:repeat(7, minmax(140px, 1fr)); gap:10px; margin:18px 0 20px; }
     .summary-card { background:var(--surface); border:1px solid var(--border); border-radius:14px; padding:14px; }
     .summary-label { font-family:'JetBrains Mono', monospace; color:var(--text-muted); font-size:10px; text-transform:uppercase; letter-spacing:.08em; }
     .summary-value { margin-top:8px; color:var(--text-strong); font-family:'JetBrains Mono', monospace; font-size:1.45rem; font-weight:700; }
@@ -29,6 +30,7 @@
     .d3-category { margin-top:5px; color:var(--text-muted); font-size:.84rem; }
     .status-chip { display:inline-flex; border-radius:999px; padding:3px 7px; font-size:10px; font-family:'JetBrains Mono', monospace; border:1px solid var(--border); color:var(--text-muted); }
     .status-chip.enabled { color:var(--good); border-color:rgba(0,229,160,.35); background:rgba(0,229,160,.08); }
+    .status-chip.fulfilled { color:#9ec5ff; border-color:rgba(45,122,255,.42); background:rgba(45,122,255,.12); }
     .coverage-cell { min-width:210px; }
     .coverage-head { display:flex; justify-content:space-between; align-items:center; gap:10px; margin-bottom:8px; font-family:'JetBrains Mono', monospace; }
     .coverage-percent { color:var(--text-strong); font-weight:700; }
@@ -53,7 +55,11 @@
         <div>
             <div class="page-eyebrow">// MATRIZ D3FEND</div>
             <h1 class="page-title">Cobertura D3FEND por ATT&CK</h1>
-            <p class="page-subtitle">La matriz cruza cada técnica D3FEND habilitada con sus ATT&CK habilitados relacionados en la base de datos y calcula la cobertura según los casos de uso habilitados en Producción que cubren esos ATT&CK.</p>
+            <p class="page-subtitle">La matriz cruza cada técnica D3FEND con sus ATT&CK relacionados y suma también coberturas externas administradas manualmente como cumplidas por herramienta.</p>
+        </div>
+        <div class="page-actions">
+            <a class="btn-secondary" href="{% url 'attack_matrix' %}">Matriz ATT&CK</a>
+            <a class="btn-secondary" href="{% url 'coverage_admin' %}?tab=D3FEND&scope=category">Admin cobertura</a>
         </div>
     </div>
 
@@ -63,6 +69,7 @@
         <div class="summary-card"><div class="summary-label">Relaciones cubiertas</div><div class="summary-value">{{ total_covered_relations }}/{{ total_relations }}</div></div>
         <div class="summary-card"><div class="summary-label">100% cubiertos</div><div class="summary-value">{{ fully_covered }}</div></div>
         <div class="summary-card"><div class="summary-label">Parciales</div><div class="summary-value">{{ partially_covered }}</div></div>
+        <div class="summary-card"><div class="summary-label">Cumplidas por herramienta</div><div class="summary-value">{{ manual_fulfilled }}</div></div>
         <div class="summary-card"><div class="summary-label">Casos productivos habilitados</div><div class="summary-value">{{ total_cases }}</div></div>
     </div>
 
@@ -114,9 +121,9 @@
                     {% for row in rows %}
                         <tr>
                             <td>
-                                <span class="d3-code">{{ row.d3fend.code }} <span class="status-chip enabled">Activa</span></span>
+                                <span class="d3-code">{{ row.d3fend.code }} {% if row.manual_fulfilled %}<span class="status-chip fulfilled" title="{{ row.override_source }}{% if row.override_reason %}: {{ row.override_reason }}{% endif %}">Cumplida por herramienta</span>{% else %}<span class="status-chip enabled">Activa</span>{% endif %}</span>
                                 <div class="d3-name">{{ row.d3fend.name|default:"Sin nombre" }}</div>
-                                {% if row.d3fend.category %}<div class="d3-category">{{ row.d3fend.category }}</div>{% endif %}
+                                {% if row.d3fend.category %}<div class="d3-category">{{ row.d3fend.category }}</div>{% endif %}{% if row.override_reason %}<div class="d3-category">{{ row.override_source }}: {{ row.override_reason }}</div>{% endif %}
                             </td>
                             <td class="coverage-cell">
                                 <div class="coverage-head">
@@ -133,7 +140,7 @@
                                         {% endfor %}
                                     </div>
                                 {% else %}
-                                    <span class="attack-chip">Sin ATT&CK relacionados en DB</span>
+                                    <span class="attack-chip {% if row.manual_fulfilled %}covered{% endif %}">{% if row.manual_fulfilled %}Cubierta por herramienta aunque no tenga ATT&CK relacionados{% else %}Sin ATT&CK relacionados en DB{% endif %}</span>
                                 {% endif %}
                             </td>
                         </tr>

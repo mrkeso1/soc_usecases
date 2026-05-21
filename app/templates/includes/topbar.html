@@ -12,7 +12,9 @@
                 {% if is_role_admin or is_role_analyst or perms.usecases.view_usecase %}
                     <a href="{% url 'usecase_list' %}" class="{% if url_name == 'usecase_list' or url_name == 'usecase_detail' or url_name == 'usecase_edit' or url_name == 'usecase_create' %}active{% endif %}">Inventario</a>
                     <a href="{% url 'lifecycle_management' %}" class="{% if url_name == 'lifecycle_management' %}active{% endif %}">Ciclo de Vida</a>
+                    <a href="{% url 'attack_matrix' %}" class="{% if url_name == 'attack_matrix' %}active{% endif %}">Matriz ATT&CK</a>
                     <a href="{% url 'd3fend_matrix' %}" class="{% if url_name == 'd3fend_matrix' %}active{% endif %}">Matriz D3FEND</a>
+                    {% if is_role_admin or is_role_analyst %}<a href="{% url 'coverage_admin' %}" class="{% if url_name == 'coverage_admin' %}active{% endif %}">Admin Cobertura</a>{% endif %}
                 {% endif %}
             {% endif %}
         {% endwith %}

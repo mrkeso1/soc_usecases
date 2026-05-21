@@ -9,34 +9,33 @@
     <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;600;700&family=Syne:wght@400;500;600;700;800&display=swap" rel="stylesheet">
     <style>
         :root {
-            --bg:           #060b14;
-            --surface:      #0c1524;
-            --surface-2:    #111d30;
-            --surface-3:    #172540;
-            --border:       rgba(56, 100, 163, 0.22);
-            --border-bright:rgba(56, 100, 163, 0.55);
-            --text:         #b8cce8;
-            --text-strong:  #e8f1ff;
-            --text-muted:   #4e6a8e;
-            --accent:       #2d7aff;
-            --accent-dim:   rgba(45, 122, 255, 0.12);
-            --accent-glow:  rgba(45, 122, 255, 0.35);
-            --good:         #00e5a0;
-            --good-dim:     rgba(0, 229, 160, 0.08);
-            --medium:       #f5a623;
-            --medium-dim:   rgba(245, 166, 35, 0.08);
-            --bad:          #ff4757;
-            --bad-dim:      rgba(255, 71, 87, 0.08);
-            --grid-color:   rgba(45, 122, 255, 0.04);
+            --bg: #060b14;
+            --surface: #0c1524;
+            --surface-2: #111d30;
+            --surface-3: #172540;
+            --border: rgba(56, 100, 163, 0.22);
+            --border-bright: rgba(56, 100, 163, 0.55);
+            --text: #b8cce8;
+            --text-strong: #e8f1ff;
+            --text-muted: #6d86a8;
+            --accent: #2d7aff;
+            --accent-dim: rgba(45, 122, 255, 0.12);
+            --good: #00e5a0;
+            --good-dim: rgba(0, 229, 160, 0.08);
+            --medium: #f5a623;
+            --medium-dim: rgba(245, 166, 35, 0.08);
+            --bad: #ff4757;
+            --bad-dim: rgba(255, 71, 87, 0.08);
+            --grid-color: rgba(45, 122, 255, 0.04);
         }
 
         * { box-sizing: border-box; margin: 0; padding: 0; }
 
         body {
+            min-height: 100vh;
             font-family: 'Syne', sans-serif;
             background: var(--bg);
             color: var(--text);
-            min-height: 100vh;
         }
 
         body::before {
@@ -51,710 +50,581 @@
             z-index: 0;
         }
 
-        /* ── Topbar ── */
-        .topbar {
-            position: sticky;
-            top: 0;
-            z-index: 100;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            padding: 0 28px;
-            height: 56px;
-            background: rgba(6, 11, 20, 0.92);
-            backdrop-filter: blur(12px);
-            border-bottom: 1px solid var(--border);
-        }
-
-        .brand {
-            display: flex;
-            align-items: center;
-            gap: 10px;
-            font-family: 'JetBrains Mono', monospace;
-            font-size: 13px;
-            font-weight: 600;
-            color: var(--text-strong);
-            letter-spacing: 0.02em;
-        }
-
-        .brand-icon {
-            width: 28px;
-            height: 28px;
-            background: var(--accent);
-            border-radius: 6px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-        }
-
-        .brand-icon svg { width: 16px; height: 16px; fill: white; }
-
-        .topbar-nav {
-            display: flex;
-            align-items: center;
-            gap: 4px;
-        }
-
-        .topbar-nav a {
-            font-family: 'JetBrains Mono', monospace;
-            font-size: 12px;
-            font-weight: 500;
-            color: var(--text-muted);
-            text-decoration: none;
-            padding: 6px 12px;
-            border-radius: 6px;
-            transition: color 0.15s, background 0.15s;
-            letter-spacing: 0.03em;
-        }
-
-        .topbar-nav a:hover,
-        .topbar-nav a.active {
-            color: var(--text-strong);
-            background: var(--surface-3);
-        }
-
-        .topbar-nav a.active {
-            color: var(--accent);
-            background: var(--accent-dim);
-        }
-
-        .topbar-divider {
-            width: 1px; height: 18px;
-            background: var(--border);
-            margin: 0 6px;
-        }
-
-        /* ── Layout ── */
         .container {
             position: relative;
             z-index: 1;
             max-width: 100%;
-            padding: 28px 28px 48px;
+            padding: 28px 28px 54px;
         }
 
-        /* ── Page header ── */
         .page-header {
-            display: flex;
-            justify-content: space-between;
-            align-items: flex-end;
-            margin-bottom: 24px;
-            gap: 16px;
+            display: grid;
+            grid-template-columns: minmax(0, 1fr) auto;
+            gap: 18px;
+            align-items: end;
+            margin-bottom: 18px;
         }
 
         .page-eyebrow {
+            margin-bottom: 6px;
             font-family: 'JetBrains Mono', monospace;
             font-size: 11px;
-            font-weight: 500;
+            font-weight: 700;
             color: var(--accent);
-            letter-spacing: 0.12em;
+            letter-spacing: 0.13em;
             text-transform: uppercase;
-            margin-bottom: 4px;
-            opacity: 0.85;
         }
 
         .page-title {
-            font-size: 1.9rem;
-            font-weight: 800;
             color: var(--text-strong);
-            letter-spacing: -0.03em;
+            font-size: clamp(1.65rem, 2vw, 2.2rem);
+            font-weight: 800;
+            letter-spacing: -0.04em;
         }
 
         .page-subtitle {
-            margin-top: 4px;
-            font-size: 0.87rem;
+            margin-top: 6px;
             color: var(--text-muted);
+            font-size: 0.9rem;
+            line-height: 1.45;
         }
 
-        /* ── Summary chips ── */
-        .summary-strip {
+        .header-actions {
             display: flex;
-            gap: 10px;
+            gap: 8px;
             flex-wrap: wrap;
-            margin-bottom: 20px;
+            justify-content: flex-end;
+        }
+
+        .summary-strip {
+            display: grid;
+            grid-template-columns: repeat(7, minmax(120px, 1fr));
+            gap: 10px;
+            margin-bottom: 16px;
         }
 
         .summary-chip {
             display: flex;
             align-items: center;
-            gap: 8px;
-            background: var(--surface);
-            border: 1px solid var(--border);
-            border-radius: 10px;
-            padding: 9px 14px;
+            justify-content: space-between;
+            gap: 10px;
+            min-height: 70px;
+            padding: 12px 14px;
             text-decoration: none;
             color: inherit;
-            transition: border-color 0.15s, background 0.15s;
-            min-width: 100px;
+            background: rgba(12, 21, 36, 0.94);
+            border: 1px solid var(--border);
+            border-radius: 15px;
+            transition: transform 0.12s, border-color 0.12s, background 0.12s;
         }
 
         .summary-chip:hover {
+            transform: translateY(-1px);
             border-color: var(--border-bright);
             background: var(--surface-2);
         }
 
         .summary-chip.active {
-            border-color: var(--accent);
+            border-color: rgba(45, 122, 255, 0.65);
             background: var(--accent-dim);
         }
 
         .chip-label {
+            display: block;
+            color: var(--text-muted);
             font-family: 'JetBrains Mono', monospace;
             font-size: 10px;
-            font-weight: 500;
-            color: var(--text-muted);
-            text-transform: uppercase;
+            font-weight: 700;
             letter-spacing: 0.08em;
+            text-transform: uppercase;
+            line-height: 1.25;
         }
 
         .chip-value {
-            font-family: 'JetBrains Mono', monospace;
-            font-size: 1.25rem;
-            font-weight: 700;
             color: var(--text-strong);
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 1.35rem;
+            font-weight: 800;
             line-height: 1;
         }
 
         .chip-value.warn { color: var(--medium); }
         .chip-value.danger { color: var(--bad); }
+        .chip-value.good { color: var(--good); }
 
-        /* ── Feedback / alert ── */
+        .feedback-bar,
+        .mapping-filter-bar,
+        .edit-hint {
+            margin-bottom: 14px;
+            padding: 12px 15px;
+            border-radius: 13px;
+            font-size: 0.88rem;
+            line-height: 1.45;
+        }
+
         .feedback-bar {
-            margin-bottom: 16px;
-            padding: 11px 16px;
-            border-radius: 10px;
             background: var(--accent-dim);
             border: 1px solid rgba(45, 122, 255, 0.30);
             color: #c5d9ff;
-            font-size: 0.88rem;
         }
 
         .mapping-filter-bar {
-            margin-bottom: 14px;
-            padding: 11px 16px;
-            border-radius: 10px;
             background: var(--medium-dim);
             border: 1px solid rgba(245, 166, 35, 0.28);
             color: #fde68a;
-            font-size: 0.85rem;
             font-family: 'JetBrains Mono', monospace;
+            font-size: 0.82rem;
         }
 
         .mapping-filter-bar strong { color: #fff3cd; }
+        .feedback-bar a { color: #bfdbfe; }
 
-        /* ── Toolbar row ── */
+        .edit-hint {
+            background: rgba(0, 229, 160, 0.06);
+            border: 1px solid rgba(0, 229, 160, 0.18);
+            color: #b7f7dd;
+        }
+
         .toolbar-row {
             display: flex;
-            align-items: center;
             gap: 8px;
+            align-items: center;
             flex-wrap: wrap;
             margin-bottom: 14px;
         }
 
-        .btn-tab {
-            display: inline-flex;
-            align-items: center;
-            height: 34px;
-            padding: 0 14px;
-            border-radius: 7px;
-            font-family: 'Syne', sans-serif;
-            font-size: 0.83rem;
-            font-weight: 600;
-            border: 1px solid var(--border);
-            background: var(--surface);
-            color: var(--text-muted);
-            text-decoration: none;
-            cursor: pointer;
-            transition: all 0.15s;
-        }
-
-        .btn-tab:hover { border-color: var(--border-bright); color: var(--text); }
-        .btn-tab.active { background: var(--accent-dim); border-color: var(--accent); color: var(--accent); }
-
-        .btn-export {
-            display: inline-flex;
-            align-items: center;
-            gap: 6px;
-            height: 34px;
-            padding: 0 14px;
-            border-radius: 7px;
-            font-family: 'Syne', sans-serif;
-            font-size: 0.83rem;
-            font-weight: 600;
-            border: 1px solid var(--border);
-            background: var(--surface);
-            color: var(--text-muted);
-            text-decoration: none;
-            cursor: pointer;
-            transition: all 0.15s;
-        }
-
-        .btn-export:hover { border-color: var(--border-bright); color: var(--text); }
-
         .spacer { flex: 1; }
 
-        .btn-save {
+        .btn,
+        .btn-tab,
+        .btn-save,
+        .btn-filter,
+        .btn-clear {
             display: inline-flex;
             align-items: center;
-            height: 34px;
-            padding: 0 18px;
-            border-radius: 7px;
+            justify-content: center;
+            min-height: 36px;
+            padding: 0 14px;
+            border-radius: 9px;
             font-family: 'Syne', sans-serif;
-            font-size: 0.85rem;
-            font-weight: 700;
-            border: none;
+            font-size: 0.84rem;
+            font-weight: 800;
+            text-decoration: none;
             cursor: pointer;
-            background: var(--good);
-            color: #001a10;
-            transition: opacity 0.15s, transform 0.1s;
+            transition: transform 0.12s, opacity 0.12s, border-color 0.12s, background 0.12s;
+            white-space: nowrap;
         }
 
-        .btn-save:hover { opacity: 0.88; transform: translateY(-1px); }
-
-        /* ── Filter form ── */
-        .filter-bar {
-            background: var(--surface);
+        .btn,
+        .btn-tab,
+        .btn-clear {
             border: 1px solid var(--border);
-            border-radius: 14px;
-            padding: 14px 16px;
+            background: var(--surface);
+            color: var(--text);
+        }
+
+        .btn:hover,
+        .btn-tab:hover,
+        .btn-clear:hover,
+        .btn-save:hover,
+        .btn-filter:hover {
+            transform: translateY(-1px);
+            border-color: var(--border-bright);
+        }
+
+        .btn-tab.active {
+            color: #a8c8ff;
+            border-color: rgba(45, 122, 255, 0.55);
+            background: var(--accent-dim);
+        }
+
+        .btn-primary,
+        .btn-filter {
+            border: 1px solid var(--accent);
+            background: var(--accent);
+            color: white;
+        }
+
+        .btn-save {
+            border: 1px solid rgba(0, 229, 160, 0.35);
+            background: var(--good);
+            color: #001a10;
+        }
+
+        .filter-bar {
             margin-bottom: 16px;
+            padding: 15px;
+            background: rgba(12, 21, 36, 0.94);
+            border: 1px solid var(--border);
+            border-radius: 16px;
         }
 
         .filter-grid {
             display: grid;
-            grid-template-columns: 1.5fr repeat(7, minmax(0, 1fr)) auto auto;
-            gap: 8px;
+            grid-template-columns: minmax(220px, 1.7fr) repeat(6, minmax(120px, 1fr)) auto auto;
+            gap: 9px;
             align-items: end;
         }
 
         .filter-bar input[type="text"],
         .filter-bar select {
             width: 100%;
+            min-height: 36px;
+            border: 1px solid var(--border);
+            border-radius: 9px;
             background: var(--surface-2);
             color: var(--text-strong);
-            border: 1px solid var(--border);
-            border-radius: 7px;
             padding: 8px 10px;
             font-family: 'Syne', sans-serif;
-            font-size: 0.82rem;
+            font-size: 0.84rem;
             outline: none;
-            transition: border-color 0.15s;
             appearance: none;
             -webkit-appearance: none;
         }
 
-        .filter-bar input[type="text"]:focus,
+        .filter-bar input:focus,
         .filter-bar select:focus {
             border-color: var(--border-bright);
             box-shadow: 0 0 0 3px var(--accent-dim);
         }
 
-        .filter-bar input[type="hidden"] { display: none; }
-
-        .btn-filter {
-            height: 36px;
-            padding: 0 16px;
-            border-radius: 7px;
-            border: none;
-            background: var(--accent);
-            color: white;
-            font-family: 'Syne', sans-serif;
-            font-size: 0.85rem;
-            font-weight: 700;
-            cursor: pointer;
-            transition: opacity 0.15s;
-            white-space: nowrap;
-        }
-
-        .btn-filter:hover { opacity: 0.85; }
-
-        .btn-clear {
-            height: 36px;
-            padding: 0 14px;
-            border-radius: 7px;
-            border: 1px solid var(--border);
-            background: var(--surface-2);
-            color: var(--text);
-            font-family: 'Syne', sans-serif;
-            font-size: 0.85rem;
-            font-weight: 600;
-            cursor: pointer;
-            text-decoration: none;
-            display: inline-flex;
-            align-items: center;
-            transition: all 0.15s;
-            white-space: nowrap;
-        }
-
-        .btn-clear:hover { border-color: var(--border-bright); }
-
-        /* ── Table ── */
         .table-wrap {
-            background: var(--surface);
-            border: 1px solid var(--border);
-            border-radius: 16px;
             overflow-x: auto;
             overflow-y: visible;
+            background: rgba(12, 21, 36, 0.94);
+            border: 1px solid var(--border);
+            border-radius: 18px;
+            box-shadow: 0 20px 70px rgba(0, 0, 0, 0.22);
         }
 
-        .table-wrap::-webkit-scrollbar { height: 8px; }
+        .table-wrap::-webkit-scrollbar { height: 9px; }
         .table-wrap::-webkit-scrollbar-track { background: var(--bg); }
         .table-wrap::-webkit-scrollbar-thumb { background: var(--surface-3); border-radius: 999px; }
 
         table {
             width: 100%;
-            min-width: 1820px;
+            min-width: 1380px;
+            table-layout: fixed;
             border-collapse: separate;
             border-spacing: 0;
-            table-layout: fixed;
         }
 
-        table.compact { min-width: 1700px; }
-
         th, td {
-            padding: 8px 10px;
+            padding: 12px 12px;
             border-bottom: 1px solid var(--border);
             text-align: left;
             vertical-align: top;
-            font-size: 12px;
-            box-sizing: border-box;
             overflow: hidden;
-            min-width: 0;
         }
 
         th {
+            position: sticky;
+            top: 0;
+            z-index: 5;
             background: rgba(6, 11, 20, 0.98);
+            color: var(--text-muted);
             font-family: 'JetBrains Mono', monospace;
             font-size: 10px;
-            font-weight: 600;
-            color: var(--text-muted);
-            text-transform: uppercase;
+            font-weight: 800;
             letter-spacing: 0.08em;
+            text-transform: uppercase;
             white-space: nowrap;
-            border-bottom: 1px solid var(--border-bright);
         }
 
-        td { background: var(--surface); }
-        tr:hover td { background: var(--surface-2); }
+        td { background: rgba(12, 21, 36, 0.94); }
+        tr:hover td { background: rgba(17, 29, 48, 0.96); }
+        tr:last-child td { border-bottom: 0; }
 
-        .row-overdue td  { background: rgba(255, 71, 87, 0.06); }
-        .row-overdue:hover td { background: rgba(255, 71, 87, 0.12); }
-        .row-soon td     { background: rgba(245, 166, 35, 0.06); }
-        .row-soon:hover td { background: rgba(245, 166, 35, 0.1); }
-        .row-updated td  { outline: 1px solid rgba(45, 122, 255, 0.4); }
+        .row-overdue td { background: rgba(255, 71, 87, 0.055); }
+        .row-soon td { background: rgba(245, 166, 35, 0.052); }
+        .row-updated td { box-shadow: inset 0 0 0 1px rgba(45, 122, 255, 0.28); }
 
-        /* Sticky columns */
-        .sticky-l1 { position: sticky; left: 0; z-index: 3; }
-        .sticky-l2 { position: sticky; left: 185px; z-index: 3; }
-        .sticky-r  { position: sticky; right: 0; z-index: 3; }
+        .col-case { width: 270px; }
+        .col-meta { width: 190px; }
+        .col-sev { width: 125px; }
+        .col-attack { width: 245px; }
+        .col-d3fend { width: 220px; }
+        .col-review { width: 185px; }
+        .col-enabled { width: 170px; }
+        .col-actions { width: 128px; }
 
-        th.sticky-l1, th.sticky-l2, th.sticky-r {
-            z-index: 6;
-            background: rgba(6, 11, 20, 0.98);
-        }
-
-        /* Column widths */
-        .col-name    { width: 185px; }
-        .col-device  { width: 115px; }
-        .col-d3fend  { width: 175px; }
-        .col-attack  { width: 190px; }
-        .col-owner   { width: 120px; }
-        .col-status  { width: 98px; }
-        .col-sev     { width: 86px; }
-        .col-vs      { width: 118px; }
-        .col-vr      { width: 90px; }
-        .col-lv      { width: 110px; }
-        .col-nr      { width: 100px; }
-        .col-cd      { width: 115px; }
-        .col-en      { width: 125px; text-align: center; }
-        .col-act     { width: 105px; }
-
-        td.col-en { text-align: center; }
-
-        /* Sort links */
         .sort-link {
             color: var(--text-muted);
             text-decoration: none;
             display: inline-flex;
             align-items: center;
             gap: 4px;
-            transition: color 0.1s;
         }
 
-        .sort-link:hover { color: var(--text-strong); }
-        .sort-active { color: var(--accent) !important; }
-
+        .sort-link:hover, .sort-active { color: var(--accent) !important; }
         .sort-arrow { font-size: 9px; }
 
-        /* Form controls in cells */
+        .case-title {
+            display: block;
+            color: var(--text-strong);
+            font-size: 13px;
+            font-weight: 800;
+            line-height: 1.35;
+            overflow-wrap: anywhere;
+        }
+
+        .case-meta {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 6px;
+            margin-top: 8px;
+        }
+
+        .mini-label {
+            display: block;
+            margin: 9px 0 5px;
+            color: var(--text-muted);
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 9px;
+            font-weight: 800;
+            letter-spacing: 0.08em;
+            text-transform: uppercase;
+        }
+
+        .cell-readonly {
+            color: var(--text);
+            font-size: 12px;
+            line-height: 1.35;
+            overflow-wrap: anywhere;
+        }
+
+        .cell-muted { color: var(--text-muted); }
+
         .cell-select,
-        .cell-input {
+        .cell-input,
+        .cell-date,
+        .disabled-reason-input,
+        .mapping-input {
             width: 100%;
+            border: 1px solid transparent;
+            border-radius: 8px;
             background: var(--surface-3);
             color: var(--text-strong);
-            border: 1px solid transparent;
-            border-radius: 6px;
-            padding: 5px 7px;
+            padding: 7px 8px;
             font-family: 'Syne', sans-serif;
             font-size: 12px;
             outline: none;
-            transition: border-color 0.15s, background 0.15s;
-            appearance: none;
-            -webkit-appearance: none;
+            min-width: 0;
         }
 
+        .cell-date { font-family: 'JetBrains Mono', monospace; font-size: 11px; }
+        .disabled-reason-input { margin-top: 7px; font-size: 11px; }
+        .mapping-input { margin-bottom: 7px; }
+
         .cell-select:focus,
-        .cell-input:focus {
+        .cell-input:focus,
+        .cell-date:focus,
+        .disabled-reason-input:focus,
+        .mapping-input:focus {
             border-color: var(--border-bright);
             background: var(--surface-2);
             box-shadow: 0 0 0 2px var(--accent-dim);
         }
 
-        .cell-date {
-            width: 100%;
-            background: var(--surface-3);
-            color: var(--text-strong);
-            border: 1px solid transparent;
-            border-radius: 6px;
-            padding: 5px 7px;
-            font-family: 'JetBrains Mono', monospace;
-            font-size: 11px;
-            outline: none;
-            transition: border-color 0.15s;
-        }
-
-        .cell-date:focus {
-            border-color: var(--border-bright);
-            box-shadow: 0 0 0 2px var(--accent-dim);
-        }
-
-        .cell-readonly {
-            font-size: 12px;
-            color: var(--text);
-            word-break: break-word;
-            line-height: 1.35;
-        }
-
         .cell-checkbox {
-            width: 15px;
-            height: 15px;
+            width: 17px;
+            height: 17px;
             accent-color: var(--accent);
             cursor: pointer;
         }
 
-        .disabled-reason-input {
-            margin-top: 6px;
-            width: 100%;
-            background: var(--surface-3);
-            color: var(--text-strong);
-            border: 1px solid transparent;
-            border-radius: 6px;
-            padding: 4px 6px;
-            font-family: 'Syne', sans-serif;
-            font-size: 10px;
-            outline: none;
+        .checkbox-line {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            color: var(--text);
+            font-size: 12px;
         }
 
-        .disabled-reason-input:focus {
-            border-color: var(--border-bright);
-            background: var(--surface-2);
-        }
-
-        /* Badges */
         .badge {
             display: inline-flex;
             align-items: center;
+            max-width: 100%;
+            min-height: 22px;
             padding: 3px 8px;
             border-radius: 999px;
             font-family: 'JetBrains Mono', monospace;
             font-size: 10px;
-            font-weight: 600;
+            font-weight: 800;
+            line-height: 1.25;
             white-space: nowrap;
         }
 
-        .badge-green  { background: var(--good-dim);   color: var(--good);   border: 1px solid rgba(0,229,160,0.25); }
-        .badge-yellow { background: var(--medium-dim); color: var(--medium); border: 1px solid rgba(245,166,35,0.25); }
-        .badge-red    { background: var(--bad-dim);    color: var(--bad);    border: 1px solid rgba(255,71,87,0.25); }
-        .badge-gray   { background: rgba(78,106,142,0.12); color: var(--text-muted); border: 1px solid rgba(78,106,142,0.25); }
+        .badge-green { color: var(--good); border: 1px solid rgba(0, 229, 160, 0.27); background: var(--good-dim); }
+        .badge-yellow { color: var(--medium); border: 1px solid rgba(245, 166, 35, 0.28); background: var(--medium-dim); }
+        .badge-red { color: var(--bad); border: 1px solid rgba(255, 71, 87, 0.28); background: var(--bad-dim); }
+        .badge-gray { color: var(--text-muted); border: 1px solid rgba(109, 134, 168, 0.25); background: rgba(109, 134, 168, 0.08); }
+        .badge-blue { color: #a8c8ff; border: 1px solid rgba(45, 122, 255, 0.28); background: var(--accent-dim); }
 
-        /* Action links */
-        .action-links {
-            display: flex;
-            flex-direction: column;
-            gap: 4px;
-        }
-
-        .action-links a {
-            font-family: 'JetBrains Mono', monospace;
-            font-size: 11px;
-            font-weight: 600;
-            color: var(--accent);
-            text-decoration: none;
-            opacity: 0.8;
-            transition: opacity 0.1s;
-        }
-
-        .action-links a:hover { opacity: 1; }
-
-        .empty-row td {
-            color: var(--text-muted);
-            font-family: 'JetBrains Mono', monospace;
-            font-size: 12px;
-            text-align: center;
-            padding: 40px;
-        }
-
-        /* ── Mapping autocomplete ── */
         .mapping-cell { position: relative; overflow: visible; }
-
-        .mapping-input {
-            width: 100%;
-            background: var(--surface-3);
-            color: var(--text-strong);
-            border: 1px solid transparent;
-            border-radius: 6px;
-            padding: 5px 7px;
-            font-family: 'Syne', sans-serif;
-            font-size: 11px;
-            outline: none;
-            margin-bottom: 5px;
-            transition: border-color 0.15s;
-        }
-
-        .mapping-input:focus {
-            border-color: var(--border-bright);
-            box-shadow: 0 0 0 2px var(--accent-dim);
-        }
 
         .mapping-chip-wrap {
             display: flex;
             flex-wrap: wrap;
-            gap: 4px;
-            min-height: 20px;
+            gap: 5px;
+            min-height: 22px;
         }
 
         .mapping-chip {
             display: inline-flex;
             align-items: center;
             gap: 5px;
-            padding: 3px 8px;
+            max-width: 100%;
+            padding: 4px 8px;
             border-radius: 999px;
-            font-family: 'JetBrains Mono', monospace;
-            font-size: 10px;
+            border: 1px solid rgba(45, 122, 255, 0.28);
             background: var(--accent-dim);
             color: #a8c8ff;
-            border: 1px solid rgba(45, 122, 255, 0.28);
-            max-width: 100%;
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 10px;
+            font-weight: 700;
         }
 
         .mapping-chip-label {
             overflow: hidden;
             text-overflow: ellipsis;
             white-space: nowrap;
-            max-width: 130px;
+            max-width: 178px;
         }
 
         .mapping-chip button {
+            border: 0;
             background: transparent;
-            border: none;
-            color: #a8c8ff;
-            padding: 0;
+            color: #bfdbfe;
+            cursor: pointer;
             font-size: 12px;
             line-height: 1;
-            cursor: pointer;
-            opacity: 0.6;
-            transition: opacity 0.1s;
+            padding: 0;
+            opacity: 0.72;
         }
 
         .mapping-chip button:hover { opacity: 1; }
 
-        .auto-d3fend-wrap {
-            align-items: flex-start;
-        }
-
-        .auto-d3fend-wrap:not(.is-expanded) .d3fend-extra-chip {
-            display: none;
-        }
+        .auto-d3fend-wrap:not(.is-expanded) .d3fend-extra-chip { display: none; }
 
         .mapping-more-chip {
             display: inline-flex;
             align-items: center;
             justify-content: center;
-            min-height: 21px;
-            padding: 3px 8px;
+            min-height: 22px;
+            padding: 4px 8px;
             border-radius: 999px;
             border: 1px solid rgba(45, 122, 255, 0.32);
             background: rgba(45, 122, 255, 0.10);
             color: #a8c8ff;
             font-family: 'JetBrains Mono', monospace;
             font-size: 10px;
-            font-weight: 700;
+            font-weight: 800;
             cursor: pointer;
             white-space: nowrap;
-            transition: background 0.15s, border-color 0.15s, color 0.15s;
-        }
-
-        .mapping-more-chip:hover {
-            background: rgba(45, 122, 255, 0.18);
-            border-color: var(--border-bright);
-            color: var(--text-strong);
         }
 
         .auto-d3fend-wrap.is-expanded .mapping-more-chip {
-            background: rgba(78, 106, 142, 0.14);
-            border-color: rgba(78, 106, 142, 0.35);
+            border-color: rgba(109, 134, 168, 0.35);
+            background: rgba(109, 134, 168, 0.10);
             color: var(--text-muted);
+        }
+
+        .mapping-empty-inline {
+            color: var(--text-muted);
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 10px;
+            line-height: 1.3;
         }
 
         .mapping-suggestions {
             position: absolute;
-            left: 0; right: 0;
-            top: calc(100% + 2px);
-            z-index: 50;
-            background: var(--surface-2);
-            border: 1px solid var(--border-bright);
-            border-radius: 10px;
-            max-height: 190px;
-            overflow-y: auto;
-            box-shadow: 0 12px 32px rgba(0, 0, 0, 0.5);
+            left: 12px;
+            right: 12px;
+            top: calc(100% - 8px);
+            z-index: 40;
             display: none;
+            max-height: 210px;
+            overflow-y: auto;
+            border: 1px solid var(--border-bright);
+            border-radius: 12px;
+            background: var(--surface-2);
+            box-shadow: 0 18px 40px rgba(0, 0, 0, 0.45);
         }
 
-        .mapping-suggestion {
-            padding: 8px 12px;
-            font-size: 11px;
-            font-family: 'JetBrains Mono', monospace;
-            cursor: pointer;
+        .mapping-suggestion,
+        .mapping-empty {
+            padding: 9px 11px;
             border-bottom: 1px solid var(--border);
             color: var(--text);
-            transition: background 0.1s;
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 11px;
+            cursor: pointer;
         }
 
-        .mapping-suggestion:last-child { border-bottom: none; }
+        .mapping-empty { color: var(--text-muted); cursor: default; }
         .mapping-suggestion:hover { background: var(--surface-3); color: var(--text-strong); }
+        .mapping-suggestion:last-child { border-bottom: 0; }
 
-        .mapping-empty {
-            padding: 12px;
-            font-size: 11px;
+        .review-stack {
+            display: grid;
+            gap: 8px;
+        }
+
+        .review-date-label {
             color: var(--text-muted);
             font-family: 'JetBrains Mono', monospace;
+            font-size: 9px;
+            font-weight: 800;
+            letter-spacing: 0.08em;
+            text-transform: uppercase;
         }
 
-        .mapping-empty-inline {
+        .action-menu {
+            display: grid;
+            gap: 7px;
+        }
+
+        .action-link {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            min-height: 30px;
+            border-radius: 8px;
+            border: 1px solid var(--border);
+            background: var(--surface-2);
+            color: var(--text);
             font-family: 'JetBrains Mono', monospace;
             font-size: 10px;
+            font-weight: 800;
+            text-decoration: none;
+        }
+
+        .action-link:hover { border-color: var(--border-bright); color: var(--text-strong); }
+        .action-link.primary { color: #a8c8ff; border-color: rgba(45, 122, 255, 0.28); background: var(--accent-dim); }
+
+        .empty-row td {
+            padding: 42px;
+            text-align: center;
             color: var(--text-muted);
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 12px;
         }
 
-        /* ── Responsive ── */
-        @media (max-width: 1200px) {
-            .summary-strip { flex-wrap: wrap; }
-            .filter-grid { grid-template-columns: repeat(4, 1fr) auto auto; }
+        @media (max-width: 1420px) {
+            .summary-strip { grid-template-columns: repeat(4, minmax(120px, 1fr)); }
+            .filter-grid { grid-template-columns: repeat(4, minmax(150px, 1fr)); }
         }
 
-        @media (max-width: 760px) {
-            .container { padding: 16px 14px 40px; }
-            .topbar { padding: 0 16px; }
+        @media (max-width: 900px) {
+            .container { padding: 18px 14px 42px; }
+            .page-header { grid-template-columns: 1fr; }
+            .header-actions { justify-content: flex-start; }
+            .summary-strip { grid-template-columns: repeat(2, minmax(0, 1fr)); }
             .filter-grid { grid-template-columns: 1fr; }
+            .toolbar-row { align-items: stretch; }
+            .btn, .btn-tab, .btn-save, .btn-filter, .btn-clear { width: 100%; }
+            .spacer { display: none; }
         }
     </style>
     {% include "includes/topbar_styles.html" %}
@@ -767,48 +637,51 @@
     <div class="page-header">
         <div>
             <div class="page-eyebrow">// INVENTARIO</div>
-            <h1 class="page-title">Inventario Producción</h1>
+            <h1 class="page-title">Inventario de casos en Producción</h1>
             <p class="page-subtitle">
                 {% if saved_only %}
-                    {{ visible_total }} caso(s) modificados en el último guardado
+                    {{ visible_total }} caso(s) modificados en el último guardado.
                 {% else %}
-                    {{ visible_total }} caso(s) en Producción con los filtros actuales
+                    {{ visible_total }} caso(s) visibles. El inventario operativo muestra únicamente casos en Producción.
                 {% endif %}
             </p>
         </div>
+        <div class="header-actions">
+            {% if can_add_usecases %}
+                <a class="btn btn-primary" href="{% url 'usecase_create' %}">+ Nuevo caso</a>
+            {% endif %}
+            <a class="btn" href="{% url 'export_usecases_csv' %}?{% for k,v in request.GET.items %}{{ k }}={{ v|urlencode }}&{% endfor %}">Exportar CSV</a>
+        </div>
     </div>
 
-    <!-- Summary strip -->
     <div class="summary-strip">
         <a class="summary-chip {% if not selected_quick %}active{% endif %}" href="?{% if request.GET %}{% for k,v in request.GET.items %}{% if k != 'quick' %}{{ k }}={{ v|urlencode }}&{% endif %}{% endfor %}{% endif %}">
-            <div>
-                <div class="chip-label">Visibles</div>
-                <div class="chip-value">{{ visible_total }}</div>
-            </div>
+            <div><span class="chip-label">Producción</span></div>
+            <strong class="chip-value">{{ production_total }}</strong>
         </a>
-        <a class="summary-chip {% if selected_quick == 'overdue' %}active{% endif %}" href="?quick=overdue&view={{ selected_view }}">
-            <div>
-                <div class="chip-label">Vencidos</div>
-                <div class="chip-value danger">{{ visible_overdue }}</div>
-            </div>
+        <a class="summary-chip {% if selected_quick == 'enabled' %}active{% endif %}" href="?{% if request.GET %}{% for k,v in request.GET.items %}{% if k != 'quick' %}{{ k }}={{ v|urlencode }}&{% endif %}{% endfor %}{% endif %}quick=enabled">
+            <div><span class="chip-label">Habilitados</span></div>
+            <strong class="chip-value good">{{ visible_enabled }}</strong>
         </a>
-        <a class="summary-chip {% if selected_quick == 'soon' %}active{% endif %}" href="?quick=soon&view={{ selected_view }}">
-            <div>
-                <div class="chip-label">Por vencer</div>
-                <div class="chip-value warn">{{ visible_soon }}</div>
-            </div>
+        <a class="summary-chip {% if selected_quick == 'critical' %}active{% endif %}" href="?{% if request.GET %}{% for k,v in request.GET.items %}{% if k != 'quick' %}{{ k }}={{ v|urlencode }}&{% endif %}{% endfor %}{% endif %}quick=critical">
+            <div><span class="chip-label">Críticos</span></div>
+            <strong class="chip-value danger">{{ visible_critical }}</strong>
         </a>
-        <a class="summary-chip {% if selected_quick == 'without_attack' %}active{% endif %}" href="?quick=without_attack&view={{ selected_view }}">
-            <div>
-                <div class="chip-label">Sin ATT&amp;CK</div>
-                <div class="chip-value warn">{{ visible_without_attack }}</div>
-            </div>
+        <a class="summary-chip {% if selected_quick == 'without_attack' %}active{% endif %}" href="?{% if request.GET %}{% for k,v in request.GET.items %}{% if k != 'quick' %}{{ k }}={{ v|urlencode }}&{% endif %}{% endfor %}{% endif %}quick=without_attack">
+            <div><span class="chip-label">Sin MITRE</span></div>
+            <strong class="chip-value warn">{{ visible_without_attack }}</strong>
         </a>
-        <a class="summary-chip {% if selected_quick == 'without_d3fend' %}active{% endif %}" href="?quick=without_d3fend&view={{ selected_view }}">
-            <div>
-                <div class="chip-label">Sin D3FEND inferido</div>
-                <div class="chip-value warn">{{ visible_without_d3fend }}</div>
-            </div>
+        <a class="summary-chip {% if selected_quick == 'without_d3fend' %}active{% endif %}" href="?{% if request.GET %}{% for k,v in request.GET.items %}{% if k != 'quick' %}{{ k }}={{ v|urlencode }}&{% endif %}{% endfor %}{% endif %}quick=without_d3fend">
+            <div><span class="chip-label">Sin D3FEND</span></div>
+            <strong class="chip-value warn">{{ visible_without_d3fend }}</strong>
+        </a>
+        <a class="summary-chip {% if selected_quick == 'overdue' %}active{% endif %}" href="?{% if request.GET %}{% for k,v in request.GET.items %}{% if k != 'quick' %}{{ k }}={{ v|urlencode }}&{% endif %}{% endfor %}{% endif %}quick=overdue">
+            <div><span class="chip-label">Vencidos</span></div>
+            <strong class="chip-value danger">{{ visible_overdue }}</strong>
+        </a>
+        <a class="summary-chip {% if selected_quick == 'soon' %}active{% endif %}" href="?{% if request.GET %}{% for k,v in request.GET.items %}{% if k != 'quick' %}{{ k }}={{ v|urlencode }}&{% endif %}{% endfor %}{% endif %}quick=soon">
+            <div><span class="chip-label">Por vencer</span></div>
+            <strong class="chip-value warn">{{ visible_soon }}</strong>
         </a>
     </div>
 
@@ -827,13 +700,16 @@
     {% if selected_mitre or selected_mitre_tactic or selected_d3fend %}
         <div class="mapping-filter-bar">
             Alcance: <strong>solo Producción</strong>
-            {% if selected_mitre %} &nbsp;|&nbsp; Filtro ATT&amp;CK: <strong>{{ selected_mitre.external_id }}{% if selected_mitre.name %} — {{ selected_mitre.name }}{% endif %}</strong>{% endif %}
-            {% if selected_mitre_tactic %} &nbsp;|&nbsp; Filtro táctica: <strong>{{ selected_mitre_tactic }}</strong>{% endif %}
-            {% if selected_d3fend %} &nbsp;|&nbsp; Filtro D3FEND inferido: <strong>{{ selected_d3fend.code }}{% if selected_d3fend.name %} — {{ selected_d3fend.name }}{% endif %}</strong>{% endif %}
+            {% if selected_mitre %} &nbsp;|&nbsp; ATT&amp;CK: <strong>{{ selected_mitre.external_id }}{% if selected_mitre.name %} — {{ selected_mitre.name }}{% endif %}</strong>{% endif %}
+            {% if selected_mitre_tactic %} &nbsp;|&nbsp; Táctica: <strong>{{ selected_mitre_tactic }}</strong>{% endif %}
+            {% if selected_d3fend %} &nbsp;|&nbsp; D3FEND inferido: <strong>{{ selected_d3fend.code }}{% if selected_d3fend.name %} — {{ selected_d3fend.name }}{% endif %}</strong>{% endif %}
         </div>
     {% endif %}
 
-    <!-- Toolbar -->
+    <div class="edit-hint">
+        Edición rápida: responsable, severidad, ATT&amp;CK, última validación y habilitación. Para modificar datos completos, usá <strong>Editar completo</strong>. D3FEND se calcula automáticamente desde ATT&amp;CK.
+    </div>
+
     <div class="toolbar-row">
         <a class="btn-tab {% if selected_view == 'compact' %}active{% endif %}"
            href="?{% if request.GET %}{% for k,v in request.GET.items %}{% if k != 'view' %}{{ k }}={{ v|urlencode }}&{% endif %}{% endfor %}{% endif %}view=compact">
@@ -843,24 +719,16 @@
            href="?{% if request.GET %}{% for k,v in request.GET.items %}{% if k != 'view' %}{{ k }}={{ v|urlencode }}&{% endif %}{% endfor %}{% endif %}view=detailed">
             Detallado
         </a>
-        {% if can_add_usecases %}
-        <a class="btn-export" href="{% url 'usecase_create' %}">
-            + Nuevo caso de uso
-        </a>
-        {% endif %}
-        <a class="btn-export" href="{% url 'export_usecases_csv' %}?{% for k,v in request.GET.items %}{{ k }}={{ v|urlencode }}&{% endfor %}">
-            ↓ Exportar CSV
-        </a>
         <div class="spacer"></div>
         {% if can_manage_usecases %}
-        <button type="submit" form="bulk-update-form" class="btn-save">✓ Guardar cambios</button>
+            <button type="submit" form="bulk-update-form" class="btn-save">Guardar cambios</button>
         {% endif %}
     </div>
 
-    <!-- Filters -->
     <div class="filter-bar">
         <form method="get" class="filter-grid">
-            <input type="text" name="q" placeholder="Buscar por nombre…" value="{{ q }}">
+            <input type="hidden" name="view" value="{{ selected_view }}">
+            <input type="text" name="q" placeholder="Buscar por nombre NetWitness…" value="{{ q }}">
 
             <select name="device">
                 <option value="">Dispositivo</option>
@@ -877,28 +745,9 @@
             </select>
 
             <select name="enabled">
-                <option value="">Hab.</option>
-                <option value="yes" {% if selected_enabled == "yes" %}selected{% endif %}>Sí</option>
-                <option value="no"  {% if selected_enabled == "no"  %}selected{% endif %}>No</option>
-            </select>
-
-            <select name="review_state">
-                <option value="">Revisión</option>
-                <option value="overdue" {% if selected_review_state == "overdue" %}selected{% endif %}>Vencidos</option>
-                <option value="soon"    {% if selected_review_state == "soon"    %}selected{% endif %}>Por vencer</option>
-                <option value="no_date" {% if selected_review_state == "no_date" %}selected{% endif %}>Sin fecha</option>
-            </select>
-
-            <select name="mapping_attack">
-                <option value="">ATT&amp;CK</option>
-                <option value="with"    {% if selected_mapping_attack == "with"    %}selected{% endif %}>Con</option>
-                <option value="without" {% if selected_mapping_attack == "without" %}selected{% endif %}>Sin</option>
-            </select>
-
-            <select name="mapping_d3fend">
-                <option value="">D3FEND inferido</option>
-                <option value="with"    {% if selected_mapping_d3fend == "with"    %}selected{% endif %}>Con</option>
-                <option value="without" {% if selected_mapping_d3fend == "without" %}selected{% endif %}>Sin</option>
+                <option value="">Habilitación</option>
+                <option value="yes" {% if selected_enabled == "yes" %}selected{% endif %}>Habilitados</option>
+                <option value="no"  {% if selected_enabled == "no"  %}selected{% endif %}>Deshabilitados</option>
             </select>
 
             <select name="owner">
@@ -908,40 +757,49 @@
                 {% endfor %}
             </select>
 
-            <input type="hidden" name="view" value="{{ selected_view }}">
+            <select name="review_state">
+                <option value="">Revisión</option>
+                <option value="overdue" {% if selected_review_state == "overdue" %}selected{% endif %}>Vencidos</option>
+                <option value="soon" {% if selected_review_state == "soon" %}selected{% endif %}>Por vencer</option>
+                <option value="no_date" {% if selected_review_state == "no_date" %}selected{% endif %}>Sin fecha</option>
+            </select>
+
+            <select name="mapping_attack">
+                <option value="">MITRE</option>
+                <option value="with" {% if selected_mapping_attack == "with" %}selected{% endif %}>Con MITRE</option>
+                <option value="without" {% if selected_mapping_attack == "without" %}selected{% endif %}>Sin MITRE</option>
+            </select>
+
+            <select name="mapping_d3fend">
+                <option value="">D3FEND</option>
+                <option value="with" {% if selected_mapping_d3fend == "with" %}selected{% endif %}>Con D3FEND</option>
+                <option value="without" {% if selected_mapping_d3fend == "without" %}selected{% endif %}>Sin D3FEND</option>
+            </select>
+
             <button type="submit" class="btn-filter">Filtrar</button>
-            <a href="/usecases/" class="btn-clear">Limpiar</a>
+            <a class="btn-clear" href="{% url 'usecase_list' %}?view={{ selected_view }}">Limpiar</a>
         </form>
     </div>
 
-    <!-- Bulk update form + table -->
     <form id="bulk-update-form" method="post" action="{% url 'usecase_bulk_update' %}">
         {% csrf_token %}
         <input type="hidden" name="return_qs" value="{{ request.GET.urlencode }}">
         <input type="hidden" name="changed_ids" id="changed-ids" value="">
 
         <div class="table-wrap">
-            <table class="{{ selected_view }}">
+            <table>
                 <thead>
                     <tr>
-                        <th class="col-name sticky-l1">
+                        <th class="col-case">
                             <a class="sort-link {% if selected_sort == 'name' %}sort-active{% endif %}"
                                href="?{% for k,v in request.GET.items %}{% if k != 'sort' and k != 'dir' %}{{ k }}={{ v|urlencode }}&{% endif %}{% endfor %}sort=name&dir={% if selected_sort == 'name' and selected_dir == 'asc' %}desc{% else %}asc{% endif %}">
-                                Nombre {% if selected_sort == 'name' %}<span class="sort-arrow">{% if selected_dir == 'asc' %}▲{% else %}▼{% endif %}</span>{% endif %}
+                                Caso de uso {% if selected_sort == 'name' %}<span class="sort-arrow">{% if selected_dir == 'asc' %}▲{% else %}▼{% endif %}</span>{% endif %}
                             </a>
                         </th>
-                        <th class="col-device sticky-l2">
+                        <th class="col-meta">
                             <a class="sort-link {% if selected_sort == 'device' %}sort-active{% endif %}"
                                href="?{% for k,v in request.GET.items %}{% if k != 'sort' and k != 'dir' %}{{ k }}={{ v|urlencode }}&{% endif %}{% endfor %}sort=device&dir={% if selected_sort == 'device' and selected_dir == 'asc' %}desc{% else %}asc{% endif %}">
-                                Dispositivo {% if selected_sort == 'device' %}<span class="sort-arrow">{% if selected_dir == 'asc' %}▲{% else %}▼{% endif %}</span>{% endif %}
-                            </a>
-                        </th>
-                        <th class="col-d3fend">D3FEND inferido</th>
-                        <th class="col-attack">ATT&amp;CK</th>
-                        <th class="col-owner">
-                            <a class="sort-link {% if selected_sort == 'owner' %}sort-active{% endif %}"
-                               href="?{% for k,v in request.GET.items %}{% if k != 'sort' and k != 'dir' %}{{ k }}={{ v|urlencode }}&{% endif %}{% endfor %}sort=owner&dir={% if selected_sort == 'owner' and selected_dir == 'asc' %}desc{% else %}asc{% endif %}">
-                                Resp. desarrollo {% if selected_sort == 'owner' %}<span class="sort-arrow">{% if selected_dir == 'asc' %}▲{% else %}▼{% endif %}</span>{% endif %}
+                                Grupo / dispositivo {% if selected_sort == 'device' %}<span class="sort-arrow">{% if selected_dir == 'asc' %}▲{% else %}▼{% endif %}</span>{% endif %}
                             </a>
                         </th>
                         <th class="col-sev">
@@ -950,88 +808,43 @@
                                 Severidad {% if selected_sort == 'severity' %}<span class="sort-arrow">{% if selected_dir == 'asc' %}▲{% else %}▼{% endif %}</span>{% endif %}
                             </a>
                         </th>
-                        <th class="col-lv">
-                            <a class="sort-link {% if selected_sort == 'last_validation_date' %}sort-active{% endif %}"
-                               href="?{% for k,v in request.GET.items %}{% if k != 'sort' and k != 'dir' %}{{ k }}={{ v|urlencode }}&{% endif %}{% endfor %}sort=last_validation_date&dir={% if selected_sort == 'last_validation_date' and selected_dir == 'asc' %}desc{% else %}asc{% endif %}">
-                                Últ. validación {% if selected_sort == 'last_validation_date' %}<span class="sort-arrow">{% if selected_dir == 'asc' %}▲{% else %}▼{% endif %}</span>{% endif %}
-                            </a>
-                        </th>
-                        <th class="col-nr">
+                        <th class="col-attack">MITRE ATT&amp;CK</th>
+                        <th class="col-d3fend">D3FEND automático</th>
+                        <th class="col-review">
                             <a class="sort-link {% if selected_sort == 'next_review_date' %}sort-active{% endif %}"
                                href="?{% for k,v in request.GET.items %}{% if k != 'sort' and k != 'dir' %}{{ k }}={{ v|urlencode }}&{% endif %}{% endfor %}sort=next_review_date&dir={% if selected_sort == 'next_review_date' and selected_dir == 'asc' %}desc{% else %}asc{% endif %}">
-                                Próx. revisión {% if selected_sort == 'next_review_date' %}<span class="sort-arrow">{% if selected_dir == 'asc' %}▲{% else %}▼{% endif %}</span>{% endif %}
+                                Revisión {% if selected_sort == 'next_review_date' %}<span class="sort-arrow">{% if selected_dir == 'asc' %}▲{% else %}▼{% endif %}</span>{% endif %}
                             </a>
                         </th>
-                        <th class="col-cd">Contador</th>
-                        <th class="col-en">
+                        <th class="col-enabled">
                             <a class="sort-link {% if selected_sort == 'enabled' %}sort-active{% endif %}"
                                href="?{% for k,v in request.GET.items %}{% if k != 'sort' and k != 'dir' %}{{ k }}={{ v|urlencode }}&{% endif %}{% endfor %}sort=enabled&dir={% if selected_sort == 'enabled' and selected_dir == 'asc' %}desc{% else %}asc{% endif %}">
-                                Hab. {% if selected_sort == 'enabled' %}<span class="sort-arrow">{% if selected_dir == 'asc' %}▲{% else %}▼{% endif %}</span>{% endif %}
+                                Habilitación {% if selected_sort == 'enabled' %}<span class="sort-arrow">{% if selected_dir == 'asc' %}▲{% else %}▼{% endif %}</span>{% endif %}
                             </a>
                         </th>
-                        <th class="col-act sticky-r">Acciones</th>
+                        <th class="col-actions">Acciones</th>
                     </tr>
                 </thead>
                 <tbody>
                     {% for uc in usecases %}
                     <tr data-usecase-row="{{ uc.pk }}" class="{% if uc.is_review_overdue %}row-overdue{% elif uc.next_review_date and uc.days_until_review is not None and uc.days_until_review >= 0 and uc.days_until_review <= 30 %}row-soon{% endif %}">
-
-                        <td class="col-name sticky-l1">
+                        <td class="col-case">
                             <input type="hidden" name="uc_ids" value="{{ uc.pk }}">
                             <input type="hidden" name="mitre_attack_ids_{{ uc.pk }}" id="mitre-hidden-{{ uc.pk }}" value="{% for item in uc.mitre_attacks.all %}{% if not forloop.first %},{% endif %}{{ item.id }}{% endfor %}">
-                            <span class="cell-readonly">{{ uc.name }}</span>
-                        </td>
-
-                        <td class="col-device sticky-l2">
-                            <span class="cell-readonly">{{ uc.device|default:"—" }}</span>
-                        </td>
-
-                        <td class="col-d3fend mapping-cell">
-                            {% with total_d3fends=uc.inferred_d3fends|length %}
-                            <div class="mapping-chip-wrap auto-d3fend-wrap" id="d3fend-chips-{{ uc.pk }}">
-                                {% for item in uc.inferred_d3fends %}
-                                <span class="mapping-chip{% if not forloop.first %} d3fend-extra-chip{% endif %}" data-id="{{ item.id }}">
-                                    <span class="mapping-chip-label" title="{{ item.code }}{% if item.name %} — {{ item.name }}{% endif %}">
-                                        {% if selected_view == "detailed" %}{{ item.code }}{% if item.name %} — {{ item.name }}{% endif %}{% else %}{{ item.code }}{% endif %}
-                                    </span>
-                                </span>
-                                {% empty %}
-                                <span class="mapping-empty-inline">Auto por ATT&CK</span>
-                                {% endfor %}
-
-                                {% if total_d3fends > 1 %}
-                                <button type="button"
-                                        class="mapping-more-chip"
-                                        onclick="toggleD3fendChips('{{ uc.pk }}', this)"
-                                        aria-expanded="false"
-                                        title="Mostrar/Ocultar D3FEND restantes">
-                                    +{{ total_d3fends|add:"-1" }}
-                                </button>
-                                {% endif %}
+                            <span class="case-title">{{ uc.name }}</span>
+                            <div class="case-meta">
+                                <span class="badge badge-green">Producción</span>
+                                {% if uc.case_type %}<span class="badge badge-gray">{{ uc.case_type }}</span>{% endif %}
                             </div>
-                            {% endwith %}
-                        </td>
-
-                        <td class="col-attack mapping-cell">
-                            <input type="text" class="mapping-input" placeholder="Buscar ATT&CK…"
-                                oninput="searchMapping('{{ uc.pk }}',this.value)"
-                                onfocus="searchMapping('{{ uc.pk }}',this.value)"
-                                autocomplete="off" {% if not uc.can_manage_by_user %}disabled{% endif %}>
-                            <div class="mapping-chip-wrap" id="mitre-chips-{{ uc.pk }}">
-                                {% for item in uc.mitre_attacks.all %}
-                                <span class="mapping-chip" data-id="{{ item.id }}">
-                                    <span class="mapping-chip-label" title="{{ item.external_id }}{% if item.name %} — {{ item.name }}{% endif %}">
-                                        {% if selected_view == "detailed" %}{{ item.external_id }}{% if item.name %} — {{ item.name }}{% endif %}{% else %}{{ item.external_id }}{% endif %}
-                                    </span>
-                                    {% if uc.can_manage_by_user %}<button type="button" onclick="removeMapping('mitre','{{ uc.pk }}','{{ item.id }}')">×</button>{% endif %}
-                                </span>
-                                {% endfor %}
-                            </div>
-                            <div class="mapping-suggestions" id="mitre-results-{{ uc.pk }}"></div>
-                        </td>
-
-                        <td class="col-owner">
+                            <span class="mini-label">Responsable</span>
                             <input class="cell-input" type="text" name="owner_name_{{ uc.pk }}" value="{{ uc.owner_name|default:'' }}" {% if not uc.can_manage_by_user %}disabled{% endif %}>
+                        </td>
+
+                        <td class="col-meta">
+                            <span class="mini-label">Grupo</span>
+                            <span class="cell-readonly">{{ uc.group_name|default:"—" }}</span>
+                            <span class="mini-label">Dispositivo</span>
+                            <span class="cell-readonly">{{ uc.device|default:"—" }}</span>
                         </td>
 
                         <td class="col-sev">
@@ -1043,45 +856,91 @@
                             </select>
                         </td>
 
-                        <td class="col-lv">
-                            <input class="cell-date" type="date" name="last_validation_date_{{ uc.pk }}"
-                                value="{% if uc.last_validation_date %}{{ uc.last_validation_date|date:'Y-m-d' }}{% endif %}" {% if not uc.can_manage_by_user %}disabled{% endif %}>
+                        <td class="col-attack mapping-cell">
+                            <input type="text" class="mapping-input" placeholder="Buscar ATT&CK…"
+                                   oninput="searchMapping('{{ uc.pk }}', this.value)"
+                                   onfocus="searchMapping('{{ uc.pk }}', this.value)"
+                                   autocomplete="off" {% if not uc.can_manage_by_user %}disabled{% endif %}>
+                            <div class="mapping-chip-wrap" id="mitre-chips-{{ uc.pk }}">
+                                {% for item in uc.mitre_attacks.all %}
+                                    <span class="mapping-chip" data-id="{{ item.id }}">
+                                        <span class="mapping-chip-label" title="{{ item.external_id }}{% if item.name %} — {{ item.name }}{% endif %}">
+                                            {% if selected_view == "detailed" %}{{ item.external_id }}{% if item.name %} — {{ item.name }}{% endif %}{% else %}{{ item.external_id }}{% endif %}
+                                        </span>
+                                        {% if uc.can_manage_by_user %}<button type="button" onclick="removeMapping('mitre','{{ uc.pk }}','{{ item.id }}')">×</button>{% endif %}
+                                    </span>
+                                {% empty %}
+                                    <span class="mapping-empty-inline">Sin MITRE</span>
+                                {% endfor %}
+                            </div>
+                            <div class="mapping-suggestions" id="mitre-results-{{ uc.pk }}"></div>
                         </td>
 
-                        <td class="col-nr">
-                            <span class="cell-readonly" style="font-family:'JetBrains Mono',monospace;font-size:11px;">{{ uc.next_review_date|default:"—" }}</span>
+                        <td class="col-d3fend mapping-cell">
+                            {% with total_d3fends=uc.inferred_d3fends|length %}
+                                <div class="mapping-chip-wrap auto-d3fend-wrap" id="d3fend-chips-{{ uc.pk }}">
+                                    {% for item in uc.inferred_d3fends %}
+                                        <span class="mapping-chip{% if not forloop.first %} d3fend-extra-chip{% endif %}" data-id="{{ item.id }}">
+                                            <span class="mapping-chip-label" title="{{ item.code }}{% if item.name %} — {{ item.name }}{% endif %}">
+                                                {% if selected_view == "detailed" %}{{ item.code }}{% if item.name %} — {{ item.name }}{% endif %}{% else %}{{ item.code }}{% endif %}
+                                            </span>
+                                        </span>
+                                    {% empty %}
+                                        <span class="mapping-empty-inline">Auto por ATT&amp;CK</span>
+                                    {% endfor %}
+
+                                    {% if total_d3fends > 1 %}
+                                        <button type="button" class="mapping-more-chip" onclick="toggleD3fendChips('{{ uc.pk }}', this)" aria-expanded="false">
+                                            +{{ total_d3fends|add:"-1" }}
+                                        </button>
+                                    {% endif %}
+                                </div>
+                            {% endwith %}
                         </td>
 
-                        <td class="col-cd">
-                            {% if uc.days_until_review is None %}
-                                <span class="badge badge-gray">Sin fecha</span>
-                            {% elif uc.days_until_review < 0 %}
-                                <span class="badge badge-red">{{ uc.review_countdown_label }}</span>
-                            {% elif uc.days_until_review <= 30 %}
-                                <span class="badge badge-yellow">{{ uc.review_countdown_label }}</span>
-                            {% else %}
-                                <span class="badge badge-green">{{ uc.review_countdown_label }}</span>
-                            {% endif %}
+                        <td class="col-review">
+                            <div class="review-stack">
+                                <span class="review-date-label">Última validación</span>
+                                <input class="cell-date" type="date" name="last_validation_date_{{ uc.pk }}"
+                                       value="{% if uc.last_validation_date %}{{ uc.last_validation_date|date:'Y-m-d' }}{% endif %}"
+                                       {% if not uc.can_manage_by_user %}disabled{% endif %}>
+                                <span class="review-date-label">Próxima</span>
+                                <span class="cell-readonly" style="font-family:'JetBrains Mono',monospace;">{{ uc.next_review_date|default:"—" }}</span>
+                                {% if uc.days_until_review is None %}
+                                    <span class="badge badge-gray">Sin fecha</span>
+                                {% elif uc.days_until_review < 0 %}
+                                    <span class="badge badge-red">{{ uc.review_countdown_label }}</span>
+                                {% elif uc.days_until_review <= 30 %}
+                                    <span class="badge badge-yellow">{{ uc.review_countdown_label }}</span>
+                                {% else %}
+                                    <span class="badge badge-green">{{ uc.review_countdown_label }}</span>
+                                {% endif %}
+                            </div>
                         </td>
 
-                        <td class="col-en">
-                            <input class="cell-checkbox" type="checkbox" name="is_enabled_{{ uc.pk }}" {% if uc.is_enabled %}checked{% endif %} {% if not uc.can_manage_by_user %}disabled{% endif %}>
+                        <td class="col-enabled">
+                            <label class="checkbox-line">
+                                <input class="cell-checkbox" type="checkbox" name="is_enabled_{{ uc.pk }}" {% if uc.is_enabled %}checked{% endif %} {% if not uc.can_manage_by_user %}disabled{% endif %}>
+                                <span>{% if uc.is_enabled %}Habilitado{% else %}Deshabilitado{% endif %}</span>
+                            </label>
                             <input class="disabled-reason-input" type="text" name="disabled_reason_{{ uc.pk }}"
                                    value="{{ uc.disabled_reason|default:'' }}"
                                    placeholder="Motivo si se deshabilita"
                                    {% if not uc.can_manage_by_user %}disabled{% endif %}>
                         </td>
 
-                        <td class="col-act sticky-r">
-                            <div class="action-links">
-                                <a href="{% url 'usecase_detail' uc.pk %}">→ Ver</a>
-                                {% if uc.can_manage_by_user %}<a href="{% url 'usecase_edit' uc.pk %}">✎ Editar</a>{% endif %}
+                        <td class="col-actions">
+                            <div class="action-menu">
+                                <a class="action-link primary" href="{% url 'usecase_detail' uc.pk %}">Ver</a>
+                                {% if uc.can_manage_by_user %}
+                                    <a class="action-link" href="{% url 'usecase_edit' uc.pk %}">Editar completo</a>
+                                {% endif %}
                             </div>
                         </td>
                     </tr>
                     {% empty %}
                     <tr class="empty-row">
-                        <td colspan="12">// No hay casos de uso con los filtros actuales</td>
+                        <td colspan="8">// No hay casos de uso en Producción con los filtros actuales</td>
                     </tr>
                     {% endfor %}
                 </tbody>
@@ -1107,16 +966,14 @@
     }
 
     function getHiddenField(type, pk) { return document.getElementById(type + '-hidden-' + pk); }
-    function getChipWrap(type, pk)    { return document.getElementById(type + '-chips-' + pk); }
-    function getResultsBox(type, pk)  { return document.getElementById(type + '-results-' + pk); }
+    function getChipWrap(type, pk) { return document.getElementById(type + '-chips-' + pk); }
+    function getResultsBox(type, pk) { return document.getElementById(type + '-results-' + pk); }
 
     function toggleD3fendChips(pk, button) {
         const wrap = document.getElementById('d3fend-chips-' + pk);
         if (!wrap || !button) return;
-
         const expanded = wrap.classList.toggle('is-expanded');
         const remaining = wrap.querySelectorAll('.d3fend-extra-chip').length;
-
         button.setAttribute('aria-expanded', expanded ? 'true' : 'false');
         button.textContent = expanded ? '− ocultar' : '+' + remaining;
     }
@@ -1134,9 +991,16 @@
 
     function removeMapping(type, pk, id) {
         const wrap = getChipWrap(type, pk);
+        if (!wrap) return;
         const chip = wrap.querySelector(`.mapping-chip[data-id="${id}"]`);
         if (chip) chip.remove();
         setSelectedIds(type, pk, getSelectedIds(type, pk).filter(x => x !== String(id)));
+        if (!wrap.querySelector('.mapping-chip')) {
+            const empty = document.createElement('span');
+            empty.className = 'mapping-empty-inline';
+            empty.textContent = 'Sin MITRE';
+            wrap.appendChild(empty);
+        }
         markUseCaseChanged(pk);
     }
 
@@ -1148,6 +1012,9 @@
         markUseCaseChanged(pk);
 
         const wrap = getChipWrap(type, pk);
+        if (!wrap) return;
+        wrap.querySelectorAll('.mapping-empty-inline').forEach(el => el.remove());
+
         const chip = document.createElement('span');
         chip.className = 'mapping-chip';
         chip.dataset.id = item.id;
@@ -1168,20 +1035,24 @@
     }
 
     async function searchMapping(pk, query) {
-        const box = getResultsBox("mitre", pk);
+        const box = getResultsBox('mitre', pk);
         if (!box) return;
         const q = (query || '').trim();
-        if (q.length < 1) { box.style.display = 'none'; box.innerHTML = ''; return; }
-
-        const url = `{% url 'mitre_attack_autocomplete' %}?q=${encodeURIComponent(q)}`;
+        if (q.length < 1) {
+            box.style.display = 'none';
+            box.innerHTML = '';
+            return;
+        }
 
         try {
-            const res = await fetch(url, { headers: { 'X-Requested-With': 'XMLHttpRequest' } });
+            const res = await fetch(`{% url 'mitre_attack_autocomplete' %}?q=${encodeURIComponent(q)}`, {
+                headers: { 'X-Requested-With': 'XMLHttpRequest' }
+            });
             const data = await res.json();
-            const selected = getSelectedIds("mitre", pk);
+            const selected = getSelectedIds('mitre', pk);
             const results = (data.results || []).filter(i => !selected.includes(String(i.id)));
-
             box.innerHTML = '';
+
             if (!results.length) {
                 const empty = document.createElement('div');
                 empty.className = 'mapping-empty';
@@ -1193,7 +1064,11 @@
                     div.className = 'mapping-suggestion';
                     div.textContent = item.label;
                     div.onclick = () => {
-                        addMapping("mitre", pk, { id: item.id, label: item.label, short_label: item.label.split(' - ')[0] });
+                        addMapping('mitre', pk, {
+                            id: item.id,
+                            label: item.label,
+                            short_label: item.label.split(' - ')[0]
+                        });
                         box.style.display = 'none';
                         box.innerHTML = '';
                     };
@@ -1206,20 +1081,20 @@
         }
     }
 
-    document.getElementById('bulk-update-form')?.addEventListener('input', e => {
-        if (e.target.matches('.cell-input, .cell-date, .disabled-reason-input')) {
-            markUseCaseChanged(e.target.closest('[data-usecase-row]')?.dataset.usecaseRow);
+    document.getElementById('bulk-update-form')?.addEventListener('input', event => {
+        if (event.target.matches('.cell-input, .cell-date, .disabled-reason-input')) {
+            markUseCaseChanged(event.target.closest('[data-usecase-row]')?.dataset.usecaseRow);
         }
     });
 
-    document.getElementById('bulk-update-form')?.addEventListener('change', e => {
-        if (e.target.matches('.cell-select, .cell-checkbox, .cell-date')) {
-            markUseCaseChanged(e.target.closest('[data-usecase-row]')?.dataset.usecaseRow);
+    document.getElementById('bulk-update-form')?.addEventListener('change', event => {
+        if (event.target.matches('.cell-select, .cell-checkbox, .cell-date')) {
+            markUseCaseChanged(event.target.closest('[data-usecase-row]')?.dataset.usecaseRow);
         }
     });
 
-    document.addEventListener('click', e => {
-        if (!e.target.closest('.mapping-cell')) {
+    document.addEventListener('click', event => {
+        if (!event.target.closest('.mapping-cell')) {
             document.querySelectorAll('.mapping-suggestions').forEach(el => { el.style.display = 'none'; });
         }
     });

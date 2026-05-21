@@ -2,164 +2,477 @@
 <html lang="es">
 <head>
     <meta charset="UTF-8">
-    <title>Editar {{ usecase.name }}</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ title|default:"Caso de uso" }}</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;600;700&family=Syne:wght@400;500;600;700;800&display=swap" rel="stylesheet">
     <style>
+        :root {
+            --bg: #060b14;
+            --surface: #0c1524;
+            --surface-2: #111d30;
+            --surface-3: #172540;
+            --border: rgba(56, 100, 163, 0.22);
+            --border-bright: rgba(56, 100, 163, 0.55);
+            --text: #b8cce8;
+            --text-strong: #e8f1ff;
+            --text-muted: #6d86a8;
+            --accent: #2d7aff;
+            --accent-dim: rgba(45, 122, 255, 0.12);
+            --good: #00e5a0;
+            --good-dim: rgba(0, 229, 160, 0.08);
+            --medium: #f5a623;
+            --medium-dim: rgba(245, 166, 35, 0.08);
+            --bad: #ff4757;
+            --bad-dim: rgba(255, 71, 87, 0.08);
+            --grid-color: rgba(45, 122, 255, 0.04);
+        }
+
+        * { box-sizing: border-box; }
+
         body {
             margin: 0;
-            font-family: Arial, sans-serif;
-            background: #0f172a;
-            color: #e2e8f0;
+            min-height: 100vh;
+            font-family: 'Syne', Arial, sans-serif;
+            background: var(--bg);
+            color: var(--text);
         }
-        .topbar {
+
+        body::before {
+            content: '';
+            position: fixed;
+            inset: 0;
+            background-image:
+                linear-gradient(var(--grid-color) 1px, transparent 1px),
+                linear-gradient(90deg, var(--grid-color) 1px, transparent 1px);
+            background-size: 48px 48px;
+            pointer-events: none;
+            z-index: 0;
+        }
+
+        .page-shell {
+            position: relative;
+            z-index: 1;
+            max-width: 1240px;
+            margin: 0 auto;
+            padding: 28px 24px 56px;
+        }
+
+        .page-header {
+            display: grid;
+            grid-template-columns: minmax(0, 1fr) auto;
+            gap: 18px;
+            align-items: end;
+            margin-bottom: 18px;
+        }
+
+        .eyebrow {
+            font-family: 'JetBrains Mono', monospace;
+            color: var(--accent);
+            font-size: 11px;
+            letter-spacing: 0.13em;
+            text-transform: uppercase;
+            margin-bottom: 6px;
+        }
+
+        .page-title {
+            margin: 0;
+            color: var(--text-strong);
+            font-size: clamp(1.6rem, 2.1vw, 2.25rem);
+            font-weight: 800;
+            letter-spacing: -0.04em;
+        }
+
+        .case-name-box {
+            margin-top: 10px;
+            display: inline-flex;
+            max-width: 100%;
+            padding: 8px 12px;
+            border: 1px solid var(--border);
+            border-radius: 11px;
+            background: rgba(17, 29, 48, 0.72);
+            color: var(--text);
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 12px;
+            line-height: 1.35;
+            overflow-wrap: anywhere;
+        }
+
+        .header-actions {
             display: flex;
-            justify-content: space-between;
-            align-items: center;
-            padding: 16px 24px;
-            background: #1e293b;
-            border-bottom: 1px solid #334155;
+            gap: 8px;
+            flex-wrap: wrap;
+            justify-content: flex-end;
         }
-        .topbar a {
-            color: white;
-            text-decoration: none;
-            margin-left: 12px;
+
+        .layout {
+            display: grid;
+            grid-template-columns: minmax(0, 1fr) 300px;
+            gap: 18px;
+            align-items: start;
         }
-        .container {
-            max-width: 1100px;
-            margin: 24px auto;
-            padding: 0 20px;
+
+        .panel, .summary-card {
+            background: rgba(12, 21, 36, 0.94);
+            border: 1px solid var(--border);
+            border-radius: 18px;
+            box-shadow: 0 20px 70px rgba(0, 0, 0, 0.22);
         }
-        .card {
-            background: #1e293b;
-            border: 1px solid #334155;
-            border-radius: 14px;
-            padding: 24px;
+
+        .panel { overflow: visible; }
+
+        .tabs {
+            display: flex;
+            gap: 6px;
+            flex-wrap: wrap;
+            padding: 12px;
+            border-bottom: 1px solid var(--border);
+            background: rgba(6, 11, 20, 0.34);
+            border-radius: 18px 18px 0 0;
         }
-        .title {
-            font-size: 28px;
-            margin-top: 0;
-            margin-bottom: 8px;
+
+        .tab-button {
+            border: 1px solid transparent;
+            background: transparent;
+            color: var(--text-muted);
+            min-height: 34px;
+            padding: 0 12px;
+            border-radius: 9px;
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 11px;
+            font-weight: 700;
+            cursor: pointer;
+            transition: all 0.15s ease;
         }
-        .subtitle {
-            color: #94a3b8;
-            margin-bottom: 24px;
+
+        .tab-button:hover {
+            border-color: var(--border);
+            color: var(--text);
+            background: rgba(23, 37, 64, 0.45);
         }
+
+        .tab-button.active {
+            border-color: rgba(45, 122, 255, 0.55);
+            background: var(--accent-dim);
+            color: #a8c8ff;
+        }
+
+        .tab-panel { display: none; padding: 22px; }
+        .tab-panel.active { display: block; }
+
+        .section-title {
+            margin: 0 0 4px;
+            color: var(--text-strong);
+            font-size: 1.05rem;
+            font-weight: 800;
+            letter-spacing: -0.02em;
+        }
+
+        .section-help {
+            margin: 0 0 18px;
+            color: var(--text-muted);
+            font-size: 0.88rem;
+            line-height: 1.5;
+        }
+
         .grid {
             display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 18px;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            gap: 15px;
         }
+
+        .field.full { grid-column: 1 / -1; }
+
         .field label {
-            display: block;
-            margin-bottom: 6px;
-            color: #94a3b8;
-            font-weight: bold;
+            display: flex;
+            justify-content: space-between;
+            gap: 8px;
+            color: var(--text-muted);
+            margin: 0 0 7px;
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 11px;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.06em;
         }
+
         .field input,
         .field textarea,
-        .field select {
+        .field select,
+        #mitre-search {
             width: 100%;
-            padding: 10px 12px;
-            border-radius: 8px;
-            border: 1px solid #475569;
-            background: #0f172a;
-            color: white;
-            box-sizing: border-box;
-        }
-        .field input[type="checkbox"] {
-            width: auto;
-            transform: scale(1.2);
-            margin-top: 8px;
-        }
-        .field.full {
-            grid-column: 1 / -1;
-        }
-        .readonly-box {
-            width: 100%;
-            padding: 10px 12px;
-            border-radius: 8px;
-            border: 1px solid #334155;
-            background: #111827;
-            color: #cbd5e1;
-            box-sizing: border-box;
-            min-height: 20px;
-        }
-        .hint {
-            margin-top: 6px;
-            font-size: 12px;
-            color: #94a3b8;
-        }
-        .actions {
-            margin-top: 24px;
-        }
-        .actions button,
-        .actions a {
-            display: inline-block;
-            text-decoration: none;
-            background: #2563eb;
-            color: white;
-            padding: 10px 14px;
-            border-radius: 8px;
-            margin-right: 10px;
-            border: 0;
-            cursor: pointer;
-        }
-        .actions a {
-            background: #475569;
-        }
-        .errors {
-            color: #fecaca;
-            margin-bottom: 16px;
-            background: rgba(127, 29, 29, 0.35);
-            border: 1px solid rgba(248, 113, 113, 0.4);
-            padding: 12px;
+            border: 1px solid var(--border);
             border-radius: 10px;
+            background: var(--surface-2);
+            color: var(--text-strong);
+            padding: 10px 12px;
+            font-family: 'Syne', sans-serif;
+            font-size: 14px;
+            outline: none;
+            transition: border-color 0.15s, box-shadow 0.15s, background 0.15s;
         }
-        .autocomplete-box {
-            position: relative;
+
+        .field textarea { resize: vertical; min-height: 104px; line-height: 1.45; }
+        .field select { appearance: none; -webkit-appearance: none; }
+
+        .field input:focus,
+        .field textarea:focus,
+        .field select:focus,
+        #mitre-search:focus {
+            border-color: var(--border-bright);
+            background: var(--surface-3);
+            box-shadow: 0 0 0 3px var(--accent-dim);
         }
+
+        .field input[type="checkbox"] {
+            width: 18px;
+            height: 18px;
+            accent-color: var(--accent);
+            box-shadow: none;
+        }
+
+        .switch-row {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            min-height: 44px;
+            padding: 12px;
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            background: var(--surface-2);
+        }
+
+        .hint {
+            margin-top: 7px;
+            color: var(--text-muted);
+            font-size: 12px;
+            line-height: 1.4;
+        }
+
+        .errors {
+            margin-bottom: 16px;
+            padding: 13px 15px;
+            border: 1px solid rgba(255, 71, 87, 0.38);
+            border-radius: 13px;
+            background: var(--bad-dim);
+            color: #fecaca;
+            font-size: 13px;
+            overflow-wrap: anywhere;
+        }
+
+        .readonly-grid {
+            display: grid;
+            grid-template-columns: repeat(3, minmax(0, 1fr));
+            gap: 12px;
+        }
+
+        .readonly-box {
+            min-height: 74px;
+            padding: 12px;
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            background: rgba(6, 11, 20, 0.4);
+        }
+
+        .readonly-label {
+            color: var(--text-muted);
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 10px;
+            font-weight: 700;
+            letter-spacing: 0.07em;
+            text-transform: uppercase;
+            margin-bottom: 7px;
+        }
+
+        .readonly-value {
+            color: var(--text-strong);
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 12px;
+            overflow-wrap: anywhere;
+        }
+
+        .autocomplete-box { position: relative; }
+
         .autocomplete-results {
             position: absolute;
-            width: 100%;
-            background: #111827;
-            border: 1px solid #334155;
-            border-radius: 10px;
-            margin-top: 6px;
-            z-index: 20;
-            max-height: 240px;
-            overflow-y: auto;
+            left: 0;
+            right: 0;
+            top: calc(100% + 6px);
+            z-index: 30;
             display: none;
+            max-height: 260px;
+            overflow-y: auto;
+            border: 1px solid var(--border-bright);
+            border-radius: 12px;
+            background: var(--surface-2);
+            box-shadow: 0 18px 40px rgba(0, 0, 0, 0.42);
         }
+
         .autocomplete-item {
             padding: 10px 12px;
+            border-bottom: 1px solid var(--border);
+            color: var(--text);
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 12px;
             cursor: pointer;
-            border-bottom: 1px solid #1f2937;
         }
-        .autocomplete-item:hover {
-            background: #1f2937;
-        }
+
+        .autocomplete-item:hover { background: var(--surface-3); color: var(--text-strong); }
+        .autocomplete-item:last-child { border-bottom: 0; }
+
         .chips {
             display: flex;
             flex-wrap: wrap;
             gap: 8px;
-            margin-top: 10px;
+            margin-top: 11px;
         }
+
         .chip {
             display: inline-flex;
             align-items: center;
-            gap: 8px;
-            background: #111827;
-            border: 1px solid #334155;
-            padding: 8px 10px;
+            gap: 7px;
+            max-width: 100%;
+            border: 1px solid rgba(45, 122, 255, 0.32);
             border-radius: 999px;
-            font-size: 13px;
+            background: var(--accent-dim);
+            color: #a8c8ff;
+            padding: 6px 10px;
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 11px;
+            line-height: 1.25;
         }
+
+        .chip span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
         .chip button {
-            background: transparent;
-            color: #fca5a5;
             border: 0;
+            background: transparent;
+            color: #bfdbfe;
             cursor: pointer;
+            font-size: 13px;
+            line-height: 1;
             padding: 0;
-            font-size: 14px;
+            opacity: 0.72;
+        }
+
+        .chip button:hover { opacity: 1; }
+
+        .d3fend-readonly {
+            margin-top: 14px;
+            padding: 14px;
+            border: 1px dashed rgba(45, 122, 255, 0.35);
+            border-radius: 14px;
+            background: rgba(45, 122, 255, 0.07);
+        }
+
+        .summary-card {
+            position: sticky;
+            top: 72px;
+            padding: 18px;
+        }
+
+        .summary-title {
+            margin: 0 0 12px;
+            color: var(--text-strong);
+            font-size: 1rem;
+            font-weight: 800;
+        }
+
+        .summary-list {
+            display: grid;
+            gap: 10px;
+        }
+
+        .summary-item {
+            padding: 11px;
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            background: rgba(17, 29, 48, 0.65);
+        }
+
+        .summary-item .label {
+            display: block;
+            color: var(--text-muted);
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 10px;
+            font-weight: 700;
+            letter-spacing: 0.07em;
+            text-transform: uppercase;
+            margin-bottom: 5px;
+        }
+
+        .summary-item .value {
+            color: var(--text-strong);
+            font-size: 13px;
+            line-height: 1.35;
+            overflow-wrap: anywhere;
+        }
+
+        .badge {
+            display: inline-flex;
+            align-items: center;
+            min-height: 23px;
+            padding: 3px 9px;
+            border-radius: 999px;
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 10px;
+            font-weight: 800;
+            white-space: nowrap;
+        }
+
+        .badge-good { color: var(--good); border: 1px solid rgba(0, 229, 160, 0.28); background: var(--good-dim); }
+        .badge-warn { color: var(--medium); border: 1px solid rgba(245, 166, 35, 0.3); background: var(--medium-dim); }
+        .badge-bad { color: var(--bad); border: 1px solid rgba(255, 71, 87, 0.3); background: var(--bad-dim); }
+        .badge-neutral { color: var(--text-muted); border: 1px solid rgba(109, 134, 168, 0.28); background: rgba(109, 134, 168, 0.08); }
+
+        .form-actions {
+            display: flex;
+            justify-content: flex-end;
+            gap: 10px;
+            padding: 16px 22px;
+            border-top: 1px solid var(--border);
+            background: rgba(6, 11, 20, 0.34);
+            border-radius: 0 0 18px 18px;
+        }
+
+        .btn {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            min-height: 38px;
+            padding: 0 15px;
+            border: 1px solid var(--border);
+            border-radius: 10px;
+            color: var(--text);
+            background: var(--surface-2);
+            text-decoration: none;
+            font-family: 'Syne', sans-serif;
+            font-size: 13px;
+            font-weight: 800;
+            cursor: pointer;
+            transition: transform 0.12s, opacity 0.12s, border-color 0.12s;
+        }
+
+        .btn:hover { transform: translateY(-1px); border-color: var(--border-bright); }
+        .btn-primary { background: var(--accent); border-color: var(--accent); color: white; }
+        .btn-secondary { background: var(--surface-2); }
+
+        @media (max-width: 1040px) {
+            .layout { grid-template-columns: 1fr; }
+            .summary-card { position: static; }
+            .page-header { grid-template-columns: 1fr; }
+            .header-actions { justify-content: flex-start; }
+        }
+
+        @media (max-width: 720px) {
+            .page-shell { padding: 18px 14px 42px; }
+            .grid, .readonly-grid { grid-template-columns: 1fr; }
+            .tab-panel { padding: 16px; }
+            .tabs { overflow-x: auto; flex-wrap: nowrap; }
+            .tab-button { white-space: nowrap; }
+            .form-actions { flex-direction: column; }
+            .btn { width: 100%; }
         }
     </style>
     {% include "includes/topbar_styles.html" %}
@@ -167,248 +480,339 @@
 <body>
     {% include "includes/topbar.html" %}
 
-    <div class="container">
-        <div class="card">
-            <h1 class="title">Editar caso de uso</h1>
-            <div class="subtitle">{{ usecase.name }}</div>
-
-            {% if form.errors %}
-                <div class="errors">
-                    {{ form.errors }}
+    <main class="page-shell">
+        <div class="page-header">
+            <div>
+                <div class="eyebrow">// INVENTARIO · EDICIÓN</div>
+                <h1 class="page-title">{{ title|default:"Editar caso de uso" }}</h1>
+                <div class="case-name-box">
+                    {% if usecase %}{{ usecase.name }}{% else %}Nuevo caso de uso{% endif %}
                 </div>
-            {% endif %}
-
-            <form method="post">
-                {% csrf_token %}
-
-                <div class="grid">
-                    <div class="field">
-                        <label>Grupo</label>
-                        {{ form.group_name }}
-                    </div>
-
-                    <div class="field">
-                        <label>Dispositivo</label>
-                        {{ form.device }}
-                    </div>
-
-                    <div class="field">
-                        <label>Tipo</label>
-                        {{ form.case_type }}
-                    </div>
-
-                    <div class="field">
-                        <label>Tipo de bloqueo</label>
-                        {{ form.blocking_type }}
-                    </div>
-
-                    <div class="field full">
-                        <label>Nombre</label>
-                        {{ form.name }}
-                    </div>
-
-                    <div class="field full">
-                        <label>Objetivo</label>
-                        {{ form.objective }}
-                    </div>
-
-                    <div class="field">
-                        <label>Responsable desarrollo</label>
-                        {{ form.owner_name }}
-                    </div>
-
-                    <div class="field">
-                        <label>Monitoreo</label>
-                        {{ form.monitoring }}
-                    </div>
-
-                    <div class="field">
-                        <label>Estado</label>
-                        {{ form.status }}
-                    </div>
-
-                    <div class="field">
-                        <label>Severidad</label>
-                        {{ form.severity }}
-                    </div>
-
-                    <div class="field">
-                        <label>Fecha alta/ajuste</label>
-                        {{ form.created_or_adjusted_at }}
-                    </div>
-
-                    <div class="field">
-                        <label>Fecha puesta en producción</label>
-                        {{ form.production_date }}
-                    </div>
-
-                    <div class="field full">
-                        <label>MITRE ATT&CK relacionado</label>
-                        <div class="autocomplete-box">
-                            <input type="text" id="mitre-search" placeholder="Buscar ATT&CK por ID, nombre o táctica...">
-                            <div id="mitre-results" class="autocomplete-results"></div>
-                        </div>
-                        {{ form.mitre_attacks }}
-                        <div id="mitre-chips" class="chips"></div>
-                    </div>
-
-                    <div class="field">
-                        <label>Escalamiento</label>
-                        {{ form.escalation }}
-                    </div>
-
-                    <div class="field">
-                        <label>Envío HO</label>
-                        {{ form.sent_to_ho }}
-                    </div>
-
-                    <div class="field">
-                        <label>HO</label>
-                        {{ form.ho_flag }}
-                    </div>
-
-                    <div class="field">
-                        <label>Última validación</label>
-                        {{ form.last_validation_date }}
-                        <div class="hint">La próxima revisión se calcula automáticamente a 6 meses.</div>
-                    </div>
-
-                    <div class="field">
-                        <label>Estado ciclo de vida</label>
-                        {{ form.validation_status }}
-                    </div>
-
-                    <div class="field">
-                        <label>Resultado</label>
-                        {{ form.validation_result }}
-                    </div>
-
-                    <div class="field">
-                        <label>Habilitado</label>
-                        {{ form.is_enabled }}
-                    </div>
-
-                    <div class="field full">
-                        <label>Motivo de deshabilitación</label>
-                        {{ form.disabled_reason }}
-                        <div class="hint">Obligatorio si el caso queda deshabilitado.</div>
-                    </div>
-
-                    <div class="field">
-                        <label>Última revisión</label>
-                        {{ form.last_review_date }}
-                    </div>
-
-                    <div class="field">
-                        <label>Próxima revisión</label>
-                        <div class="readonly-box">
-                            {% if usecase %}{{ usecase.next_review_date|default:"Se calculará al guardar" }}{% else %}Se calculará al guardar{% endif %}
-                        </div>
-                    </div>
-
-                    <div class="field">
-                        <label>Contador</label>
-                        <div class="readonly-box">
-                            {% if usecase %}{{ usecase.review_countdown_label }}{% else %}Sin fecha{% endif %}
-                        </div>
-                    </div>
-
-                    <div class="field full">
-                        <label>Comentarios</label>
-                        {{ form.comments }}
-                    </div>
-                </div>
-
-                <div class="actions">
-                    <button type="submit">Guardar cambios</button>
-                    {% if usecase %}<a href="{% url 'usecase_detail' usecase.pk %}">Cancelar</a>{% else %}<a href="{% url 'usecase_list' %}">Cancelar</a>{% endif %}
-                </div>
-            </form>
+            </div>
+            <div class="header-actions">
+                <a class="btn btn-secondary" href="{% if usecase %}{% url 'usecase_detail' usecase.pk %}{% else %}{% url 'usecase_list' %}{% endif %}">Cancelar</a>
+                <button type="submit" form="usecase-edit-form" class="btn btn-primary">Guardar cambios</button>
+            </div>
         </div>
-    </div>
+
+        {% if form.errors %}
+            <div class="errors">
+                {{ form.errors }}
+            </div>
+        {% endif %}
+
+        <form id="usecase-edit-form" method="post">
+            {% csrf_token %}
+            <div class="layout">
+                <section class="panel">
+                    <nav class="tabs" aria-label="Secciones del formulario">
+                        <button type="button" class="tab-button active" data-tab="general">General</button>
+                        <button type="button" class="tab-button" data-tab="clasificacion">Clasificación</button>
+                        <button type="button" class="tab-button" data-tab="mitre">MITRE / D3FEND</button>
+                        <button type="button" class="tab-button" data-tab="lifecycle">Lifecycle</button>
+                        <button type="button" class="tab-button" data-tab="notas">Habilitación / notas</button>
+                    </nav>
+
+                    <div class="tab-panel active" id="tab-general">
+                        <h2 class="section-title">Datos principales</h2>
+                        <p class="section-help">Información base del caso. El nombre debe ser legible y mantener la referencia real de NetWitness.</p>
+                        <div class="grid">
+                            <div class="field full">
+                                <label>Nombre NetWitness</label>
+                                {{ form.name }}
+                            </div>
+                            <div class="field">
+                                <label>Grupo</label>
+                                {{ form.group_name }}
+                            </div>
+                            <div class="field">
+                                <label>Dispositivo</label>
+                                {{ form.device }}
+                            </div>
+                            <div class="field">
+                                <label>Tipo</label>
+                                {{ form.case_type }}
+                            </div>
+                            <div class="field">
+                                <label>Tipo de bloqueo</label>
+                                {{ form.blocking_type }}
+                            </div>
+                            <div class="field full">
+                                <label>Objetivo</label>
+                                {{ form.objective }}
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="tab-panel" id="tab-clasificacion">
+                        <h2 class="section-title">Operación y criticidad</h2>
+                        <p class="section-help">Campos operativos para inventario, priorización y seguimiento diario.</p>
+                        <div class="grid">
+                            <div class="field">
+                                <label>Responsable desarrollo</label>
+                                {{ form.owner_name }}
+                            </div>
+                            <div class="field">
+                                <label>Monitoreo</label>
+                                {{ form.monitoring }}
+                            </div>
+                            <div class="field">
+                                <label>Estado</label>
+                                {{ form.status }}
+                            </div>
+                            <div class="field">
+                                <label>Severidad</label>
+                                {{ form.severity }}
+                            </div>
+                            <div class="field">
+                                <label>Fecha alta/ajuste</label>
+                                {{ form.created_or_adjusted_at }}
+                            </div>
+                            <div class="field">
+                                <label>Fecha puesta en producción</label>
+                                {{ form.production_date }}
+                            </div>
+                            <div class="field">
+                                <label>Escalamiento</label>
+                                {{ form.escalation }}
+                            </div>
+                            <div class="field">
+                                <label>Envío HO</label>
+                                {{ form.sent_to_ho }}
+                            </div>
+                            <div class="field">
+                                <label>HO</label>
+                                {{ form.ho_flag }}
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="tab-panel" id="tab-mitre">
+                        <h2 class="section-title">MITRE ATT&amp;CK y D3FEND</h2>
+                        <p class="section-help">Cargá solo las técnicas ATT&amp;CK. D3FEND se infiere automáticamente desde esas técnicas y no se edita manualmente.</p>
+                        <div class="grid">
+                            <div class="field full">
+                                <label>MITRE ATT&amp;CK relacionado</label>
+                                <div class="autocomplete-box">
+                                    <input type="text" id="mitre-search" placeholder="Buscar por ID, nombre o táctica..." autocomplete="off">
+                                    <div id="mitre-results" class="autocomplete-results"></div>
+                                </div>
+                                {{ form.mitre_attacks }}
+                                <div id="mitre-chips" class="chips"></div>
+                                <div class="hint">Ejemplo: T1059, PowerShell, Credential Access. Podés asociar varias técnicas.</div>
+                            </div>
+                            <div class="field full">
+                                <div class="d3fend-readonly">
+                                    <div class="readonly-label">D3FEND inferido automáticamente</div>
+                                    <div class="chips">
+                                        {% if usecase %}
+                                            {% for item in usecase.d3fends.all %}
+                                                <span class="chip"><span>{{ item.code }}{% if item.name %} — {{ item.name }}{% endif %}</span></span>
+                                            {% empty %}
+                                                <span class="badge badge-neutral">Sin D3FEND inferido</span>
+                                            {% endfor %}
+                                        {% else %}
+                                            <span class="badge badge-neutral">Se calculará al guardar</span>
+                                        {% endif %}
+                                    </div>
+                                    <div class="hint">Esta sección se sincroniza al guardar el caso. No hay carga manual de D3FEND.</div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="tab-panel" id="tab-lifecycle">
+                        <h2 class="section-title">Validación y ciclo de vida</h2>
+                        <p class="section-help">La última validación actualiza automáticamente la próxima revisión. Las fechas propias de lifecycle quedan protegidas.</p>
+                        <div class="grid">
+                            <div class="field">
+                                <label>Última validación</label>
+                                {{ form.last_validation_date }}
+                            </div>
+                            <div class="field">
+                                <label>Estado ciclo de vida</label>
+                                {{ form.validation_status }}
+                            </div>
+                            <div class="field">
+                                <label>Resultado</label>
+                                {{ form.validation_result }}
+                            </div>
+                            <div class="field full">
+                                <div class="readonly-grid">
+                                    <div class="readonly-box">
+                                        <div class="readonly-label">Última revisión</div>
+                                        <div class="readonly-value">{% if usecase and usecase.last_review_date %}{{ usecase.last_review_date }}{% else %}—{% endif %}</div>
+                                    </div>
+                                    <div class="readonly-box">
+                                        <div class="readonly-label">Próxima revisión</div>
+                                        <div class="readonly-value">{% if usecase and usecase.next_review_date %}{{ usecase.next_review_date }}{% else %}Se calculará al guardar{% endif %}</div>
+                                    </div>
+                                    <div class="readonly-box">
+                                        <div class="readonly-label">Contador</div>
+                                        <div class="readonly-value">{% if usecase %}{{ usecase.review_countdown_label }}{% else %}Sin fecha{% endif %}</div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="tab-panel" id="tab-notas">
+                        <h2 class="section-title">Habilitación y comentarios</h2>
+                        <p class="section-help">Si el caso queda deshabilitado, cargá el motivo para que el inventario sea auditable.</p>
+                        <div class="grid">
+                            <div class="field full">
+                                <label>Habilitado</label>
+                                <div class="switch-row">
+                                    {{ form.is_enabled }}
+                                    <span>El caso está activo para operación y cobertura.</span>
+                                </div>
+                            </div>
+                            <div class="field full">
+                                <label>Motivo de deshabilitación</label>
+                                {{ form.disabled_reason }}
+                                <div class="hint">Obligatorio si el caso queda deshabilitado.</div>
+                            </div>
+                            <div class="field full">
+                                <label>Comentarios</label>
+                                {{ form.comments }}
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="form-actions">
+                        <a class="btn btn-secondary" href="{% if usecase %}{% url 'usecase_detail' usecase.pk %}{% else %}{% url 'usecase_list' %}{% endif %}">Cancelar</a>
+                        <button type="submit" class="btn btn-primary">Guardar cambios</button>
+                    </div>
+                </section>
+
+                <aside class="summary-card">
+                    <h2 class="summary-title">Resumen</h2>
+                    <div class="summary-list">
+                        <div class="summary-item">
+                            <span class="label">Estado</span>
+                            <span class="value">{% if usecase and usecase.status %}<span class="badge badge-good">{{ usecase.status }}</span>{% else %}<span class="badge badge-neutral">Sin estado</span>{% endif %}</span>
+                        </div>
+                        <div class="summary-item">
+                            <span class="label">Severidad</span>
+                            <span class="value">{% if usecase and usecase.severity %}{{ usecase.severity }}{% else %}—{% endif %}</span>
+                        </div>
+                        <div class="summary-item">
+                            <span class="label">Dispositivo</span>
+                            <span class="value">{% if usecase and usecase.device %}{{ usecase.device }}{% else %}—{% endif %}</span>
+                        </div>
+                        <div class="summary-item">
+                            <span class="label">Próxima revisión</span>
+                            <span class="value">{% if usecase and usecase.next_review_date %}{{ usecase.next_review_date }}<br>{{ usecase.review_countdown_label }}{% else %}Sin fecha{% endif %}</span>
+                        </div>
+                        <div class="summary-item">
+                            <span class="label">Cobertura</span>
+                            <span class="value">ATT&amp;CK manual · D3FEND automático</span>
+                        </div>
+                    </div>
+                </aside>
+            </div>
+        </form>
+    </main>
 
     <script>
+        document.querySelectorAll('.tab-button').forEach(button => {
+            button.addEventListener('click', () => {
+                const target = button.dataset.tab;
+                document.querySelectorAll('.tab-button').forEach(item => item.classList.remove('active'));
+                document.querySelectorAll('.tab-panel').forEach(panel => panel.classList.remove('active'));
+                button.classList.add('active');
+                document.getElementById('tab-' + target)?.classList.add('active');
+            });
+        });
+
         function setupAutocomplete(config) {
             const input = document.getElementById(config.inputId);
             const resultsBox = document.getElementById(config.resultsId);
             const hiddenSelect = document.getElementById(config.selectId);
             const chipsBox = document.getElementById(config.chipsId);
+            if (!input || !resultsBox || !hiddenSelect || !chipsBox) return;
 
             function getSelectedOptions() {
                 return Array.from(hiddenSelect.options).filter(opt => opt.selected);
             }
 
             function renderChips() {
-                chipsBox.innerHTML = "";
+                chipsBox.innerHTML = '';
                 getSelectedOptions().forEach(opt => {
-                    const chip = document.createElement("div");
-                    chip.className = "chip";
-                    chip.innerHTML = `<span>${opt.text}</span>`;
+                    const chip = document.createElement('div');
+                    chip.className = 'chip';
+                    const label = document.createElement('span');
+                    label.textContent = opt.text;
+                    label.title = opt.text;
 
-                    const removeBtn = document.createElement("button");
-                    removeBtn.type = "button";
-                    removeBtn.textContent = "✕";
-                    removeBtn.addEventListener("click", () => {
+                    const removeBtn = document.createElement('button');
+                    removeBtn.type = 'button';
+                    removeBtn.textContent = '×';
+                    removeBtn.addEventListener('click', () => {
                         opt.selected = false;
                         renderChips();
                     });
 
+                    chip.appendChild(label);
                     chip.appendChild(removeBtn);
                     chipsBox.appendChild(chip);
                 });
             }
 
             async function search(term) {
-                if (!term.trim()) {
-                    resultsBox.style.display = "none";
-                    resultsBox.innerHTML = "";
+                const q = (term || '').trim();
+                if (!q) {
+                    resultsBox.style.display = 'none';
+                    resultsBox.innerHTML = '';
                     return;
                 }
 
-                const response = await fetch(`${config.url}?q=${encodeURIComponent(term)}`);
-                const data = await response.json();
-
-                resultsBox.innerHTML = "";
-                const selectedIds = new Set(getSelectedOptions().map(opt => opt.value));
-
-                data.results.forEach(item => {
-                    if (selectedIds.has(String(item.id))) return;
-
-                    const row = document.createElement("div");
-                    row.className = "autocomplete-item";
-                    row.textContent = item.label;
-                    row.addEventListener("click", () => {
-                        const option = Array.from(hiddenSelect.options).find(opt => opt.value === String(item.id));
-                        if (option) {
-                            option.selected = true;
-                            renderChips();
-                        }
-                        input.value = "";
-                        resultsBox.innerHTML = "";
-                        resultsBox.style.display = "none";
+                try {
+                    const response = await fetch(`${config.url}?q=${encodeURIComponent(q)}`, {
+                        headers: { 'X-Requested-With': 'XMLHttpRequest' }
                     });
-                    resultsBox.appendChild(row);
-                });
+                    const data = await response.json();
+                    const selectedIds = new Set(getSelectedOptions().map(opt => opt.value));
+                    resultsBox.innerHTML = '';
 
-                resultsBox.style.display = resultsBox.children.length ? "block" : "none";
+                    (data.results || []).forEach(item => {
+                        if (selectedIds.has(String(item.id))) return;
+                        const row = document.createElement('div');
+                        row.className = 'autocomplete-item';
+                        row.textContent = item.label;
+                        row.addEventListener('click', () => {
+                            const option = Array.from(hiddenSelect.options).find(opt => opt.value === String(item.id));
+                            if (option) {
+                                option.selected = true;
+                                renderChips();
+                            }
+                            input.value = '';
+                            resultsBox.innerHTML = '';
+                            resultsBox.style.display = 'none';
+                        });
+                        resultsBox.appendChild(row);
+                    });
+
+                    resultsBox.style.display = resultsBox.children.length ? 'block' : 'none';
+                } catch (error) {
+                    resultsBox.style.display = 'none';
+                }
             }
 
-            input.addEventListener("input", () => search(input.value));
-
-            document.addEventListener("click", (e) => {
-                if (!resultsBox.contains(e.target) && e.target !== input) {
-                    resultsBox.style.display = "none";
+            input.addEventListener('input', () => search(input.value));
+            document.addEventListener('click', event => {
+                if (!resultsBox.contains(event.target) && event.target !== input) {
+                    resultsBox.style.display = 'none';
                 }
             });
-
             renderChips();
         }
 
         setupAutocomplete({
-            inputId: "mitre-search",
-            resultsId: "mitre-results",
-            selectId: "id_mitre_attacks",
-            chipsId: "mitre-chips",
+            inputId: 'mitre-search',
+            resultsId: 'mitre-results',
+            selectId: 'id_mitre_attacks',
+            chipsId: 'mitre-chips',
             url: "{% url 'mitre_attack_autocomplete' %}"
         });
     </script>

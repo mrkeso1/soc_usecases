@@ -61,8 +61,33 @@ class UseCaseForm(forms.ModelForm):
             "disabled_reason": forms.Textarea(attrs={"class": "form-control", "rows": 3}),
             "comments": forms.Textarea(attrs={"class": "form-control", "rows": 4}),
         }
+        labels = {
+            "group_name": "Grupo",
+            "device": "Dispositivo",
+            "case_type": "Tipo",
+            "objective": "Objetivo",
+            "blocking_type": "Tipo de bloqueo",
+            "name": "Nombre NetWitness",
+            "owner_name": "Responsable desarrollo",
+            "monitoring": "Monitoreo",
+            "status": "Estado",
+            "created_or_adjusted_at": "Fecha alta/ajuste",
+            "production_date": "Fecha producción",
+            "mitre_attacks": "MITRE ATT&CK relacionado",
+            "severity": "Severidad",
+            "escalation": "Escalamiento",
+            "sent_to_ho": "Envío HO",
+            "ho_flag": "HO",
+            "last_validation_date": "Última validación",
+            "validation_status": "Estado validación",
+            "validation_result": "Resultado",
+            "is_enabled": "Habilitado",
+            "disabled_reason": "Motivo de deshabilitación",
+            "comments": "Comentarios",
+        }
         help_texts = {
-            "mitre_attacks": "Mantené Ctrl presionado para seleccionar varias técnicas.",
+            "mitre_attacks": "Buscá por ID, nombre o táctica. D3FEND se infiere automáticamente.",
+            "disabled_reason": "Obligatorio si el caso queda deshabilitado.",
         }
 
     def __init__(self, *args, **kwargs):

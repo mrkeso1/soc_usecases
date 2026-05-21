@@ -2,183 +2,382 @@
 <html lang="es">
 <head>
     <meta charset="UTF-8">
-    <title>{{ usecase.name }}</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ usecase.name }} — SOC Use Cases Manager</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;600;700&family=Syne:wght@400;500;600;700;800&display=swap" rel="stylesheet">
     <style>
+        :root {
+            --bg: #060b14;
+            --surface: #0c1524;
+            --surface-2: #111d30;
+            --surface-3: #172540;
+            --border: rgba(56, 100, 163, 0.24);
+            --border-bright: rgba(56, 100, 163, 0.58);
+            --text: #b8cce8;
+            --text-strong: #e8f1ff;
+            --text-muted: #6f89ad;
+            --accent: #2d7aff;
+            --accent-dim: rgba(45, 122, 255, 0.12);
+            --good: #00e5a0;
+            --medium: #f5a623;
+            --bad: #ff4757;
+            --grid-color: rgba(45, 122, 255, 0.04);
+        }
+
+        * { box-sizing: border-box; }
+
         body {
             margin: 0;
-            font-family: Arial, sans-serif;
-            background: #0f172a;
-            color: #e2e8f0;
+            min-height: 100vh;
+            font-family: 'Syne', sans-serif;
+            background: var(--bg);
+            color: var(--text);
         }
 
-        .topbar {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            padding: 16px 24px;
-            background: #1e293b;
-            border-bottom: 1px solid #334155;
-        }
-
-        .topbar a {
-            color: white;
-            text-decoration: none;
-            margin-left: 12px;
+        body::before {
+            content: '';
+            position: fixed;
+            inset: 0;
+            background-image:
+                linear-gradient(var(--grid-color) 1px, transparent 1px),
+                linear-gradient(90deg, var(--grid-color) 1px, transparent 1px);
+            background-size: 48px 48px;
+            pointer-events: none;
+            z-index: 0;
         }
 
         .container {
-            max-width: 1200px;
-            margin: 24px auto;
-            padding: 0 20px 24px 20px;
+            position: relative;
+            z-index: 1;
+            max-width: 1240px;
+            margin: 0 auto;
+            padding: 28px 28px 56px;
         }
 
-        .card {
-            background: #1e293b;
-            border: 1px solid #334155;
-            border-radius: 14px;
-            padding: 24px;
+        .page-header {
+            display: grid;
+            grid-template-columns: minmax(0, 1fr) auto;
+            gap: 18px;
+            align-items: flex-start;
             margin-bottom: 20px;
         }
 
-        .title {
-            font-size: 28px;
-            margin-top: 0;
-            margin-bottom: 8px;
+        .page-heading {
+            min-width: 0;
         }
 
-        .subtitle {
-            color: #94a3b8;
-            margin-bottom: 24px;
+        .page-eyebrow {
+            font-family: 'JetBrains Mono', monospace;
+            color: var(--accent);
+            font-size: 11px;
+            letter-spacing: 0.12em;
+            text-transform: uppercase;
+            margin-bottom: 5px;
         }
 
-        .grid {
-            display: grid;
-            grid-template-columns: 260px 1fr;
-            gap: 12px 18px;
+        .page-title {
+            margin: 0;
+            color: var(--text-strong);
+            font-size: clamp(1.35rem, 2.1vw, 1.72rem);
+            font-weight: 800;
+            letter-spacing: -0.028em;
+            line-height: 1.12;
         }
 
-        .label {
-            color: #94a3b8;
-            font-weight: bold;
+        .case-title-box {
+            margin-top: 12px;
+            max-width: 860px;
+            border: 1px solid rgba(56, 100, 163, 0.22);
+            border-radius: 14px;
+            background: rgba(17, 29, 48, 0.50);
+            padding: 12px 14px;
         }
 
-        .value-box {
-            background: #111827;
-            border: 1px solid #334155;
+        .case-title-label {
+            display: block;
+            margin-bottom: 6px;
+            color: var(--text-muted);
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 10px;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.08em;
+        }
+
+        .case-title-value {
+            display: block;
+            color: var(--text-strong);
+            font-family: 'JetBrains Mono', monospace;
+            font-size: clamp(0.78rem, 1.2vw, 0.92rem);
+            font-weight: 600;
+            line-height: 1.45;
+            overflow-wrap: anywhere;
+            word-break: break-word;
+        }
+
+        .page-subtitle {
+            margin: 8px 0 0;
+            color: var(--text-muted);
+            font-size: 0.9rem;
+            max-width: 780px;
+            line-height: 1.45;
+        }
+
+        .header-actions {
+            display: flex;
+            gap: 8px;
+            flex-wrap: wrap;
+            justify-content: flex-end;
+            flex-shrink: 0;
+        }
+
+        .btn {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            min-height: 38px;
+            padding: 0 15px;
             border-radius: 8px;
+            border: 1px solid var(--border);
+            background: var(--surface);
+            color: var(--text);
+            font-family: 'Syne', sans-serif;
+            font-weight: 700;
+            font-size: 0.86rem;
+            text-decoration: none;
+            cursor: pointer;
+            transition: border-color 0.15s, background 0.15s, transform 0.1s, opacity 0.15s;
+        }
+
+        .btn:hover { border-color: var(--border-bright); background: var(--surface-2); }
+        .btn-primary { background: var(--accent); border-color: var(--accent); color: white; }
+        .btn-primary:hover { opacity: 0.88; transform: translateY(-1px); }
+        .btn-danger { background: rgba(255, 71, 87, 0.12); border-color: rgba(255, 71, 87, 0.38); color: #fecaca; }
+        .btn-danger:hover { background: rgba(255, 71, 87, 0.18); border-color: rgba(255, 71, 87, 0.58); }
+
+        .detail-shell {
+            display: grid;
+            grid-template-columns: minmax(0, 1fr) 330px;
+            gap: 18px;
+            align-items: start;
+        }
+
+        .card {
+            background: rgba(12, 21, 36, 0.94);
+            border: 1px solid var(--border);
+            border-radius: 18px;
+            box-shadow: 0 18px 44px rgba(0, 0, 0, 0.34);
+            overflow: hidden;
+        }
+
+        .section {
+            padding: 22px;
+            border-bottom: 1px solid var(--border);
+        }
+
+        .section:last-child { border-bottom: none; }
+
+        .section-header {
+            display: flex;
+            justify-content: space-between;
+            gap: 14px;
+            align-items: flex-start;
+            margin-bottom: 16px;
+        }
+
+        .section-title {
+            margin: 0;
+            color: var(--text-strong);
+            font-size: 1.05rem;
+            font-weight: 800;
+            letter-spacing: -0.02em;
+        }
+
+        .section-help {
+            margin: 4px 0 0;
+            color: var(--text-muted);
+            font-size: 0.78rem;
+            line-height: 1.45;
+        }
+
+        .detail-grid {
+            display: grid;
+            grid-template-columns: repeat(12, minmax(0, 1fr));
+            gap: 14px;
+        }
+
+        .detail-item { grid-column: span 6; min-width: 0; }
+        .detail-item.third { grid-column: span 4; }
+        .detail-item.full { grid-column: 1 / -1; }
+
+        .detail-label {
+            display: block;
+            margin-bottom: 7px;
+            color: var(--text-muted);
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 11px;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.055em;
+        }
+
+        .detail-value {
+            width: 100%;
+            min-height: 40px;
+            border: 1px solid rgba(56, 100, 163, 0.18);
+            border-radius: 10px;
+            background: rgba(17, 29, 48, 0.65);
+            color: var(--text-strong);
             padding: 10px 12px;
+            font-size: 0.9rem;
+            line-height: 1.45;
             word-break: break-word;
             overflow-wrap: anywhere;
         }
 
-        .value-box div + div {
-            margin-top: 6px;
+        .detail-value.mono {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 12px;
+            color: var(--text);
+        }
+
+        .empty-value { color: var(--text-muted); }
+
+        .tag-list {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+        }
+
+        .tag {
+            display: inline-flex;
+            align-items: center;
+            max-width: 100%;
+            border-radius: 999px;
+            border: 1px solid rgba(45, 122, 255, 0.30);
+            background: var(--accent-dim);
+            color: #a8c8ff;
+            padding: 7px 10px;
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 11px;
+            line-height: 1.3;
         }
 
         .badge {
-            display: inline-block;
-            padding: 4px 10px;
+            display: inline-flex;
+            align-items: center;
             border-radius: 999px;
-            font-size: 12px;
-            font-weight: bold;
-        }
-
-        .badge-ok {
-            background: rgba(34, 197, 94, .18);
-            color: #86efac;
-        }
-
-        .badge-warning {
-            background: rgba(245, 158, 11, .18);
-            color: #fcd34d;
-        }
-
-        .badge-failed {
-            background: rgba(239, 68, 68, .18);
-            color: #fca5a5;
-        }
-
-        .badge-neutral {
-            background: rgba(148, 163, 184, .18);
-            color: #cbd5e1;
-        }
-
-        .actions {
-            margin-top: 24px;
-        }
-
-        .actions a {
-            display: inline-block;
-            text-decoration: none;
-            background: #2563eb;
-            color: white;
-            padding: 10px 14px;
-            border-radius: 8px;
-            margin-right: 10px;
-        }
-
-        .actions a.secondary {
-            background: #475569;
-        }
-
-        .actions form { display:inline-block; }
-        .btn-danger { background:#b91c1c; color:#fff; border:0; padding:10px 14px; border-radius:8px; cursor:pointer; }
-
-        .history-table-wrap {
-            width: 100%;
-            overflow-x: auto;
-            border: 1px solid #334155;
-            border-radius: 10px;
-        }
-
-        .history-table {
-            width: 100%;
-            min-width: 900px;
-            border-collapse: collapse;
-        }
-
-        .history-table th,
-        .history-table td {
-            text-align: left;
-            padding: 10px;
-            border-bottom: 1px solid #334155;
-            vertical-align: top;
-            font-size: 13px;
-        }
-
-        .history-table th {
-            background: #0b1220;
+            padding: 4px 9px;
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 10px;
+            font-weight: 700;
+            border: 1px solid rgba(78,106,142,0.30);
+            background: rgba(78,106,142,0.14);
+            color: var(--text-muted);
             white-space: nowrap;
         }
+        .badge.good { border-color: rgba(0,229,160,0.28); background: rgba(0,229,160,0.08); color: var(--good); }
+        .badge.warn { border-color: rgba(245,166,35,0.28); background: rgba(245,166,35,0.08); color: var(--medium); }
+        .badge.bad { border-color: rgba(255,71,87,0.28); background: rgba(255,71,87,0.08); color: var(--bad); }
+        .badge.accent { border-color: rgba(45,122,255,0.35); background: var(--accent-dim); color: #a8c8ff; }
 
-        .muted {
-            color: #94a3b8;
+        .side-card {
+            padding: 18px;
+            position: sticky;
+            top: 76px;
         }
+
+        .status-line {
+            display: flex;
+            justify-content: space-between;
+            gap: 12px;
+            padding: 12px 0;
+            border-bottom: 1px solid var(--border);
+        }
+
+        .status-line:last-child { border-bottom: none; }
+        .status-label {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 10px;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            letter-spacing: 0.08em;
+        }
+        .status-value {
+            color: var(--text-strong);
+            font-weight: 700;
+            text-align: right;
+            font-size: 0.86rem;
+            word-break: break-word;
+        }
+
+        .history-card { margin-top: 18px; }
 
         .history-header {
             display: flex;
             justify-content: space-between;
             align-items: center;
             gap: 12px;
-            margin-bottom: 14px;
+            padding: 20px 22px 14px;
         }
 
-        .history-header h2 {
+        .history-title {
             margin: 0;
+            color: var(--text-strong);
+            font-size: 1.05rem;
+            font-weight: 800;
         }
 
         .history-count {
-            color: #94a3b8;
-            font-size: 13px;
+            color: var(--text-muted);
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 11px;
             white-space: nowrap;
         }
+
+        .table-wrap {
+            width: 100%;
+            overflow-x: auto;
+            border-top: 1px solid var(--border);
+        }
+
+        .history-table {
+            width: 100%;
+            min-width: 920px;
+            border-collapse: collapse;
+        }
+
+        .history-table th,
+        .history-table td {
+            text-align: left;
+            padding: 12px 14px;
+            border-bottom: 1px solid var(--border);
+            vertical-align: top;
+            font-size: 0.82rem;
+            line-height: 1.4;
+        }
+
+        .history-table th {
+            background: rgba(6, 11, 20, 0.58);
+            color: var(--text-muted);
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 10px;
+            text-transform: uppercase;
+            letter-spacing: 0.08em;
+            white-space: nowrap;
+        }
+
+        .history-table td { color: var(--text); }
+        .history-table td.mono { font-family: 'JetBrains Mono', monospace; font-size: 11px; }
 
         .pagination {
             display: flex;
             justify-content: flex-end;
             align-items: center;
             gap: 8px;
-            margin-top: 14px;
+            padding: 14px 22px 18px;
             flex-wrap: wrap;
         }
 
@@ -191,24 +390,25 @@
             min-height: 34px;
             padding: 6px 10px;
             border-radius: 8px;
-            border: 1px solid #334155;
-            background: #0f172a;
-            color: #cbd5e1;
+            border: 1px solid var(--border);
+            background: var(--surface);
+            color: var(--text);
             text-decoration: none;
-            font-size: 13px;
-            box-sizing: border-box;
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 11px;
         }
 
         .pagination a:hover {
-            border-color: #60a5fa;
-            color: #ffffff;
+            border-color: var(--border-bright);
+            color: var(--text-strong);
+            background: var(--surface-2);
         }
 
         .pagination .current {
-            background: #2563eb;
-            border-color: #2563eb;
+            background: var(--accent);
+            border-color: var(--accent);
             color: #ffffff;
-            font-weight: bold;
+            font-weight: 700;
         }
 
         .pagination .disabled {
@@ -216,216 +416,417 @@
             cursor: not-allowed;
         }
 
-        @media (max-width: 700px) {
-            .history-header {
-                align-items: flex-start;
-                flex-direction: column;
-            }
+        .delete-inline-form { margin: 0; }
 
-            .pagination {
-                justify-content: flex-start;
-            }
+        @media (max-width: 980px) {
+            .detail-shell { grid-template-columns: 1fr; }
+            .side-card { position: static; }
+        }
+
+        @media (max-width: 720px) {
+            .container { padding: 18px 14px 42px; }
+            .page-header { grid-template-columns: 1fr; }
+            .case-title-box { max-width: 100%; }
+            .header-actions { justify-content: flex-start; width: 100%; }
+            .btn { width: 100%; }
+            .detail-item, .detail-item.third { grid-column: 1 / -1; }
+            .history-header { align-items: flex-start; flex-direction: column; }
+            .pagination { justify-content: flex-start; }
         }
     </style>
     {% include "includes/topbar_styles.html" %}
 </head>
 <body>
-    {% include "includes/topbar.html" %}
+{% include "includes/topbar.html" %}
 
-    <div class="container">
-        <div class="card">
-            <h1 class="title">{{ usecase.name }}</h1>
-            <div class="subtitle">Detalle del caso de uso</div>
-
-            <div class="grid">
-                <div class="label">Grupo</div>
-                <div class="value-box">{{ usecase.group_name|default:"-" }}</div>
-
-                <div class="label">Dispositivo</div>
-                <div class="value-box">{{ usecase.device|default:"-" }}</div>
-
-                <div class="label">Tipo</div>
-                <div class="value-box">{{ usecase.case_type|default:"-" }}</div>
-
-                <div class="label">Objetivo</div>
-                <div class="value-box">{{ usecase.objective|default:"-" }}</div>
-
-                <div class="label">Tipo de bloqueo</div>
-                <div class="value-box">{{ usecase.blocking_type|default:"-" }}</div>
-
-                <div class="label">Responsable desarrollo</div>
-                <div class="value-box">{{ usecase.owner_name|default:"-" }}</div>
-
-                <div class="label">Monitoreo</div>
-                <div class="value-box">{{ usecase.monitoring|default:"-" }}</div>
-
-                <div class="label">Estado</div>
-                <div class="value-box">{{ usecase.status|default:"-" }}</div>
-
-                <div class="label">Fecha alta/ajuste</div>
-                <div class="value-box">{{ usecase.created_or_adjusted_at|default:"-" }}</div>
-
-                <div class="label">Fecha puesta en producción</div>
-                <div class="value-box">{{ usecase.production_date|default:"-" }}</div>
-
-                <div class="label">MITRE ATT&amp;CK relacionado</div>
-                <div class="value-box">
-                    {% for item in usecase.mitre_attacks.all %}
-                        <div>{{ item }}</div>
-                    {% empty %}
-                        -
-                    {% endfor %}
-                </div>
-
-                <div class="label">D3FEND inferido por ATT&amp;CK</div>
-                <div class="value-box">
-                    {% for item in usecase.inferred_d3fends %}
-                        <div>{{ item }}</div>
-                    {% empty %}
-                        -
-                    {% endfor %}
-                </div>
-
-                <div class="label">Severidad</div>
-                <div class="value-box">{{ usecase.severity|default:"-" }}</div>
-
-                <div class="label">Escalamiento</div>
-                <div class="value-box">{{ usecase.escalation|default:"-" }}</div>
-
-                <div class="label">Envío HO</div>
-                <div class="value-box">{{ usecase.sent_to_ho|default:"-" }}</div>
-
-                <div class="label">HO</div>
-                <div class="value-box">{{ usecase.ho_flag|default:"-" }}</div>
-
-                <div class="label">Última validación</div>
-                <div class="value-box">{{ usecase.last_validation_date|default:"-" }}</div>
-
-                <div class="label">Estado ciclo de vida</div>
-                <div class="value-box">{{ usecase.validation_status|default:"-" }}</div>
-
-                <div class="label">Resultado</div>
-                <div class="value-box">
-                    {% if usecase.validation_result == "OK" %}
-                        <span class="badge badge-ok">OK</span>
-                    {% elif usecase.validation_result == "Advertencia" %}
-                        <span class="badge badge-warning">Advertencia</span>
-                    {% elif usecase.validation_result == "Falló" %}
-                        <span class="badge badge-failed">Falló</span>
-                    {% else %}
-                        <span class="badge badge-neutral">{{ usecase.validation_result|default:"Nada" }}</span>
-                    {% endif %}
-                </div>
-
-                <div class="label">Habilitado</div>
-                <div class="value-box">{% if usecase.is_enabled %}Sí{% else %}No{% endif %}</div>
-
-                <div class="label">Motivo de deshabilitación</div>
-                <div class="value-box">{{ usecase.disabled_reason|default:"-" }}</div>
-
-                <div class="label">Última revisión</div>
-                <div class="value-box">{{ usecase.last_review_date|default:"-" }}</div>
-
-                <div class="label">Próxima revisión</div>
-                <div class="value-box">{{ usecase.next_review_date|default:"-" }}</div>
-
-                <div class="label">Contador</div>
-                <div class="value-box">{{ usecase.review_countdown_label }}</div>
-
-                <div class="label">Comentarios</div>
-                <div class="value-box">{{ usecase.comments|default:"-" }}</div>
-
-                <div class="label">Creado</div>
-                <div class="value-box">{{ usecase.created_at|date:"Y-m-d H:i" }}</div>
-
-                <div class="label">Última actualización</div>
-                <div class="value-box">{{ usecase.updated_at|date:"Y-m-d H:i" }}</div>
+<div class="container">
+    <div class="page-header">
+        <div class="page-heading">
+            <div class="page-eyebrow">// INVENTARIO / DETALLE</div>
+            <h1 class="page-title">Detalle del caso de uso</h1>
+            <div class="case-title-box">
+                <span class="case-title-label">Nombre NetWitness</span>
+                <span class="case-title-value">{{ usecase.name|default:"-" }}</span>
             </div>
-
-            <div class="actions">
-                {% if can_manage_usecases %}<a href="{% url 'usecase_edit' usecase.pk %}">Editar</a>{% endif %}
-                <a href="{% url 'usecase_list' %}" class="secondary">Volver</a>
-                {% if can_delete_usecases %}
-                <form method="post" action="{% url 'usecase_delete' usecase.pk %}" onsubmit="return confirm('¿Eliminar este caso de uso? Esta acción no se puede deshacer.');">
-                    {% csrf_token %}
-                    <button class="btn-danger" type="submit">Eliminar</button>
-                </form>
-                {% endif %}
-            </div>
+            <p class="page-subtitle">
+                Vista de lectura del caso de uso. Para modificar datos operativos usá la edición completa; los controles de lifecycle se administran desde su módulo específico.
+            </p>
         </div>
-
-        <div class="card" id="historial-cambios">
-            <div class="history-header">
-                <h2>Historial de cambios</h2>
-                {% if change_logs_page.paginator.count %}
-                    <div class="history-count">
-                        Mostrando {{ change_logs_page.start_index }}-{{ change_logs_page.end_index }}
-                        de {{ change_logs_page.paginator.count }} cambios
-                    </div>
-                {% endif %}
-            </div>
-
-            <div class="history-table-wrap">
-                <table class="history-table">
-                    <thead>
-                        <tr>
-                            <th>Fecha</th>
-                            <th>Usuario</th>
-                            <th>Campo</th>
-                            <th>Valor anterior</th>
-                            <th>Valor nuevo</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        {% for log in change_logs %}
-                        <tr>
-                            <td>{{ log.changed_at|date:"Y-m-d H:i" }}</td>
-                            <td>
-                                {% if log.changed_by %}
-                                    {{ log.changed_by.username }}
-                                {% else %}
-                                    -
-                                {% endif %}
-                            </td>
-                            <td>{{ log.field_label }}</td>
-                            <td>{{ log.old_value_pretty }}</td>
-                            <td>{{ log.new_value_pretty }}</td>
-                        </tr>
-                        {% empty %}
-                        <tr>
-                            <td colspan="5" class="muted">No hay cambios registrados.</td>
-                        </tr>
-                        {% endfor %}
-                    </tbody>
-                </table>
-            </div>
-
-            {% if change_logs_page.has_other_pages %}
-                <nav class="pagination" aria-label="Paginación del historial de cambios">
-                    {% if change_logs_page.has_previous %}
-                        <a href="?history_page={{ change_logs_page.previous_page_number }}#historial-cambios">Anterior</a>
-                    {% else %}
-                        <span class="disabled">Anterior</span>
-                    {% endif %}
-
-                    {% for page_num in change_logs_page_range %}
-                        {% if page_num == change_logs_page.paginator.ELLIPSIS %}
-                            <span class="disabled">{{ page_num }}</span>
-                        {% elif page_num == change_logs_page.number %}
-                            <span class="current">{{ page_num }}</span>
-                        {% else %}
-                            <a href="?history_page={{ page_num }}#historial-cambios">{{ page_num }}</a>
-                        {% endif %}
-                    {% endfor %}
-
-                    {% if change_logs_page.has_next %}
-                        <a href="?history_page={{ change_logs_page.next_page_number }}#historial-cambios">Siguiente</a>
-                    {% else %}
-                        <span class="disabled">Siguiente</span>
-                    {% endif %}
-                </nav>
+        <div class="header-actions">
+            <a class="btn" href="{% url 'usecase_list' %}">Volver al inventario</a>
+            {% if can_manage_usecases %}
+                <a class="btn btn-primary" href="{% url 'usecase_edit' usecase.pk %}">Editar completo</a>
+            {% endif %}
+            {% if can_delete_usecases %}
+                <form class="delete-inline-form" method="post" action="{% url 'usecase_delete' usecase.pk %}" onsubmit="return confirm('¿Eliminar este caso de uso? Esta acción no se puede deshacer.');">
+                    {% csrf_token %}
+                    <button class="btn btn-danger" type="submit">Eliminar</button>
+                </form>
             {% endif %}
         </div>
     </div>
+
+    <div class="detail-shell">
+        <main class="card">
+            <section class="section">
+                <div class="section-header">
+                    <div>
+                        <h2 class="section-title">Datos principales</h2>
+                        <p class="section-help">Información base visible en el inventario operativo.</p>
+                    </div>
+                </div>
+                <div class="detail-grid">
+                    <div class="detail-item full">
+                        <span class="detail-label">Nombre NetWitness</span>
+                        <div class="detail-value">{{ usecase.name|default:"-" }}</div>
+                    </div>
+                    <div class="detail-item third">
+                        <span class="detail-label">Grupo</span>
+                        <div class="detail-value">{{ usecase.group_name|default:"-" }}</div>
+                    </div>
+                    <div class="detail-item third">
+                        <span class="detail-label">Dispositivo</span>
+                        <div class="detail-value">{{ usecase.device|default:"-" }}</div>
+                    </div>
+                    <div class="detail-item third">
+                        <span class="detail-label">Tipo</span>
+                        <div class="detail-value">{{ usecase.case_type|default:"-" }}</div>
+                    </div>
+                    <div class="detail-item full">
+                        <span class="detail-label">Objetivo</span>
+                        <div class="detail-value">{{ usecase.objective|linebreaksbr|default:"-" }}</div>
+                    </div>
+                </div>
+            </section>
+
+            <section class="section">
+                <div class="section-header">
+                    <div>
+                        <h2 class="section-title">Operación y criticidad</h2>
+                        <p class="section-help">Responsables, estado productivo y clasificación operativa.</p>
+                    </div>
+                </div>
+                <div class="detail-grid">
+                    <div class="detail-item third">
+                        <span class="detail-label">Responsable desarrollo</span>
+                        <div class="detail-value">{{ usecase.owner_name|default:"-" }}</div>
+                    </div>
+                    <div class="detail-item third">
+                        <span class="detail-label">Responsable control</span>
+                        <div class="detail-value">{{ usecase.lifecycle_control_owner|default:"-" }}</div>
+                    </div>
+                    <div class="detail-item third">
+                        <span class="detail-label">Monitoreo</span>
+                        <div class="detail-value">{{ usecase.monitoring|default:"-" }}</div>
+                    </div>
+                    <div class="detail-item third">
+                        <span class="detail-label">Estado</span>
+                        <div class="detail-value">
+                            {% if usecase.status == "Producción" %}
+                                <span class="badge good">Producción</span>
+                            {% elif usecase.status %}
+                                <span class="badge">{{ usecase.status }}</span>
+                            {% else %}
+                                <span class="empty-value">-</span>
+                            {% endif %}
+                        </div>
+                    </div>
+                    <div class="detail-item third">
+                        <span class="detail-label">Severidad</span>
+                        <div class="detail-value">
+                            {% if usecase.severity == "Critical" %}
+                                <span class="badge bad">Critical</span>
+                            {% elif usecase.severity == "High" %}
+                                <span class="badge warn">High</span>
+                            {% elif usecase.severity %}
+                                <span class="badge accent">{{ usecase.severity }}</span>
+                            {% else %}
+                                <span class="empty-value">-</span>
+                            {% endif %}
+                        </div>
+                    </div>
+                    <div class="detail-item third">
+                        <span class="detail-label">Tipo de bloqueo</span>
+                        <div class="detail-value">{{ usecase.blocking_type|default:"-" }}</div>
+                    </div>
+                    <div class="detail-item third">
+                        <span class="detail-label">Escalamiento</span>
+                        <div class="detail-value">{{ usecase.escalation|default:"-" }}</div>
+                    </div>
+                    <div class="detail-item third">
+                        <span class="detail-label">Envío HO</span>
+                        <div class="detail-value">{{ usecase.sent_to_ho|default:"-" }}</div>
+                    </div>
+                    <div class="detail-item third">
+                        <span class="detail-label">HO</span>
+                        <div class="detail-value">{{ usecase.ho_flag|default:"-" }}</div>
+                    </div>
+                    <div class="detail-item third">
+                        <span class="detail-label">Fecha alta/ajuste</span>
+                        <div class="detail-value mono">{{ usecase.created_or_adjusted_at|date:"d/m/Y"|default:"-" }}</div>
+                    </div>
+                    <div class="detail-item third">
+                        <span class="detail-label">Fecha producción</span>
+                        <div class="detail-value mono">{{ usecase.production_date|date:"d/m/Y"|default:"-" }}</div>
+                    </div>
+                </div>
+            </section>
+
+            <section class="section">
+                <div class="section-header">
+                    <div>
+                        <h2 class="section-title">Mapeo ATT&amp;CK y D3FEND</h2>
+                        <p class="section-help">D3FEND se muestra como inferencia automática desde las técnicas ATT&amp;CK asociadas.</p>
+                    </div>
+                </div>
+                <div class="detail-grid">
+                    <div class="detail-item full">
+                        <span class="detail-label">MITRE ATT&amp;CK relacionado</span>
+                        <div class="detail-value">
+                            <div class="tag-list">
+                                {% for item in usecase.mitre_attacks.all %}
+                                    <span class="tag">{{ item.external_id }}{% if item.name %} — {{ item.name }}{% endif %}</span>
+                                {% empty %}
+                                    <span class="empty-value">Sin técnicas ATT&amp;CK asociadas.</span>
+                                {% endfor %}
+                            </div>
+                        </div>
+                    </div>
+                    <div class="detail-item full">
+                        <span class="detail-label">D3FEND inferido por ATT&amp;CK</span>
+                        <div class="detail-value">
+                            <div class="tag-list">
+                                {% for item in usecase.inferred_d3fends %}
+                                    <span class="tag">{{ item.code }}{% if item.name %} — {{ item.name }}{% endif %}</span>
+                                {% empty %}
+                                    <span class="empty-value">Sin D3FEND inferido. Cargá ATT&amp;CK relacionado para calcularlo automáticamente.</span>
+                                {% endfor %}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <section class="section">
+                <div class="section-header">
+                    <div>
+                        <h2 class="section-title">Validación y lifecycle</h2>
+                        <p class="section-help">Última validación funcional y fechas de control periódico.</p>
+                    </div>
+                </div>
+                <div class="detail-grid">
+                    <div class="detail-item third">
+                        <span class="detail-label">Última validación</span>
+                        <div class="detail-value mono">{{ usecase.last_validation_date|date:"d/m/Y"|default:"-" }}</div>
+                    </div>
+                    <div class="detail-item third">
+                        <span class="detail-label">Estado validación</span>
+                        <div class="detail-value">{{ usecase.validation_status|default:"-" }}</div>
+                    </div>
+                    <div class="detail-item third">
+                        <span class="detail-label">Resultado</span>
+                        <div class="detail-value">
+                            {% if usecase.validation_result == "OK" %}
+                                <span class="badge good">OK</span>
+                            {% elif usecase.validation_result == "Advertencia" %}
+                                <span class="badge warn">Advertencia</span>
+                            {% elif usecase.validation_result == "Falló" %}
+                                <span class="badge bad">Falló</span>
+                            {% elif usecase.validation_result %}
+                                <span class="badge">{{ usecase.validation_result }}</span>
+                            {% else %}
+                                <span class="empty-value">-</span>
+                            {% endif %}
+                        </div>
+                    </div>
+                    <div class="detail-item third">
+                        <span class="detail-label">Última revisión lifecycle</span>
+                        <div class="detail-value mono">{{ usecase.last_review_date|date:"d/m/Y"|default:"-" }}</div>
+                    </div>
+                    <div class="detail-item third">
+                        <span class="detail-label">Próxima revisión</span>
+                        <div class="detail-value mono">{{ usecase.next_review_date|date:"d/m/Y"|default:"-" }}</div>
+                    </div>
+                    <div class="detail-item third">
+                        <span class="detail-label">Contador</span>
+                        <div class="detail-value">
+                            {% if usecase.days_until_review is None %}
+                                <span class="badge">Sin fecha</span>
+                            {% elif usecase.days_until_review < 0 %}
+                                <span class="badge bad">{{ usecase.review_countdown_label }}</span>
+                            {% elif usecase.days_until_review <= 30 %}
+                                <span class="badge warn">{{ usecase.review_countdown_label }}</span>
+                            {% else %}
+                                <span class="badge good">{{ usecase.review_countdown_label }}</span>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <section class="section">
+                <div class="section-header">
+                    <div>
+                        <h2 class="section-title">Habilitación y comentarios</h2>
+                        <p class="section-help">Estado de uso del caso y observaciones internas.</p>
+                    </div>
+                </div>
+                <div class="detail-grid">
+                    <div class="detail-item third">
+                        <span class="detail-label">Habilitado</span>
+                        <div class="detail-value">
+                            {% if usecase.is_enabled %}
+                                <span class="badge good">Sí</span>
+                            {% else %}
+                                <span class="badge bad">No</span>
+                            {% endif %}
+                        </div>
+                    </div>
+                    <div class="detail-item full">
+                        <span class="detail-label">Motivo de deshabilitación</span>
+                        <div class="detail-value">{{ usecase.disabled_reason|linebreaksbr|default:"-" }}</div>
+                    </div>
+                    <div class="detail-item full">
+                        <span class="detail-label">Comentarios</span>
+                        <div class="detail-value">{{ usecase.comments|linebreaksbr|default:"-" }}</div>
+                    </div>
+                    <div class="detail-item third">
+                        <span class="detail-label">Creado</span>
+                        <div class="detail-value mono">{{ usecase.created_at|date:"d/m/Y H:i" }}</div>
+                    </div>
+                    <div class="detail-item third">
+                        <span class="detail-label">Última actualización</span>
+                        <div class="detail-value mono">{{ usecase.updated_at|date:"d/m/Y H:i" }}</div>
+                    </div>
+                </div>
+            </section>
+        </main>
+
+        <aside class="card side-card">
+            <div class="section-header">
+                <div>
+                    <h2 class="section-title">Resumen</h2>
+                    <p class="section-help">Estado operativo del caso.</p>
+                </div>
+            </div>
+
+            <div class="status-line">
+                <div class="status-label">Estado</div>
+                <div class="status-value">{{ usecase.status|default:"-" }}</div>
+            </div>
+            <div class="status-line">
+                <div class="status-label">Habilitado</div>
+                <div class="status-value">
+                    {% if usecase.is_enabled %}<span class="badge good">Sí</span>{% else %}<span class="badge bad">No</span>{% endif %}
+                </div>
+            </div>
+            <div class="status-line">
+                <div class="status-label">Severidad</div>
+                <div class="status-value">{{ usecase.severity|default:"-" }}</div>
+            </div>
+            <div class="status-line">
+                <div class="status-label">ATT&amp;CK</div>
+                <div class="status-value">{{ usecase.mitre_attacks.count }}</div>
+            </div>
+            <div class="status-line">
+                <div class="status-label">D3FEND inferido</div>
+                <div class="status-value">{{ usecase.inferred_d3fends|length }}</div>
+            </div>
+            <div class="status-line">
+                <div class="status-label">Próx. revisión</div>
+                <div class="status-value">{{ usecase.next_review_date|date:"d/m/Y"|default:"—" }}</div>
+            </div>
+            <div class="status-line">
+                <div class="status-label">Contador</div>
+                <div class="status-value">
+                    {% if usecase.days_until_review is None %}
+                        <span class="badge">Sin fecha</span>
+                    {% elif usecase.days_until_review < 0 %}
+                        <span class="badge bad">{{ usecase.review_countdown_label }}</span>
+                    {% elif usecase.days_until_review <= 30 %}
+                        <span class="badge warn">{{ usecase.review_countdown_label }}</span>
+                    {% else %}
+                        <span class="badge good">{{ usecase.review_countdown_label }}</span>
+                    {% endif %}
+                </div>
+            </div>
+        </aside>
+    </div>
+
+    <section class="card history-card" id="historial-cambios">
+        <div class="history-header">
+            <div>
+                <h2 class="history-title">Historial de cambios</h2>
+                <p class="section-help">Últimas modificaciones registradas para este caso de uso.</p>
+            </div>
+            {% if change_logs_page.paginator.count %}
+                <div class="history-count">
+                    Mostrando {{ change_logs_page.start_index }}-{{ change_logs_page.end_index }} de {{ change_logs_page.paginator.count }} cambios
+                </div>
+            {% endif %}
+        </div>
+
+        <div class="table-wrap">
+            <table class="history-table">
+                <thead>
+                    <tr>
+                        <th>Fecha</th>
+                        <th>Usuario</th>
+                        <th>Campo</th>
+                        <th>Valor anterior</th>
+                        <th>Valor nuevo</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for log in change_logs %}
+                    <tr>
+                        <td class="mono">{{ log.changed_at|date:"d/m/Y H:i" }}</td>
+                        <td>
+                            {% if log.changed_by %}
+                                {{ log.changed_by.username }}
+                            {% else %}
+                                -
+                            {% endif %}
+                        </td>
+                        <td>{{ log.field_label }}</td>
+                        <td>{{ log.old_value_pretty }}</td>
+                        <td>{{ log.new_value_pretty }}</td>
+                    </tr>
+                    {% empty %}
+                    <tr>
+                        <td colspan="5" class="empty-value">No hay cambios registrados.</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+
+        {% if change_logs_page.has_other_pages %}
+            <nav class="pagination" aria-label="Paginación del historial de cambios">
+                {% if change_logs_page.has_previous %}
+                    <a href="?history_page={{ change_logs_page.previous_page_number }}#historial-cambios">Anterior</a>
+                {% else %}
+                    <span class="disabled">Anterior</span>
+                {% endif %}
+
+                {% for page_num in change_logs_page_range %}
+                    {% if page_num == change_logs_page.paginator.ELLIPSIS %}
+                        <span class="disabled">{{ page_num }}</span>
+                    {% elif page_num == change_logs_page.number %}
+                        <span class="current">{{ page_num }}</span>
+                    {% else %}
+                        <a href="?history_page={{ page_num }}#historial-cambios">{{ page_num }}</a>
+                    {% endif %}
+                {% endfor %}
+
+                {% if change_logs_page.has_next %}
+                    <a href="?history_page={{ change_logs_page.next_page_number }}#historial-cambios">Siguiente</a>
+                {% else %}
+                    <span class="disabled">Siguiente</span>
+                {% endif %}
+            </nav>
+        {% endif %}
+    </section>
+</div>
 </body>
 </html>

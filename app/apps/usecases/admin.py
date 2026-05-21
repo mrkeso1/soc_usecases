@@ -2,6 +2,7 @@ from django import forms
 from django.contrib import admin
 
 from .models import (
+    CoverageOverride,
     D3Fend,
     DashboardReportSettings,
     LifecycleReview,
@@ -39,6 +40,27 @@ def _short_text(value, max_length=90):
     if len(value) <= max_length:
         return value
     return f"{value[:max_length - 1]}…"
+
+
+@admin.register(CoverageOverride)
+class CoverageOverrideAdmin(admin.ModelAdmin):
+    list_display = (
+        "framework",
+        "object_type",
+        "object_key",
+        "object_name",
+        "status",
+        "reason_summary",
+        "updated_by",
+        "updated_at",
+    )
+    list_filter = ("framework", "object_type", "status")
+    search_fields = ("object_key", "object_name", "reason")
+    readonly_fields = ("created_at", "updated_at")
+
+    @admin.display(description="Motivo / evidencia")
+    def reason_summary(self, obj):
+        return _short_text(obj.reason)
 
 
 @admin.register(MitreAttack)

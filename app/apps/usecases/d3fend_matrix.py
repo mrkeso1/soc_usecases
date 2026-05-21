@@ -1,9 +1,10 @@
 from django.db.models import Prefetch
 
-from .models import D3Fend, MitreAttack, UseCase
+from .coverage_overrides import STATUS_FULFILLED, get_override_map, resolve_status
+from .models import CoverageOverride, D3Fend, MitreAttack, UseCase
 
 
-def _safe_percent(part: int, total: int) -> float:
+def _safe_percent(part: int | float, total: int | float) -> float:
     if not total:
         return 0.0
     return round((part / total) * 100, 1)
@@ -31,20 +32,39 @@ def build_d3fend_matrix_context(request):
         production_qs = production_qs.filter(severity__iexact=severity)
     production_qs = production_qs.distinct()
 
-    covered_attack_ids = set(
+    attack_overrides = get_override_map(CoverageOverride.FRAMEWORK_ATTACK)
+    d3fend_overrides = get_override_map(CoverageOverride.FRAMEWORK_D3FEND)
+
+    raw_covered_attack_ids = set(
         MitreAttack.objects
-        .filter(is_enabled=True, use_cases__in=production_qs)
+        .filter(use_cases__in=production_qs)
         .distinct()
         .values_list("id", flat=True)
     )
 
+    attack_status_by_id = {}
+    for attack in MitreAttack.objects.all().only("id", "external_id", "is_enabled"):
+        status = resolve_status(
+            attack_overrides,
+            framework=CoverageOverride.FRAMEWORK_ATTACK,
+            object_type=CoverageOverride.OBJECT_TECHNIQUE,
+            object_key=attack.external_id,
+            default_enabled=attack.is_enabled,
+        )
+        if status.is_enabled:
+            attack_status_by_id[attack.id] = status
+
+    covered_attack_ids = {
+        attack_id for attack_id, status in attack_status_by_id.items()
+        if attack_id in raw_covered_attack_ids or status.is_fulfilled
+    }
+
     d3fends = (
         D3Fend.objects
-        .filter(is_enabled=True)
         .prefetch_related(
             Prefetch(
                 "related_attacks",
-                queryset=MitreAttack.objects.filter(is_enabled=True).order_by("external_id", "name"),
+                queryset=MitreAttack.objects.order_by("external_id", "name"),
             )
         )
         .distinct()
@@ -57,13 +77,41 @@ def build_d3fend_matrix_context(request):
     fully_covered = 0
     partially_covered = 0
     without_attacks = 0
+    manual_fulfilled = 0
 
     for d3fend in d3fends:
+        technique_status = resolve_status(
+            d3fend_overrides,
+            framework=CoverageOverride.FRAMEWORK_D3FEND,
+            object_type=CoverageOverride.OBJECT_TECHNIQUE,
+            object_key=d3fend.code,
+            default_enabled=d3fend.is_enabled,
+        )
+        if not technique_status.is_enabled:
+            continue
+
+        category_status = None
+        if d3fend.category:
+            category_status = resolve_status(
+                d3fend_overrides,
+                framework=CoverageOverride.FRAMEWORK_D3FEND,
+                object_type=CoverageOverride.OBJECT_CATEGORY,
+                object_key=d3fend.category,
+                default_enabled=True,
+            )
+            if not category_status.is_enabled:
+                continue
+
+        is_manually_fulfilled = technique_status.is_fulfilled or bool(category_status and category_status.is_fulfilled)
+        if is_manually_fulfilled:
+            manual_fulfilled += 1
+
         attacks = []
         covered_count = 0
-        related_attacks = list(d3fend.related_attacks.all())
+        related_attacks = [attack for attack in d3fend.related_attacks.all() if attack.id in attack_status_by_id]
+
         for attack in related_attacks:
-            covered = attack.id in covered_attack_ids
+            covered = attack.id in covered_attack_ids or is_manually_fulfilled
             if covered:
                 covered_count += 1
             attacks.append({
@@ -74,25 +122,40 @@ def build_d3fend_matrix_context(request):
             })
 
         total_attacks = len(attacks)
-        percent = _safe_percent(covered_count, total_attacks)
-        total_relations += total_attacks
-        total_covered_relations += covered_count
-        if total_attacks == 0:
+        denominator = total_attacks or (1 if is_manually_fulfilled else 0)
+        numerator = covered_count if total_attacks else (1 if is_manually_fulfilled else 0)
+        percent = _safe_percent(numerator, denominator)
+
+        total_relations += denominator
+        total_covered_relations += numerator
+        if denominator == 0:
             without_attacks += 1
-        elif covered_count == total_attacks:
+        elif numerator == denominator:
             fully_covered += 1
-        elif covered_count > 0:
+        elif numerator > 0:
             partially_covered += 1
+
+        override_reason = ""
+        override_source = ""
+        if category_status and category_status.is_fulfilled:
+            override_reason = category_status.reason
+            override_source = "Categoría cumplida por herramienta"
+        elif technique_status.is_fulfilled:
+            override_reason = technique_status.reason
+            override_source = "Técnica cumplida por herramienta"
 
         rows.append({
             "d3fend": d3fend,
             "attacks": attacks,
-            "covered_attacks": covered_count,
-            "total_attacks": total_attacks,
+            "covered_attacks": numerator,
+            "total_attacks": denominator,
             "coverage_percent": percent,
             "coverage_label": str(percent).replace(".", ","),
             "coverage_width": str(percent),
             "level": _coverage_level(percent),
+            "manual_fulfilled": is_manually_fulfilled,
+            "override_source": override_source,
+            "override_reason": override_reason,
         })
 
     if sort == "coverage_desc":
@@ -127,4 +190,5 @@ def build_d3fend_matrix_context(request):
         "fully_covered": fully_covered,
         "partially_covered": partially_covered,
         "without_attacks": without_attacks,
+        "manual_fulfilled": manual_fulfilled,
     }

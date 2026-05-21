@@ -12,7 +12,10 @@ from .views import (
     lifecycle_management_view,
     lifecycle_mark_done,
     lifecycle_assign_owner,
+    attack_matrix_view,
     d3fend_matrix_view,
+    coverage_admin_view,
+    coverage_override_update,
 )
 
 urlpatterns = [
@@ -23,7 +26,10 @@ urlpatterns = [
     path("lifecycle/", lifecycle_management_view, name="lifecycle_management"),
     path("lifecycle/<int:pk>/done/", lifecycle_mark_done, name="lifecycle_mark_done"),
     path("lifecycle/<int:pk>/assign-owner/", lifecycle_assign_owner, name="lifecycle_assign_owner"),
+    path("attack-matrix/", attack_matrix_view, name="attack_matrix"),
     path("d3fend-matrix/", d3fend_matrix_view, name="d3fend_matrix"),
+    path("coverage-admin/", coverage_admin_view, name="coverage_admin"),
+    path("coverage-admin/update/", coverage_override_update, name="coverage_override_update"),
     path("autocomplete/mitre/", mitre_attack_autocomplete, name="mitre_attack_autocomplete"),
     path("<int:pk>/", usecase_detail, name="usecase_detail"),
     path("<int:pk>/edit/", usecase_edit, name="usecase_edit"),

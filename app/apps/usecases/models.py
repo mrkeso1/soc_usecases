@@ -137,6 +137,82 @@ class D3Fend(models.Model):
         return self.related_attacks.filter(is_enabled=True).count()
 
 
+class CoverageOverride(models.Model):
+    """Estado manual de cobertura para ATT&CK/D3FEND.
+
+    Sirve para cubrir técnicas/tácticas por herramientas externas al inventario
+    o para excluir elementos que no aplican. No reemplaza la relación real entre
+    un caso de uso y ATT&CK/D3FEND; es una capa de administración de cobertura.
+    """
+
+    FRAMEWORK_ATTACK = "ATTACK"
+    FRAMEWORK_D3FEND = "D3FEND"
+    FRAMEWORK_CHOICES = [
+        (FRAMEWORK_ATTACK, "ATT&CK"),
+        (FRAMEWORK_D3FEND, "D3FEND"),
+    ]
+
+    OBJECT_TACTIC = "tactic"
+    OBJECT_TECHNIQUE = "technique"
+    OBJECT_CATEGORY = "category"
+    OBJECT_TYPE_CHOICES = [
+        (OBJECT_TACTIC, "Táctica ATT&CK"),
+        (OBJECT_TECHNIQUE, "Técnica"),
+        (OBJECT_CATEGORY, "Categoría D3FEND"),
+    ]
+
+    STATUS_ENABLED = "enabled"
+    STATUS_FULFILLED = "fulfilled"
+    STATUS_DISABLED = "disabled"
+    STATUS_CHOICES = [
+        (STATUS_ENABLED, "Habilitada"),
+        (STATUS_FULFILLED, "Cumplida por herramienta"),
+        (STATUS_DISABLED, "Deshabilitada / no aplica"),
+    ]
+
+    framework = models.CharField("Framework", max_length=12, choices=FRAMEWORK_CHOICES)
+    object_type = models.CharField("Tipo de objeto", max_length=20, choices=OBJECT_TYPE_CHOICES)
+    object_key = models.CharField("Clave", max_length=160)
+    object_name = models.CharField("Nombre", max_length=255, blank=True, default="")
+    status = models.CharField("Estado", max_length=20, choices=STATUS_CHOICES, default=STATUS_ENABLED)
+    reason = models.TextField(
+        "Motivo / evidencia",
+        blank=True,
+        default="",
+        help_text="Obligatorio si se marca como cumplida por herramienta o deshabilitada/no aplica.",
+    )
+    updated_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name="coverage_overrides_updated",
+        verbose_name="Actualizado por",
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["framework", "object_type", "object_key"]
+        verbose_name = "Override de cobertura"
+        verbose_name_plural = "Overrides de cobertura"
+        constraints = [
+            models.UniqueConstraint(
+                fields=["framework", "object_type", "object_key"],
+                name="unique_coverage_override_target",
+            )
+        ]
+
+    def __str__(self):
+        return f"{self.framework} · {self.object_type} · {self.object_key} · {self.get_status_display()}"
+
+    def clean(self):
+        super().clean()
+        reason = (self.reason or "").strip()
+        if self.status in {self.STATUS_FULFILLED, self.STATUS_DISABLED} and not reason:
+            raise ValidationError({"reason": "Indicá el motivo o evidencia para este estado."})
+
+
 class DashboardReportSettings(models.Model):
     name = models.CharField(max_length=100, default="Reporte principal", unique=True)
     is_active = models.BooleanField(default=True)

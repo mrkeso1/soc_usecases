@@ -13,11 +13,13 @@ from django.http import HttpResponse, JsonResponse, HttpResponseForbidden, Query
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
 
+from .attack_matrix import build_attack_matrix_context
 from .d3fend_matrix import build_d3fend_matrix_context
 from .dashboard import build_dashboard_context
 from .forms import UseCaseForm
+from .coverage_overrides import get_override_map, item_matches_query, resolve_status, split_values
 from .lifecycle import current_lifecycle_window
-from .models import D3Fend, LifecycleReview, MitreAttack, UseCase, UseCaseChangeLog
+from .models import CoverageOverride, D3Fend, LifecycleReview, MitreAttack, UseCase, UseCaseChangeLog
 from .permissions import (
     can_access_usecases,
     can_add_usecases,
@@ -52,7 +54,7 @@ def _resolve_user_roles(user) -> dict:
     return {"groups": group_names, "is_admin": is_admin, "is_analyst": is_analyst, "is_readonly": is_readonly}
 
 
-def _get_filtered_usecases(request, *, with_prefetch: bool = True):
+def _get_filtered_usecases(request, *, with_prefetch: bool = True, ignore_quick: bool = False):
     # El inventario operativo y los links del dashboard trabajan solo sobre casos
     # en Producción. Los estados Draft/Test/Desarrollo/Baja no participan en
     # cobertura ni se pueden consultar desde estos filtros del front.
@@ -73,7 +75,7 @@ def _get_filtered_usecases(request, *, with_prefetch: bool = True):
     mitre_id       = request.GET.get("mitre_id", "").strip()
     mitre_tactic   = request.GET.get("mitre_tactic", "").strip()
     d3fend_id      = request.GET.get("d3fend_id", "").strip()
-    quick          = request.GET.get("quick", "").strip()
+    quick          = "" if ignore_quick else request.GET.get("quick", "").strip()
 
     if q:
         qs = qs.filter(name__icontains=q)
@@ -123,6 +125,10 @@ def _get_filtered_usecases(request, *, with_prefetch: bool = True):
         qs = qs.filter(mitre_attacks__isnull=True)
     elif quick == "without_d3fend":
         qs = qs.filter(d3fends__isnull=True)
+    elif quick == "enabled":
+        qs = qs.filter(is_enabled=True)
+    elif quick == "critical":
+        qs = qs.filter(severity__iexact="Critical")
 
     filters = {
         "q": q, "status": status, "device": device, "severity": severity,
@@ -298,6 +304,179 @@ def _usecase_business_rule_errors(usecase, *, mitre_ids=None):
     return errors
 
 
+
+def _coverage_status_label(status: str) -> str:
+    return dict(CoverageOverride.STATUS_CHOICES).get(status, status)
+
+
+def _coverage_admin_status_options():
+    return CoverageOverride.STATUS_CHOICES
+
+
+def _coverage_object_type_label(object_type: str) -> str:
+    return dict(CoverageOverride.OBJECT_TYPE_CHOICES).get(object_type, object_type)
+
+
+def _build_attack_tactic_rows(q: str, overrides: dict) -> list[dict]:
+    tactic_map: dict[str, dict] = {}
+    for attack in MitreAttack.objects.all().order_by("external_id", "name"):
+        for tactic in split_values(attack.tactic) or ["Sin táctica"]:
+            data = tactic_map.setdefault(tactic, {"techniques": 0, "enabled": 0, "fulfilled": 0, "disabled": 0})
+            technique_status = resolve_status(
+                overrides,
+                framework=CoverageOverride.FRAMEWORK_ATTACK,
+                object_type=CoverageOverride.OBJECT_TECHNIQUE,
+                object_key=attack.external_id,
+                default_enabled=attack.is_enabled,
+            )
+            data["techniques"] += 1
+            if technique_status.status == CoverageOverride.STATUS_FULFILLED:
+                data["fulfilled"] += 1
+            elif technique_status.status == CoverageOverride.STATUS_DISABLED:
+                data["disabled"] += 1
+            else:
+                data["enabled"] += 1
+
+    rows = []
+    for tactic, data in tactic_map.items():
+        if not item_matches_query([tactic], q):
+            continue
+        status = resolve_status(
+            overrides,
+            framework=CoverageOverride.FRAMEWORK_ATTACK,
+            object_type=CoverageOverride.OBJECT_TACTIC,
+            object_key=tactic,
+            default_enabled=True,
+        )
+        rows.append({
+            "framework": CoverageOverride.FRAMEWORK_ATTACK,
+            "object_type": CoverageOverride.OBJECT_TACTIC,
+            "object_type_label": "Táctica",
+            "object_key": tactic,
+            "object_name": tactic,
+            "title": tactic,
+            "subtitle": f"{data['techniques']} técnicas/subtécnicas · {data['fulfilled']} cumplidas · {data['disabled']} deshabilitadas",
+            "status": status.status,
+            "status_label": status.label,
+            "status_class": status.css_class,
+            "reason": status.reason,
+            "default_enabled": True,
+            "source": status.source,
+        })
+    return sorted(rows, key=lambda row: row["title"].lower())
+
+
+def _build_attack_technique_rows(q: str, overrides: dict) -> list[dict]:
+    rows = []
+    qs = MitreAttack.objects.all().order_by("external_id", "name")
+    for attack in qs:
+        if not item_matches_query([attack.external_id, attack.name, attack.tactic], q):
+            continue
+        status = resolve_status(
+            overrides,
+            framework=CoverageOverride.FRAMEWORK_ATTACK,
+            object_type=CoverageOverride.OBJECT_TECHNIQUE,
+            object_key=attack.external_id,
+            default_enabled=attack.is_enabled,
+        )
+        rows.append({
+            "framework": CoverageOverride.FRAMEWORK_ATTACK,
+            "object_type": CoverageOverride.OBJECT_TECHNIQUE,
+            "object_type_label": "Técnica",
+            "object_key": attack.external_id,
+            "object_name": attack.name,
+            "title": f"{attack.external_id} · {attack.name or 'Sin nombre'}",
+            "subtitle": attack.tactic or "Sin táctica",
+            "status": status.status,
+            "status_label": status.label,
+            "status_class": status.css_class,
+            "reason": status.reason,
+            "default_enabled": attack.is_enabled,
+            "source": status.source,
+        })
+    return rows
+
+
+def _build_d3fend_category_rows(q: str, overrides: dict) -> list[dict]:
+    category_map: dict[str, dict] = {}
+    for d3fend in D3Fend.objects.all().order_by("category", "code"):
+        category = d3fend.category or "Sin categoría"
+        data = category_map.setdefault(category, {"techniques": 0, "enabled": 0, "fulfilled": 0, "disabled": 0})
+        technique_status = resolve_status(
+            overrides,
+            framework=CoverageOverride.FRAMEWORK_D3FEND,
+            object_type=CoverageOverride.OBJECT_TECHNIQUE,
+            object_key=d3fend.code,
+            default_enabled=d3fend.is_enabled,
+        )
+        data["techniques"] += 1
+        if technique_status.status == CoverageOverride.STATUS_FULFILLED:
+            data["fulfilled"] += 1
+        elif technique_status.status == CoverageOverride.STATUS_DISABLED:
+            data["disabled"] += 1
+        else:
+            data["enabled"] += 1
+
+    rows = []
+    for category, data in category_map.items():
+        if not item_matches_query([category], q):
+            continue
+        status = resolve_status(
+            overrides,
+            framework=CoverageOverride.FRAMEWORK_D3FEND,
+            object_type=CoverageOverride.OBJECT_CATEGORY,
+            object_key=category,
+            default_enabled=True,
+        )
+        rows.append({
+            "framework": CoverageOverride.FRAMEWORK_D3FEND,
+            "object_type": CoverageOverride.OBJECT_CATEGORY,
+            "object_type_label": "Categoría",
+            "object_key": category,
+            "object_name": category,
+            "title": category,
+            "subtitle": f"{data['techniques']} técnicas · {data['fulfilled']} cumplidas · {data['disabled']} deshabilitadas",
+            "status": status.status,
+            "status_label": status.label,
+            "status_class": status.css_class,
+            "reason": status.reason,
+            "default_enabled": True,
+            "source": status.source,
+        })
+    return sorted(rows, key=lambda row: row["title"].lower())
+
+
+def _build_d3fend_technique_rows(q: str, overrides: dict) -> list[dict]:
+    rows = []
+    qs = D3Fend.objects.all().order_by("code", "name")
+    for d3fend in qs:
+        if not item_matches_query([d3fend.code, d3fend.name, d3fend.category], q):
+            continue
+        status = resolve_status(
+            overrides,
+            framework=CoverageOverride.FRAMEWORK_D3FEND,
+            object_type=CoverageOverride.OBJECT_TECHNIQUE,
+            object_key=d3fend.code,
+            default_enabled=d3fend.is_enabled,
+        )
+        rows.append({
+            "framework": CoverageOverride.FRAMEWORK_D3FEND,
+            "object_type": CoverageOverride.OBJECT_TECHNIQUE,
+            "object_type_label": "Técnica",
+            "object_key": d3fend.code,
+            "object_name": d3fend.name,
+            "title": f"{d3fend.code} · {d3fend.name or 'Sin nombre'}",
+            "subtitle": d3fend.category or "Sin categoría",
+            "status": status.status,
+            "status_label": status.label,
+            "status_class": status.css_class,
+            "reason": status.reason,
+            "default_enabled": d3fend.is_enabled,
+            "source": status.source,
+        })
+    return rows
+
+
 # ── Views ─────────────────────────────────────────────────────────────────────
 
 @login_required
@@ -321,10 +500,133 @@ def dashboard_pdf_export(request):
 
 
 @login_required
+def attack_matrix_view(request):
+    if not can_access_usecases(request.user):
+        return HttpResponseForbidden(_FORBIDDEN_MSG)
+    return render(request, "usecases/attack_matrix.html", build_attack_matrix_context(request))
+
+
+@login_required
 def d3fend_matrix_view(request):
     if not can_access_usecases(request.user):
         return HttpResponseForbidden(_FORBIDDEN_MSG)
     return render(request, "usecases/d3fend_matrix.html", build_d3fend_matrix_context(request))
+
+
+@login_required
+def coverage_admin_view(request):
+    if not can_manage_usecases(request.user, None):
+        return HttpResponseForbidden(_FORBIDDEN_MSG)
+
+    tab = request.GET.get("tab", CoverageOverride.FRAMEWORK_ATTACK).strip().upper()
+    if tab not in {CoverageOverride.FRAMEWORK_ATTACK, CoverageOverride.FRAMEWORK_D3FEND}:
+        tab = CoverageOverride.FRAMEWORK_ATTACK
+
+    if tab == CoverageOverride.FRAMEWORK_ATTACK:
+        scope = request.GET.get("scope", CoverageOverride.OBJECT_TACTIC).strip().lower()
+        allowed_scopes = {CoverageOverride.OBJECT_TACTIC, CoverageOverride.OBJECT_TECHNIQUE}
+    else:
+        scope = request.GET.get("scope", CoverageOverride.OBJECT_CATEGORY).strip().lower()
+        allowed_scopes = {CoverageOverride.OBJECT_CATEGORY, CoverageOverride.OBJECT_TECHNIQUE}
+    if scope not in allowed_scopes:
+        scope = CoverageOverride.OBJECT_TACTIC if tab == CoverageOverride.FRAMEWORK_ATTACK else CoverageOverride.OBJECT_CATEGORY
+
+    q = request.GET.get("q", "").strip()
+    status_filter = request.GET.get("status", "").strip()
+    if status_filter not in {"", CoverageOverride.STATUS_ENABLED, CoverageOverride.STATUS_FULFILLED, CoverageOverride.STATUS_DISABLED}:
+        status_filter = ""
+
+    overrides = get_override_map(tab)
+    if tab == CoverageOverride.FRAMEWORK_ATTACK and scope == CoverageOverride.OBJECT_TACTIC:
+        rows = _build_attack_tactic_rows(q, overrides)
+    elif tab == CoverageOverride.FRAMEWORK_ATTACK:
+        rows = _build_attack_technique_rows(q, overrides)
+    elif scope == CoverageOverride.OBJECT_CATEGORY:
+        rows = _build_d3fend_category_rows(q, overrides)
+    else:
+        rows = _build_d3fend_technique_rows(q, overrides)
+
+    counters = Counter(row["status"] for row in rows)
+    if status_filter:
+        rows = [row for row in rows if row["status"] == status_filter]
+
+    paginator = Paginator(rows, 25)
+    page_obj = paginator.get_page(request.GET.get("page"))
+
+    return render(request, "usecases/coverage_admin.html", {
+        "rows": page_obj.object_list,
+        "page_obj": page_obj,
+        "paginator": paginator,
+        "tab": tab,
+        "scope": scope,
+        "q": q,
+        "status_filter": status_filter,
+        "status_options": _coverage_admin_status_options(),
+        "counters": counters,
+        "counter_enabled": counters.get(CoverageOverride.STATUS_ENABLED, 0),
+        "counter_fulfilled": counters.get(CoverageOverride.STATUS_FULFILLED, 0),
+        "counter_disabled": counters.get(CoverageOverride.STATUS_DISABLED, 0),
+        "total_rows": len(rows),
+        "attack_framework": CoverageOverride.FRAMEWORK_ATTACK,
+        "d3fend_framework": CoverageOverride.FRAMEWORK_D3FEND,
+        "object_tactic": CoverageOverride.OBJECT_TACTIC,
+        "object_technique": CoverageOverride.OBJECT_TECHNIQUE,
+        "object_category": CoverageOverride.OBJECT_CATEGORY,
+    })
+
+
+@login_required
+def coverage_override_update(request):
+    if request.method != "POST":
+        return redirect("coverage_admin")
+    if not can_manage_usecases(request.user, None):
+        return HttpResponseForbidden(_FORBIDDEN_MSG)
+
+    framework = request.POST.get("framework", "").strip().upper()
+    object_type = request.POST.get("object_type", "").strip().lower()
+    object_key = request.POST.get("object_key", "").strip()
+    object_name = request.POST.get("object_name", "").strip()
+    status = request.POST.get("status", "").strip()
+    reason = request.POST.get("reason", "").strip()
+    default_enabled = request.POST.get("default_enabled") == "1"
+    next_url = request.POST.get("next") or reverse("coverage_admin")
+
+    valid_frameworks = {CoverageOverride.FRAMEWORK_ATTACK, CoverageOverride.FRAMEWORK_D3FEND}
+    valid_types = {CoverageOverride.OBJECT_TACTIC, CoverageOverride.OBJECT_TECHNIQUE, CoverageOverride.OBJECT_CATEGORY}
+    valid_statuses = {CoverageOverride.STATUS_ENABLED, CoverageOverride.STATUS_FULFILLED, CoverageOverride.STATUS_DISABLED}
+
+    if framework not in valid_frameworks or object_type not in valid_types or status not in valid_statuses or not object_key:
+        messages.error(request, "No se pudo actualizar la cobertura: datos inválidos.")
+        return redirect(next_url)
+
+    if status in {CoverageOverride.STATUS_FULFILLED, CoverageOverride.STATUS_DISABLED} and not reason:
+        messages.error(request, "Indicá el motivo/evidencia antes de guardar ese estado.")
+        return redirect(next_url)
+
+    # Si vuelve al estado normal y el catálogo original ya estaba habilitado, no
+    # hace falta guardar override: limpiamos la excepción y queda mantenible.
+    if status == CoverageOverride.STATUS_ENABLED and default_enabled:
+        CoverageOverride.objects.filter(
+            framework=framework,
+            object_type=object_type,
+            object_key=object_key,
+        ).delete()
+        messages.success(request, "Cobertura restablecida a Habilitada.")
+        return redirect(next_url)
+
+    override, _ = CoverageOverride.objects.update_or_create(
+        framework=framework,
+        object_type=object_type,
+        object_key=object_key,
+        defaults={
+            "object_name": object_name,
+            "status": status,
+            "reason": reason,
+            "updated_by": request.user,
+        },
+    )
+    messages.success(request, f"Cobertura actualizada: {override.get_status_display()}.")
+    return redirect(next_url)
 
 
 @login_required
@@ -397,11 +699,16 @@ def usecase_list(request):
     today      = date.today()
     soon_limit = today + timedelta(days=30)
 
+    quick_base_qs, _ = _get_filtered_usecases(request, with_prefetch=False, ignore_quick=True)
+
+    production_total       = quick_base_qs.count()
     visible_total          = qs.count()
-    visible_overdue        = qs.filter(next_review_date__lt=today).count()
-    visible_soon           = qs.filter(next_review_date__gte=today, next_review_date__lte=soon_limit).count()
-    visible_without_attack = qs.filter(mitre_attacks__isnull=True).distinct().count()
-    visible_without_d3fend = qs.filter(d3fends__isnull=True).distinct().count()
+    visible_enabled        = quick_base_qs.filter(is_enabled=True).count()
+    visible_critical       = quick_base_qs.filter(severity__iexact="Critical").count()
+    visible_overdue        = quick_base_qs.filter(next_review_date__lt=today).count()
+    visible_soon           = quick_base_qs.filter(next_review_date__gte=today, next_review_date__lte=soon_limit).count()
+    visible_without_attack = quick_base_qs.filter(mitre_attacks__isnull=True).distinct().count()
+    visible_without_d3fend = quick_base_qs.filter(d3fends__isnull=True).distinct().count()
 
     qs = list(qs)
     attack_ids = {attack.id for usecase in qs for attack in usecase.mitre_attacks.all()}
@@ -447,7 +754,10 @@ def usecase_list(request):
         "devices":                 devices,
         "owners":                  owners,
         "severity_choices":        UseCase.SEVERITY_CHOICES,
+        "production_total":        production_total,
         "visible_total":           visible_total,
+        "visible_enabled":         visible_enabled,
+        "visible_critical":        visible_critical,
         "visible_overdue":         visible_overdue,
         "visible_soon":            visible_soon,
         "visible_without_attack":  visible_without_attack,
