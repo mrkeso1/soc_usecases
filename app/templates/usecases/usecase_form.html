@@ -288,6 +288,12 @@
                         {{ form.is_enabled }}
                     </div>
 
+                    <div class="field full">
+                        <label>Motivo de deshabilitación</label>
+                        {{ form.disabled_reason }}
+                        <div class="hint">Obligatorio si el caso queda deshabilitado.</div>
+                    </div>
+
                     <div class="field">
                         <label>Última revisión</label>
                         {{ form.last_review_date }}

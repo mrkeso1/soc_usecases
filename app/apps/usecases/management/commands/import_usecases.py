@@ -192,6 +192,30 @@ def extract_attack_ids(value):
     return sorted(set(item.upper() for item in found))
 
 
+def validate_import_business_rules(payload, attack_ids):
+    errors = []
+
+    if payload.get("status") == "Producción" and not payload.get("production_date"):
+        errors.append("los casos en Producción requieren Fecha puesta en producción")
+
+    if payload.get("status") == "Producción" and not attack_ids:
+        errors.append("los casos en Producción requieren al menos una técnica MITRE ATT&CK")
+
+    validation_status = payload.get("validation_status", "")
+    validation_result = payload.get("validation_result", "")
+    last_validation_date = payload.get("last_validation_date")
+
+    if validation_status == "Finalizado" and validation_result == "Nada":
+        errors.append("si la validación está Finalizada, el Resultado no puede ser Nada")
+
+    if (validation_status == "Finalizado" or validation_result in {"OK", "Advertencia", "Falló"}) and not last_validation_date:
+        errors.append("las validaciones finalizadas o con resultado requieren Última validación")
+
+    if payload.get("is_enabled") is False and not (payload.get("disabled_reason") or "").strip():
+        errors.append("los casos deshabilitados requieren Motivo de deshabilitación")
+
+    return errors
+
 
 class Command(BaseCommand):
     help = "Importa casos de uso desde un archivo Excel"
@@ -279,6 +303,15 @@ class Command(BaseCommand):
                     self.stdout.write(self.style.WARNING(f"Fila {row_num}: omitida por no tener nombre."))
                     continue
 
+                attack_ids = extract_attack_ids(attack_raw)
+                business_errors = validate_import_business_rules(payload, attack_ids)
+                if business_errors:
+                    skipped_count += 1
+                    self.stdout.write(self.style.WARNING(
+                        f"Fila {row_num}: omitida por validación de negocio -> " + "; ".join(business_errors)
+                    ))
+                    continue
+
                 instance = UseCase.objects.filter(name=name).first()
 
                 if instance:
@@ -297,7 +330,6 @@ class Command(BaseCommand):
                     action = "creado"
                     created_count += 1
 
-                attack_ids = extract_attack_ids(attack_raw)
                 if hasattr(instance, "mitre_attacks"):
                     if allow_update:
                         instance.mitre_attacks.clear()

@@ -465,7 +465,7 @@
         .col-lv      { width: 110px; }
         .col-nr      { width: 100px; }
         .col-cd      { width: 115px; }
-        .col-en      { width: 60px; text-align: center; }
+        .col-en      { width: 125px; text-align: center; }
         .col-act     { width: 105px; }
 
         td.col-en { text-align: center; }
@@ -539,6 +539,24 @@
             height: 15px;
             accent-color: var(--accent);
             cursor: pointer;
+        }
+
+        .disabled-reason-input {
+            margin-top: 6px;
+            width: 100%;
+            background: var(--surface-3);
+            color: var(--text-strong);
+            border: 1px solid transparent;
+            border-radius: 6px;
+            padding: 4px 6px;
+            font-family: 'Syne', sans-serif;
+            font-size: 10px;
+            outline: none;
+        }
+
+        .disabled-reason-input:focus {
+            border-color: var(--border-bright);
+            background: var(--surface-2);
         }
 
         /* Badges */
@@ -1048,6 +1066,10 @@
 
                         <td class="col-en">
                             <input class="cell-checkbox" type="checkbox" name="is_enabled_{{ uc.pk }}" {% if uc.is_enabled %}checked{% endif %} {% if not uc.can_manage_by_user %}disabled{% endif %}>
+                            <input class="disabled-reason-input" type="text" name="disabled_reason_{{ uc.pk }}"
+                                   value="{{ uc.disabled_reason|default:'' }}"
+                                   placeholder="Motivo si se deshabilita"
+                                   {% if not uc.can_manage_by_user %}disabled{% endif %}>
                         </td>
 
                         <td class="col-act sticky-r">
@@ -1185,7 +1207,7 @@
     }
 
     document.getElementById('bulk-update-form')?.addEventListener('input', e => {
-        if (e.target.matches('.cell-input, .cell-date')) {
+        if (e.target.matches('.cell-input, .cell-date, .disabled-reason-input')) {
             markUseCaseChanged(e.target.closest('[data-usecase-row]')?.dataset.usecaseRow);
         }
     });

@@ -320,6 +320,9 @@
                 <div class="label">Habilitado</div>
                 <div class="value-box">{% if usecase.is_enabled %}Sí{% else %}No{% endif %}</div>
 
+                <div class="label">Motivo de deshabilitación</div>
+                <div class="value-box">{{ usecase.disabled_reason|default:"-" }}</div>
+
                 <div class="label">Última revisión</div>
                 <div class="value-box">{{ usecase.last_review_date|default:"-" }}</div>
 

@@ -26,6 +26,7 @@ class UseCaseForm(forms.ModelForm):
             "validation_status",
             "validation_result",
             "is_enabled",
+            "disabled_reason",
             # last_review_date y next_review_date son gestionados exclusivamente
             # por el sistema de lifecycle reviews — no deben editarse aquí.
             "comments",
@@ -57,6 +58,7 @@ class UseCaseForm(forms.ModelForm):
             "validation_status": forms.Select(attrs={"class": "form-control"}),
             "validation_result": forms.Select(attrs={"class": "form-control"}),
             "is_enabled": forms.CheckboxInput(attrs={"class": "form-check-input"}),
+            "disabled_reason": forms.Textarea(attrs={"class": "form-control", "rows": 3}),
             "comments": forms.Textarea(attrs={"class": "form-control", "rows": 4}),
         }
         help_texts = {
@@ -66,3 +68,16 @@ class UseCaseForm(forms.ModelForm):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.fields["mitre_attacks"].queryset = self.fields["mitre_attacks"].queryset.filter(is_enabled=True)
+
+    def clean(self):
+        cleaned_data = super().clean()
+        status = cleaned_data.get("status")
+        mitre_attacks = cleaned_data.get("mitre_attacks")
+
+        if status == "Producción" and not mitre_attacks:
+            self.add_error(
+                "mitre_attacks",
+                "Un caso en Producción debe tener al menos una técnica MITRE ATT&CK asociada.",
+            )
+
+        return cleaned_data

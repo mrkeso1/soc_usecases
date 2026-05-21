@@ -234,6 +234,7 @@ def _snapshot_usecase(usecase) -> dict:
         "validation_status":       usecase.validation_status,
         "validation_result":       usecase.validation_result,
         "is_enabled":              usecase.is_enabled,
+        "disabled_reason":         usecase.disabled_reason,
         "last_review_date":        usecase.last_review_date,
         "next_review_date":        usecase.next_review_date,
         "comments":                usecase.comments,
@@ -261,6 +262,40 @@ def _parse_date_field(raw: str):
         except ValueError:
             pass
     return None
+
+
+def _usecase_business_rule_errors(usecase, *, mitre_ids=None):
+    """Valida reglas funcionales que también aplican a updates rápidos/bulk."""
+    errors = []
+    status = (usecase.status or "").strip()
+
+    if mitre_ids is None:
+        if usecase.pk:
+            mitre_ids = set(usecase.mitre_attacks.values_list("id", flat=True))
+        else:
+            mitre_ids = set()
+    else:
+        mitre_ids = {int(item) for item in mitre_ids if str(item).isdigit()}
+
+    if status == PRODUCTION_STATUS and not usecase.production_date:
+        errors.append("Para pasar un caso a Producción tenés que cargar la fecha de puesta en producción.")
+
+    if status == PRODUCTION_STATUS and not mitre_ids:
+        errors.append("Un caso en Producción debe tener al menos una técnica MITRE ATT&CK asociada.")
+
+    validation_finished = usecase.validation_status == "Finalizado"
+    validation_has_result = usecase.validation_result in {"OK", "Advertencia", "Falló"}
+
+    if validation_finished and usecase.validation_result == "Nada":
+        errors.append("Si la validación está Finalizada, indicá un resultado distinto de Nada.")
+
+    if (validation_finished or validation_has_result) and not usecase.last_validation_date:
+        errors.append("Si cargás una validación finalizada o con resultado, indicá la fecha de última validación.")
+
+    if usecase.is_enabled is False and not (usecase.disabled_reason or "").strip():
+        errors.append("Indicá el motivo antes de deshabilitar este caso de uso.")
+
+    return errors
 
 
 # ── Views ─────────────────────────────────────────────────────────────────────
@@ -437,13 +472,13 @@ def export_usecases_csv(request):
     writer = csv.writer(response)
     writer.writerow([
         "Nombre", "Dispositivo", "Responsable desarrollo", "Estado", "Severidad",
-        "Ultimo control", "Proximo control", "Habilitado", "ATT&CK", "D3FEND",
+        "Ultimo control", "Proximo control", "Habilitado", "Motivo deshabilitación", "ATT&CK", "D3FEND",
     ])
     for uc in qs:
         writer.writerow([
             uc.name, uc.device, uc.owner_name, uc.status, uc.severity,
             uc.last_validation_date or "", uc.next_review_date or "",
-            "Si" if uc.is_enabled else "No",
+            "Si" if uc.is_enabled else "No", uc.disabled_reason or "",
             _serialize_mitre(uc), _serialize_d3fend(uc),
         ])
     return response
@@ -563,21 +598,32 @@ def usecase_quick_update(request, pk):
     _saved_next_review = usecase.next_review_date
 
     usecase.owner_name        = request.POST.get("owner_name", "").strip()
-    usecase.status            = request.POST.get("status", "").strip()
+    if "status" in request.POST:
+        usecase.status = request.POST.get("status", "").strip()
     usecase.severity          = request.POST.get("severity", "").strip()
     usecase.validation_status = request.POST.get("validation_status", "").strip()
     usecase.validation_result = request.POST.get("validation_result", "").strip()
     usecase.last_validation_date = _parse_date_field(
         request.POST.get("last_validation_date", "").strip()
     )
-    usecase.is_enabled    = request.POST.get("is_enabled") == "on"
+    usecase.is_enabled = request.POST.get("is_enabled") == "on"
+    if "disabled_reason" in request.POST:
+        usecase.disabled_reason = request.POST.get("disabled_reason", "").strip()
     usecase.last_review_date = _saved_last_review
     usecase.next_review_date = _saved_next_review
-    usecase.updated_by    = request.user
+
+    posted_mitre_ids = _parse_csv_ids(request.POST.get("mitre_attack_ids", ""))
+    errors = _usecase_business_rule_errors(usecase, mitre_ids=posted_mitre_ids)
+    if errors:
+        for error in errors:
+            messages.error(request, error)
+        return redirect("usecase_list")
+
+    usecase.updated_by = request.user
     usecase.save()
 
     usecase.mitre_attacks.set(
-        MitreAttack.objects.filter(id__in=_parse_csv_ids(request.POST.get("mitre_attack_ids", "")))
+        MitreAttack.objects.filter(id__in=posted_mitre_ids)
     )
     _sync_d3fends_from_attacks(usecase)
 
@@ -646,6 +692,8 @@ def usecase_bulk_update(request):
                 scalar_changes["validation_status"] = request.POST.get(f"validation_status_{pk}", "").strip()
             if f"validation_result_{pk}" in request.POST:
                 scalar_changes["validation_result"] = request.POST.get(f"validation_result_{pk}", "").strip()
+            if f"disabled_reason_{pk}" in request.POST:
+                scalar_changes["disabled_reason"] = request.POST.get(f"disabled_reason_{pk}", "").strip()
 
             changed_fields = []
             for field_name, new_value in scalar_changes.items():
@@ -659,6 +707,11 @@ def usecase_bulk_update(request):
 
             current_mitre_ids = {item.id for item in usecase.mitre_attacks.all()}
             posted_mitre_ids  = set(_parse_csv_ids(request.POST.get(f"mitre_attack_ids_{pk}", "")))
+
+            errors = _usecase_business_rule_errors(usecase, mitre_ids=posted_mitre_ids)
+            if errors:
+                messages.error(request, f"{usecase.name}: " + " ".join(errors))
+                continue
 
             m2m_changed = False
             if current_mitre_ids != posted_mitre_ids:

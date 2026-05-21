@@ -2,6 +2,7 @@ import calendar
 from datetime import date, datetime, timedelta
 
 from django.conf import settings
+from django.core.exceptions import ValidationError
 from django.db import models
 from django.db.models import Q
 
@@ -345,6 +346,12 @@ class UseCase(models.Model):
 
     last_review_date = models.DateField("Última revisión", null=True, blank=True)
     next_review_date = models.DateField("Próxima revisión", null=True, blank=True)
+    disabled_reason = models.TextField(
+        "Motivo de deshabilitación",
+        blank=True,
+        default="",
+        help_text="Motivo obligatorio cuando el caso de uso se deshabilita.",
+    )
     comments = models.TextField("Comentarios", blank=True)
 
     created_by = models.ForeignKey(
@@ -415,6 +422,28 @@ class UseCase(models.Model):
 
         self.d3fends.set(D3Fend.objects.filter(id__in=inferred_ids))
         return True
+
+    def clean(self):
+        super().clean()
+        errors = {}
+
+        if self.status == "Producción" and not self.production_date:
+            errors["production_date"] = "Para pasar un caso a Producción tenés que cargar la fecha de puesta en producción."
+
+        validation_finished = self.validation_status == "Finalizado"
+        validation_has_result = self.validation_result in {"OK", "Advertencia", "Falló"}
+
+        if validation_finished and self.validation_result == "Nada":
+            errors["validation_result"] = "Si la validación está Finalizada, indicá un resultado distinto de Nada."
+
+        if (validation_finished or validation_has_result) and not self.last_validation_date:
+            errors["last_validation_date"] = "Si cargás una validación finalizada o con resultado, indicá la fecha de última validación."
+
+        if self.is_enabled is False and not (self.disabled_reason or "").strip():
+            errors["disabled_reason"] = "Indicá el motivo antes de deshabilitar este caso de uso."
+
+        if errors:
+            raise ValidationError(errors)
 
     def save(self, *args, **kwargs):
         if isinstance(self.last_validation_date, str):
@@ -522,6 +551,7 @@ class UseCaseChangeLog(models.Model):
         "validation_status": "Estado de validación",
         "validation_result": "Resultado",
         "is_enabled": "Habilitado",
+        "disabled_reason": "Motivo de deshabilitación",
         "last_review_date": "Última revisión",
         "next_review_date": "Próxima revisión",
         "comments": "Comentarios",

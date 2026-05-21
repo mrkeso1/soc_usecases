@@ -161,8 +161,27 @@ class D3FendAdmin(admin.ModelAdmin):
         return _short_text(obj.disabled_reason)
 
 
+class UseCaseBusinessRulesAdminForm(forms.ModelForm):
+    """Validaciones de negocio para casos de uso desde Django Admin."""
+
+    def clean(self):
+        cleaned_data = super().clean()
+        status = cleaned_data.get("status")
+        mitre_attacks = cleaned_data.get("mitre_attacks")
+
+        if status == "Producción" and not mitre_attacks:
+            self.add_error(
+                "mitre_attacks",
+                "Un caso en Producción debe tener al menos una técnica MITRE ATT&CK asociada.",
+            )
+
+        return cleaned_data
+
+
 @admin.register(UseCase)
 class UseCaseAdmin(admin.ModelAdmin):
+    form = UseCaseBusinessRulesAdminForm
+
     list_display = (
         "name",
         "group_name",
@@ -173,6 +192,7 @@ class UseCaseAdmin(admin.ModelAdmin):
         "production_date",
         "next_review_date",
         "is_enabled",
+        "disabled_reason_summary",
         "mitre_count",
         "d3fend_count",
     )
@@ -186,6 +206,7 @@ class UseCaseAdmin(admin.ModelAdmin):
         "lifecycle_control_owner__first_name",
         "lifecycle_control_owner__last_name",
         "comments",
+        "disabled_reason",
         "mitre_attacks__external_id",
         "mitre_attacks__name",
         "d3fends__code",
@@ -250,6 +271,7 @@ class UseCaseAdmin(admin.ModelAdmin):
                     "validation_status",
                     "validation_result",
                     "is_enabled",
+                    "disabled_reason",
                     "comments",
                 )
             },
@@ -283,6 +305,12 @@ class UseCaseAdmin(admin.ModelAdmin):
             for item in obj.d3fends.all().order_by("code", "name")
         ]
         return ", ".join(values) if values else "Sin D3FEND inferido para los ATT&CK seleccionados."
+
+    @admin.display(description="Motivo deshabilitación")
+    def disabled_reason_summary(self, obj):
+        if obj.is_enabled:
+            return "-"
+        return _short_text(obj.disabled_reason)
 
     def save_related(self, request, form, formsets, change):
         super().save_related(request, form, formsets, change)
