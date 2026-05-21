@@ -2,7 +2,22 @@ from django import forms
 from .models import UseCase
 
 
-class UseCaseForm(forms.ModelForm):
+class MitreAttackM2MBridgeMixin(forms.ModelForm):
+    """Bridge para que UseCase.clean() valide MITRE ATT&CK antes de guardar M2M."""
+
+    def clean(self):
+        cleaned_data = super().clean()
+        mitre_attacks = cleaned_data.get("mitre_attacks")
+
+        if mitre_attacks is not None:
+            self.instance._clean_mitre_attack_ids = {
+                item.pk for item in mitre_attacks if item.pk
+            }
+
+        return cleaned_data
+
+
+class UseCaseForm(MitreAttackM2MBridgeMixin, forms.ModelForm):
     class Meta:
         model = UseCase
         fields = [
@@ -94,15 +109,3 @@ class UseCaseForm(forms.ModelForm):
         super().__init__(*args, **kwargs)
         self.fields["mitre_attacks"].queryset = self.fields["mitre_attacks"].queryset.filter(is_enabled=True)
 
-    def clean(self):
-        cleaned_data = super().clean()
-        status = cleaned_data.get("status")
-        mitre_attacks = cleaned_data.get("mitre_attacks")
-
-        if status == "Producción" and not mitre_attacks:
-            self.add_error(
-                "mitre_attacks",
-                "Un caso en Producción debe tener al menos una técnica MITRE ATT&CK asociada.",
-            )
-
-        return cleaned_data

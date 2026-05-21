@@ -10,7 +10,7 @@ from .coverage_overrides import (
 from .models import CoverageOverride, MitreAttack, UseCase
 
 
-PRODUCTION_STATUS = "Producción"
+PRODUCTION_STATUS = UseCase.STATUS_PRODUCTION
 
 
 def _safe_percent(part: int, total: int) -> float:

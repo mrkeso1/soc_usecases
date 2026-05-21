@@ -46,6 +46,41 @@
     .attack-chip.missing { color:#ff9aa3; border-color:rgba(255,71,87,.35); background:rgba(255,71,87,.08); }
     .empty-state { padding:28px; color:var(--text-muted); text-align:center; }
     @media (max-width: 1100px) { .summary-strip, .filters { grid-template-columns:repeat(2, 1fr); } .page-header { display:block; } }
+
+
+    /* Normalización visual alineada a Ciclo de Vida */
+    .page-header { margin-bottom: 18px !important; gap: 14px !important; }
+    .page-eyebrow, .eyebrow { font-size: 11px !important; letter-spacing: .12em !important; }
+    .page-title { font-size: 1.9rem !important; line-height: 1.12 !important; margin: 4px 0 !important; letter-spacing: -0.02em !important; }
+    .page-subtitle { font-size: .9rem !important; line-height: 1.45 !important; margin-top: 4px !important; }
+    .section-title, .history-title, .summary-title { font-size: 1.05rem !important; line-height: 1.25 !important; }
+    .section-help { font-size: .88rem !important; line-height: 1.45 !important; margin-bottom: 14px !important; }
+    .summary-strip { gap: 10px !important; margin: 18px 0 !important; }
+    .summary-card, .summary-chip, .panel, .card, .side-card { border-radius: 14px !important; }
+    .summary-card, .summary-chip { padding: 10px 14px !important; }
+    .summary-value, .chip-value { font-size: 1.2rem !important; line-height: 1.05 !important; margin-top: 6px !important; }
+    .summary-label, .chip-label, .field label, .detail-label, .readonly-label { font-size: 10px !important; letter-spacing: .07em !important; }
+    .btn, .btn-primary, .btn-secondary, .btn-ghost, .mini-btn, .save-btn, .action-link, .tab-button, .tab-link { font-size: 12px !important; border-radius: 8px !important; }
+    .btn, .btn-primary, .btn-secondary, .btn-ghost { min-height: 36px !important; padding: 8px 12px !important; }
+    .badge, .status-chip, .mapping-chip, .technique-chip, .attack-chip { font-size: .78rem !important; }
+    th, td { font-size: .88rem !important; }
+    th { font-size: .72rem !important; letter-spacing: .06em !important; }
+    @media (max-width: 720px) {
+        .page-title { font-size: 1.55rem !important; }
+        .page-header { margin-bottom: 14px !important; }
+    }
+
+    .summary-card { min-height: auto !important; }
+    .filters { padding: 12px !important; margin-bottom: 14px !important; border-radius: 14px !important; }
+    .field select, .field input, .field textarea { font-size: .88rem !important; padding: 9px 11px !important; border-radius: 8px !important; }
+    .tactic-card, .coverage-row, .matrix-wrap { border-radius: 14px !important; }
+    .tactic-card, .coverage-row { padding: 12px !important; }
+    .tactic-title, .row-title { font-size: 1rem !important; line-height: 1.25 !important; }
+    .tactic-meta, .row-subtitle { font-size: .82rem !important; }
+    .technique-chip, .attack-chip { padding: 6px 9px !important; }
+    .reason-field textarea { min-height: 64px !important; }
+    .pagination a, .pagination span { font-size: 12px !important; padding: 7px 10px !important; }
+
 </style>
 {% endblock %}
 

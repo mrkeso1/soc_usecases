@@ -7,6 +7,7 @@ from django.contrib import messages
 from django.contrib.auth import get_user_model
 from django.contrib.auth.decorators import login_required
 from django.core.paginator import Paginator
+from django.core.exceptions import ValidationError
 from django.db import transaction
 from django.db.models import Q
 from django.http import HttpResponse, JsonResponse, HttpResponseForbidden, QueryDict
@@ -28,30 +29,15 @@ from .permissions import (
     can_finish_lifecycle_review,
     can_manage_usecases,
     is_lifecycle_admin as user_is_lifecycle_admin,
+    resolve_user_roles,
 )
 from .reports import build_dashboard_pdf, get_active_dashboard_report_settings
 
 _FORBIDDEN_MSG = "No tenés permisos para acceder a esta sección."
-PRODUCTION_STATUS = "Producción"
+PRODUCTION_STATUS = UseCase.STATUS_PRODUCTION
 
 
 # ── Helpers ──────────────────────────────────────────────────────────────────
-
-def _resolve_user_roles(user) -> dict:
-    """Resolve all role/group checks for a user in a single DB query.
-
-    user_in_group() hits the DB on every call. Calling it once per view and
-    caching the results avoids N*K queries in list views that check permissions
-    per row (lifecycle loop, usecase_list, bulk_update).
-    """
-    if not getattr(user, "is_authenticated", False):
-        return {"groups": set(), "is_admin": False, "is_analyst": False, "is_readonly": False}
-
-    group_names = set(user.groups.values_list("name", flat=True))
-    is_admin    = bool(getattr(user, "is_superuser", False) or "Admin" in group_names)
-    is_analyst  = "Analyst" in group_names
-    is_readonly = "ReadOnly" in group_names and not is_admin and not is_analyst
-    return {"groups": group_names, "is_admin": is_admin, "is_analyst": is_analyst, "is_readonly": is_readonly}
 
 
 def _get_filtered_usecases(request, *, with_prefetch: bool = True, ignore_quick: bool = False):
@@ -176,20 +162,6 @@ def _serialize_d3fend(usecase) -> str:
     )
 
 
-def _inferred_d3fends_queryset(attack_ids):
-    return (
-        D3Fend.objects
-        .filter(is_enabled=True, related_attacks__is_enabled=True, related_attacks__id__in=attack_ids)
-        .distinct()
-        .order_by("code", "name")
-    )
-
-
-def _sync_d3fends_from_attacks(usecase) -> bool:
-    # D3FEND ya no se carga manualmente en el caso de uso.
-    # Se mantiene como caché interno sincronizado desde los ATT&CK asociados.
-    return usecase.sync_d3fends_from_attacks()
-
 
 def _serialize_user(user) -> str:
     if not user:
@@ -205,15 +177,6 @@ def _serialize_user(user) -> str:
         return f"{full_name} ({username})"
     return full_name or username or str(user)
 
-
-def _normalize_snapshot_value(value) -> str:
-    if value is None:
-        return ""
-    if isinstance(value, bool):
-        return "Sí" if value else "No"
-    if isinstance(value, (date, datetime)):
-        return value.strftime("%Y-%m-%d")
-    return str(value).strip()
 
 
 def _snapshot_usecase(usecase) -> dict:
@@ -247,20 +210,6 @@ def _snapshot_usecase(usecase) -> dict:
     }
 
 
-def create_change_logs(usecase, old_data: dict, new_data: dict, user) -> None:
-    for field in UseCaseChangeLog.FIELD_LABELS:
-        old_val = _normalize_snapshot_value(old_data.get(field))
-        new_val = _normalize_snapshot_value(new_data.get(field))
-        if old_val != new_val:
-            UseCaseChangeLog.objects.create(
-                use_case=usecase,
-                field_name=field,
-                old_value=old_val,
-                new_value=new_val,
-                changed_by=user if getattr(user, "is_authenticated", False) else None,
-            )
-
-
 def _parse_date_field(raw: str):
     if raw:
         try:
@@ -270,38 +219,39 @@ def _parse_date_field(raw: str):
     return None
 
 
+def _validation_error_messages(exc: ValidationError) -> list[str]:
+    if hasattr(exc, "message_dict"):
+        messages = []
+        for field_errors in exc.message_dict.values():
+            messages.extend(str(item) for item in field_errors)
+        return messages
+    return [str(item) for item in exc.messages]
+
+
 def _usecase_business_rule_errors(usecase, *, mitre_ids=None):
-    """Valida reglas funcionales que también aplican a updates rápidos/bulk."""
-    errors = []
-    status = (usecase.status or "").strip()
+    """Adapter para validar reglas centralizadas en UseCase.clean()."""
+    sentinel = object()
+    previous_mitre_ids = getattr(usecase, "_clean_mitre_attack_ids", sentinel)
 
-    if mitre_ids is None:
-        if usecase.pk:
-            mitre_ids = set(usecase.mitre_attacks.values_list("id", flat=True))
-        else:
-            mitre_ids = set()
-    else:
-        mitre_ids = {int(item) for item in mitre_ids if str(item).isdigit()}
+    if mitre_ids is not None:
+        usecase._clean_mitre_attack_ids = {
+            int(item) for item in mitre_ids if str(item).isdigit()
+        }
 
-    if status == PRODUCTION_STATUS and not usecase.production_date:
-        errors.append("Para pasar un caso a Producción tenés que cargar la fecha de puesta en producción.")
-
-    if status == PRODUCTION_STATUS and not mitre_ids:
-        errors.append("Un caso en Producción debe tener al menos una técnica MITRE ATT&CK asociada.")
-
-    validation_finished = usecase.validation_status == "Finalizado"
-    validation_has_result = usecase.validation_result in {"OK", "Advertencia", "Falló"}
-
-    if validation_finished and usecase.validation_result == "Nada":
-        errors.append("Si la validación está Finalizada, indicá un resultado distinto de Nada.")
-
-    if (validation_finished or validation_has_result) and not usecase.last_validation_date:
-        errors.append("Si cargás una validación finalizada o con resultado, indicá la fecha de última validación.")
-
-    if usecase.is_enabled is False and not (usecase.disabled_reason or "").strip():
-        errors.append("Indicá el motivo antes de deshabilitar este caso de uso.")
-
-    return errors
+    try:
+        usecase.clean()
+        return []
+    except ValidationError as exc:
+        return _validation_error_messages(exc)
+    finally:
+        if mitre_ids is not None:
+            if previous_mitre_ids is sentinel:
+                try:
+                    delattr(usecase, "_clean_mitre_attack_ids")
+                except AttributeError:
+                    pass
+            else:
+                usecase._clean_mitre_attack_ids = previous_mitre_ids
 
 
 
@@ -319,9 +269,21 @@ def _coverage_object_type_label(object_type: str) -> str:
 
 def _build_attack_tactic_rows(q: str, overrides: dict) -> list[dict]:
     tactic_map: dict[str, dict] = {}
-    for attack in MitreAttack.objects.all().order_by("external_id", "name"):
-        for tactic in split_values(attack.tactic) or ["Sin táctica"]:
-            data = tactic_map.setdefault(tactic, {"techniques": 0, "enabled": 0, "fulfilled": 0, "disabled": 0})
+    qs = MitreAttack.objects.all().only("external_id", "name", "tactic", "is_enabled").order_by("external_id", "name")
+    for attack in qs:
+        attack_tactics = split_values(attack.tactic) or ["Sin táctica"]
+        for tactic in attack_tactics:
+            data = tactic_map.setdefault(
+                tactic,
+                {
+                    "techniques": 0,
+                    "enabled": 0,
+                    "fulfilled": 0,
+                    "disabled": 0,
+                    "search_values": {tactic},
+                },
+            )
+            data["search_values"].update([attack.external_id, attack.name, attack.tactic])
             technique_status = resolve_status(
                 overrides,
                 framework=CoverageOverride.FRAMEWORK_ATTACK,
@@ -339,7 +301,10 @@ def _build_attack_tactic_rows(q: str, overrides: dict) -> list[dict]:
 
     rows = []
     for tactic, data in tactic_map.items():
-        if not item_matches_query([tactic], q):
+        # In the tactic scope the visible row is the tactic, but the user will
+        # naturally search by child technique ID/name as well. Include those
+        # child values so the search does not look broken from the default tab.
+        if not item_matches_query(data["search_values"], q):
             continue
         status = resolve_status(
             overrides,
@@ -399,9 +364,20 @@ def _build_attack_technique_rows(q: str, overrides: dict) -> list[dict]:
 
 def _build_d3fend_category_rows(q: str, overrides: dict) -> list[dict]:
     category_map: dict[str, dict] = {}
-    for d3fend in D3Fend.objects.all().order_by("category", "code"):
+    qs = D3Fend.objects.all().only("code", "name", "category", "is_enabled").order_by("category", "code")
+    for d3fend in qs:
         category = d3fend.category or "Sin categoría"
-        data = category_map.setdefault(category, {"techniques": 0, "enabled": 0, "fulfilled": 0, "disabled": 0})
+        data = category_map.setdefault(
+            category,
+            {
+                "techniques": 0,
+                "enabled": 0,
+                "fulfilled": 0,
+                "disabled": 0,
+                "search_values": {category},
+            },
+        )
+        data["search_values"].update([d3fend.code, d3fend.name, d3fend.category])
         technique_status = resolve_status(
             overrides,
             framework=CoverageOverride.FRAMEWORK_D3FEND,
@@ -419,7 +395,9 @@ def _build_d3fend_category_rows(q: str, overrides: dict) -> list[dict]:
 
     rows = []
     for category, data in category_map.items():
-        if not item_matches_query([category], q):
+        # Same UX rule as ATT&CK tactics: in the category scope, searching by a
+        # child D3FEND code/name should still return the parent category.
+        if not item_matches_query(data["search_values"], q):
             continue
         status = resolve_status(
             overrides,
@@ -712,14 +690,15 @@ def usecase_list(request):
 
     qs = list(qs)
     attack_ids = {attack.id for usecase in qs for attack in usecase.mitre_attacks.all()}
-    inferred_d3fends     = list(_inferred_d3fends_queryset(attack_ids))
+    inferred_d3fends = list(UseCase.inferred_d3fends_for_attack_ids_queryset(attack_ids))
     d3fend_by_attack_id: dict[int, list] = {}
     for d3fend in inferred_d3fends:
-        for attack_id in [a.id for a in d3fend.related_attacks.all() if a.is_enabled]:
-            d3fend_by_attack_id.setdefault(attack_id, []).append(d3fend)
+        for attack in d3fend.related_attacks.all():
+            if attack.is_enabled:
+                d3fend_by_attack_id.setdefault(attack.id, []).append(d3fend)
 
     # Resolve user roles once — avoids N*2 group DB queries in the loop below.
-    roles = _resolve_user_roles(request.user)
+    roles = resolve_user_roles(request.user)
 
     for usecase in qs:
         seen_ids, inferred_for = set(), []
@@ -809,7 +788,7 @@ def usecase_create(request):
                 usecase.owner_name = request.user.get_full_name() or request.user.username
             usecase.save()
             form.save_m2m()
-            _sync_d3fends_from_attacks(usecase)
+            usecase.sync_d3fends_from_attacks()
             messages.success(request, "Caso de uso creado correctamente.")
             return redirect("usecase_detail", pk=usecase.pk)
     else:
@@ -838,9 +817,9 @@ def usecase_edit(request, pk):
             updated.updated_by = request.user
             updated.save()
             form.save_m2m()
-            _sync_d3fends_from_attacks(updated)
+            updated.sync_d3fends_from_attacks()
             new_data = _snapshot_usecase(updated)
-            create_change_logs(updated, old_data, new_data, request.user)
+            UseCaseChangeLog.create_diff(updated, old_data, new_data, request.user)
             messages.success(request, "Caso de uso actualizado correctamente.")
             return redirect("usecase_detail", pk=updated.pk)
     else:
@@ -881,7 +860,6 @@ def usecase_detail(request, pk):
         request, "usecases/usecase_detail.html",
         {
             "usecase":              usecase,
-            "change_logs":            change_logs_page,
             "change_logs_page":       change_logs_page,
             "change_logs_page_range": change_logs_page_range,
             "can_manage_usecases":    can_manage_usecases(request.user, usecase),
@@ -935,10 +913,10 @@ def usecase_quick_update(request, pk):
     usecase.mitre_attacks.set(
         MitreAttack.objects.filter(id__in=posted_mitre_ids)
     )
-    _sync_d3fends_from_attacks(usecase)
+    usecase.sync_d3fends_from_attacks()
 
     new_data = _snapshot_usecase(usecase)
-    create_change_logs(usecase, old_data, new_data, request.user)
+    UseCaseChangeLog.create_diff(usecase, old_data, new_data, request.user)
     messages.success(request, f"Se actualizó '{usecase.name}'.")
     return redirect("usecase_list")
 
@@ -970,7 +948,7 @@ def usecase_bulk_update(request):
     )
 
     # Resolve roles once for the whole bulk operation.
-    roles       = _resolve_user_roles(request.user)
+    roles       = resolve_user_roles(request.user)
     updated_count = 0
 
     with transaction.atomic():
@@ -1027,7 +1005,7 @@ def usecase_bulk_update(request):
             if current_mitre_ids != posted_mitre_ids:
                 usecase.mitre_attacks.set(MitreAttack.objects.filter(id__in=posted_mitre_ids))
                 m2m_changed = True
-            if _sync_d3fends_from_attacks(usecase):
+            if usecase.sync_d3fends_from_attacks():
                 m2m_changed = True
 
             if changed_fields or m2m_changed:
@@ -1037,7 +1015,7 @@ def usecase_bulk_update(request):
                 else:
                     usecase.save(update_fields=["updated_by", "updated_at"])
                 new_data = _snapshot_usecase(usecase)
-                create_change_logs(usecase, old_data, new_data, request.user)
+                UseCaseChangeLog.create_diff(usecase, old_data, new_data, request.user)
                 updated_count += 1
 
     if updated_count:
@@ -1094,7 +1072,7 @@ def lifecycle_management_view(request):
     only_pending     = request.GET.get("only_pending") == "1"
     lifecycle_admin  = user_is_lifecycle_admin(request.user)
 
-    usecases = list(UseCase.objects.select_related("lifecycle_control_owner").all().order_by("name"))
+    usecases = list(UseCase.objects.select_related("lifecycle_control_owner").filter(status__iexact=UseCase.STATUS_PRODUCTION).order_by("name"))
 
     User = get_user_model()
     lifecycle_users = (
@@ -1104,7 +1082,7 @@ def lifecycle_management_view(request):
 
     # Resolve roles once — can_finish_lifecycle_review and can_assign_lifecycle_owner
     # each call is_admin_role / user_in_group, which hits the DB without caching.
-    roles                = _resolve_user_roles(request.user)
+    roles                = resolve_user_roles(request.user)
     can_finish_cache     = can_finish_lifecycle_review(request.user, None, _roles=roles) if lifecycle_admin else None
     can_assign           = can_assign_lifecycle_owner(request.user, _roles=roles)
 
@@ -1179,8 +1157,8 @@ def lifecycle_management_view(request):
         "lifecycle_users":     lifecycle_users,
         "can_manage_lifecycle": lifecycle_admin,
         "lifecycle_scope_label": (
-            "Todos los casos" if lifecycle_admin
-            else "Todos los casos · solo podés finalizar los asignados a vos"
+            "Solo casos en Producción" if lifecycle_admin
+            else "Solo casos en Producción · solo podés finalizar los asignados a vos"
         ),
     }
     return render(request, "usecases/lifecycle_management.html", context)
@@ -1206,7 +1184,7 @@ def lifecycle_mark_done(request, pk):
             uc.lifecycle_control_owner = None
 
     uc.last_validation_date = date.today()
-    uc.validation_status    = "Finalizado"
+    uc.validation_status    = UseCase.VALIDATION_STATUS_FINISHED
     uc.updated_by           = request.user
     uc.save()
 
@@ -1219,7 +1197,7 @@ def lifecycle_mark_done(request, pk):
         checked_at=uc.last_validation_date,
         next_review_date=uc.next_review_date,
     )
-    create_change_logs(uc, old_data, _snapshot_usecase(uc), request.user)
+    UseCaseChangeLog.create_diff(uc, old_data, _snapshot_usecase(uc), request.user)
     messages.success(request, f"Ciclo de vida actualizado para '{uc.name}'.")
     return redirect("lifecycle_management")
 
@@ -1241,7 +1219,7 @@ def lifecycle_assign_owner(request, pk):
         uc.lifecycle_control_owner = None
     uc.updated_by = request.user
     uc.save()
-    create_change_logs(uc, old_data, _snapshot_usecase(uc), request.user)
+    UseCaseChangeLog.create_diff(uc, old_data, _snapshot_usecase(uc), request.user)
     messages.success(request, f"Responsable de control actualizado para '{uc.name}'.")
     return redirect("lifecycle_management")
 

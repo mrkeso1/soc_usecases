@@ -3,6 +3,7 @@ from pathlib import Path
 import re
 import unicodedata
 
+from django.core.exceptions import ValidationError
 from django.core.management.base import BaseCommand, CommandError
 from openpyxl import load_workbook
 
@@ -27,6 +28,9 @@ COLUMN_MAP = {
     "Escalamiento": "escalation",
     "ENVIO.HO": "sent_to_ho",
     "HO": "ho_flag",
+    "Última validación": "last_validation_date",
+    "Fecha última validación": "last_validation_date",
+    "last_validation_date": "last_validation_date",
 }
 
 DATE_FIELDS = {
@@ -34,6 +38,7 @@ DATE_FIELDS = {
     "production_date",
     "last_review_date",
     "next_review_date",
+    "last_validation_date",
 }
 
 ATTACK_ID_RE = re.compile(r"\bT\d{4}(?:\.\d{3})?\b", re.IGNORECASE)
@@ -193,28 +198,19 @@ def extract_attack_ids(value):
 
 
 def validate_import_business_rules(payload, attack_ids):
-    errors = []
+    instance = UseCase(**payload)
+    instance._clean_mitre_attack_ids = set(attack_ids)
 
-    if payload.get("status") == "Producción" and not payload.get("production_date"):
-        errors.append("los casos en Producción requieren Fecha puesta en producción")
-
-    if payload.get("status") == "Producción" and not attack_ids:
-        errors.append("los casos en Producción requieren al menos una técnica MITRE ATT&CK")
-
-    validation_status = payload.get("validation_status", "")
-    validation_result = payload.get("validation_result", "")
-    last_validation_date = payload.get("last_validation_date")
-
-    if validation_status == "Finalizado" and validation_result == "Nada":
-        errors.append("si la validación está Finalizada, el Resultado no puede ser Nada")
-
-    if (validation_status == "Finalizado" or validation_result in {"OK", "Advertencia", "Falló"}) and not last_validation_date:
-        errors.append("las validaciones finalizadas o con resultado requieren Última validación")
-
-    if payload.get("is_enabled") is False and not (payload.get("disabled_reason") or "").strip():
-        errors.append("los casos deshabilitados requieren Motivo de deshabilitación")
-
-    return errors
+    try:
+        instance.clean()
+        return []
+    except ValidationError as exc:
+        if hasattr(exc, "message_dict"):
+            errors = []
+            for field_errors in exc.message_dict.values():
+                errors.extend(str(item) for item in field_errors)
+            return errors
+        return [str(item) for item in exc.messages]
 
 
 class Command(BaseCommand):

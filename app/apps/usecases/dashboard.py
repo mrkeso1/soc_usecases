@@ -14,7 +14,7 @@ from .coverage_overrides import get_override_map, resolve_status, split_values
 from .models import CoverageOverride, D3Fend, MitreAttack, UseCase
 
 
-PRODUCTION_STATUS = "Producción"
+PRODUCTION_STATUS = UseCase.STATUS_PRODUCTION
 
 
 def _coverage_color_class(percent: float) -> str:
@@ -35,10 +35,6 @@ def _svg_dashoffset(percent: float, radius: float = 80.0) -> float:
     """Return the SVG stroke offset needed for the radial progress widgets."""
     circumference = 2 * math.pi * radius
     return round(circumference * (1 - percent / 100), 2)
-
-
-def _split_tactics(raw_value: str) -> list[str]:
-    return split_values(raw_value)
 
 
 def _d3fend_attack_mapping_table_exists() -> bool:
@@ -125,7 +121,7 @@ def build_dashboard_context(request):
         )
         if not technique_status.is_enabled:
             continue
-        for tactic in _split_tactics(attack.tactic) or ["Sin táctica"]:
+        for tactic in split_values(attack.tactic) or ["Sin táctica"]:
             tactic_status = resolve_status(
                 attack_overrides,
                 framework=CoverageOverride.FRAMEWORK_ATTACK,
@@ -144,29 +140,6 @@ def build_dashboard_context(request):
     all_attack_techniques = len(all_attack_ids)
     covered_attack_techniques = len(covered_attack_ids)
 
-    production_case_ids_by_tactic: dict[str, set[int]] = {}
-    for usecase in production_qs:
-        for attack in usecase.mitre_attacks.all():
-            technique_status = resolve_status(
-                attack_overrides,
-                framework=CoverageOverride.FRAMEWORK_ATTACK,
-                object_type=CoverageOverride.OBJECT_TECHNIQUE,
-                object_key=attack.external_id,
-                default_enabled=attack.is_enabled,
-            )
-            if not technique_status.is_enabled:
-                continue
-            for tactic in _split_tactics(attack.tactic) or ["Sin táctica"]:
-                tactic_status = resolve_status(
-                    attack_overrides,
-                    framework=CoverageOverride.FRAMEWORK_ATTACK,
-                    object_type=CoverageOverride.OBJECT_TACTIC,
-                    object_key=tactic,
-                    default_enabled=True,
-                )
-                if tactic_status.is_enabled:
-                    production_case_ids_by_tactic.setdefault(tactic, set()).add(usecase.id)
-
     all_tactic_names = set(tactic_attack_ids)
     covered_tactic_names = {
         tactic
@@ -174,26 +147,6 @@ def build_dashboard_context(request):
         if attack_ids & covered_attack_ids
     }
     uncovered_tactics = sorted(all_tactic_names - covered_tactic_names)
-
-    tactic_coverage_rows = []
-    for tactic in sorted(all_tactic_names):
-        attack_ids = tactic_attack_ids[tactic]
-        tactic_covered_ids = tactic_covered_attack_ids.get(tactic, set())
-        covered_count = len(attack_ids & covered_attack_ids) if tactic not in tactic_covered_attack_ids else len(tactic_covered_ids)
-        total_count = len(attack_ids)
-        percent = _safe_percent(covered_count, total_count)
-        production_cases = len(production_case_ids_by_tactic.get(tactic, set()))
-        tactic_coverage_rows.append({
-            "name": tactic,
-            "covered": covered_count,
-            "total": total_count,
-            "uncovered": total_count - covered_count,
-            "percent": percent,
-            "percent_label": str(percent).replace(".", ","),
-            "color_class": _coverage_color_class(percent),
-            "production_cases": production_cases,
-        })
-
     total_tactics = len(all_tactic_names)
     covered_tactics = len(covered_tactic_names)
 
@@ -204,8 +157,9 @@ def build_dashboard_context(request):
     d3fend_coverage_rows = []
     fully_covered_d3fend_techniques = 0
     partially_covered_d3fend_techniques = 0
-
     effective_d3fend_ids: set[int] = set()
+    covered_from_cases: set[int] = set()
+
     if d3fend_mapping_ready:
         mapped_d3fends = list(
             D3Fend.objects
@@ -260,6 +214,12 @@ def build_dashboard_context(request):
         all_d3fend_techniques = len(effective_d3fend_ids)
         covered_d3fend_techniques = round(covered_d3fend_techniques, 1)
     else:
+        covered_from_cases = set(
+            D3Fend.objects
+            .filter(use_cases__in=production_qs)
+            .distinct()
+            .values_list("id", flat=True)
+        )
         effective_d3fends = []
         for d3fend in D3Fend.objects.all().order_by("code", "name"):
             status = resolve_status(
@@ -273,13 +233,66 @@ def build_dashboard_context(request):
                 effective_d3fends.append((d3fend, status))
                 effective_d3fend_ids.add(d3fend.id)
         all_d3fend_techniques = len(effective_d3fends)
-        covered_from_cases = set(
-            D3Fend.objects.filter(use_cases__in=production_qs).distinct().values_list("id", flat=True)
-        )
         covered_d3fend_techniques = sum(
             1 for d3fend, status in effective_d3fends
             if d3fend.id in covered_from_cases or status.is_fulfilled
         )
+
+    production_case_ids_by_tactic: dict[str, set[int]] = {}
+    attack_counter: Counter = Counter()
+    d3fend_counter: Counter = Counter()
+
+    # Single pass over production cases for dashboard counters and tactic case links.
+    for usecase in production_qs:
+        for attack in usecase.mitre_attacks.all():
+            if attack.id not in all_attack_ids:
+                continue
+
+            technique_status = resolve_status(
+                attack_overrides,
+                framework=CoverageOverride.FRAMEWORK_ATTACK,
+                object_type=CoverageOverride.OBJECT_TECHNIQUE,
+                object_key=attack.external_id,
+                default_enabled=attack.is_enabled,
+            )
+            if not technique_status.is_enabled:
+                continue
+
+            attack_counter[(attack.id, attack.external_id, attack.name)] += 1
+
+            for tactic in split_values(attack.tactic) or ["Sin táctica"]:
+                tactic_status = resolve_status(
+                    attack_overrides,
+                    framework=CoverageOverride.FRAMEWORK_ATTACK,
+                    object_type=CoverageOverride.OBJECT_TACTIC,
+                    object_key=tactic,
+                    default_enabled=True,
+                )
+                if tactic_status.is_enabled:
+                    production_case_ids_by_tactic.setdefault(tactic, set()).add(usecase.id)
+
+        for d3fend in usecase.d3fends.all():
+            if d3fend.id in effective_d3fend_ids:
+                d3fend_counter[(d3fend.id, d3fend.code, d3fend.name)] += 1
+
+    tactic_coverage_rows = []
+    for tactic in sorted(all_tactic_names):
+        attack_ids = tactic_attack_ids[tactic]
+        tactic_covered_ids = tactic_covered_attack_ids.get(tactic, set())
+        covered_count = len(attack_ids & covered_attack_ids) if tactic not in tactic_covered_attack_ids else len(tactic_covered_ids)
+        total_count = len(attack_ids)
+        percent = _safe_percent(covered_count, total_count)
+        production_cases = len(production_case_ids_by_tactic.get(tactic, set()))
+        tactic_coverage_rows.append({
+            "name": tactic,
+            "covered": covered_count,
+            "total": total_count,
+            "uncovered": total_count - covered_count,
+            "percent": percent,
+            "percent_label": str(percent).replace(".", ","),
+            "color_class": _coverage_color_class(percent),
+            "production_cases": production_cases,
+        })
 
     uncovered_attacks = [
         attack for attack in all_attacks
@@ -290,9 +303,6 @@ def build_dashboard_context(request):
     if d3fend_mapping_ready:
         uncovered_d3fends = [d3fend for coverage, d3fend in d3fend_coverage_rows if coverage < 1][:50]
     else:
-        covered_from_cases = set(
-            D3Fend.objects.filter(use_cases__in=production_qs).distinct().values_list("id", flat=True)
-        )
         uncovered_d3fends = []
         for d3fend in D3Fend.objects.all().order_by("code", "name"):
             status = resolve_status(
@@ -307,22 +317,10 @@ def build_dashboard_context(request):
             if len(uncovered_d3fends) >= 30:
                 break
 
-    attack_counter: Counter = Counter()
-    for uc in production_qs:
-        for attack in uc.mitre_attacks.all():
-            if attack.id in all_attack_ids:
-                attack_counter[(attack.id, attack.external_id, attack.name)] += 1
-
     top_attack_techniques = [
         {"id": aid, "external_id": eid, "name": name, "count": count}
         for (aid, eid, name), count in attack_counter.most_common(10)
     ]
-
-    d3fend_counter: Counter = Counter()
-    for uc in production_qs:
-        for d3 in uc.d3fends.all():
-            if d3.id in effective_d3fend_ids:
-                d3fend_counter[(d3.id, d3.code, d3.name)] += 1
 
     top_d3fend_controls = [
         {"id": did, "code": code, "name": name, "count": count}

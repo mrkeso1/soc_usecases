@@ -1,6 +1,7 @@
 from django import forms
 from django.contrib import admin
 
+from .forms import MitreAttackM2MBridgeMixin
 from .models import (
     CoverageOverride,
     D3Fend,
@@ -183,21 +184,11 @@ class D3FendAdmin(admin.ModelAdmin):
         return _short_text(obj.disabled_reason)
 
 
-class UseCaseBusinessRulesAdminForm(forms.ModelForm):
-    """Validaciones de negocio para casos de uso desde Django Admin."""
 
-    def clean(self):
-        cleaned_data = super().clean()
-        status = cleaned_data.get("status")
-        mitre_attacks = cleaned_data.get("mitre_attacks")
+class UseCaseBusinessRulesAdminForm(MitreAttackM2MBridgeMixin, forms.ModelForm):
+    """Bridge para que UseCase.clean() valide M2M desde Django Admin."""
 
-        if status == "Producción" and not mitre_attacks:
-            self.add_error(
-                "mitre_attacks",
-                "Un caso en Producción debe tener al menos una técnica MITRE ATT&CK asociada.",
-            )
-
-        return cleaned_data
+    pass
 
 
 @admin.register(UseCase)

@@ -624,7 +624,36 @@
             .filter-form { grid-template-columns: 1fr; }
             .page-title { font-size: 1.65rem; }
         }
-    </style>
+    
+
+        /* Normalización visual alineada a Ciclo de Vida */
+        .page-header { margin-bottom: 18px !important; gap: 14px !important; }
+        .page-title { font-size: 1.9rem !important; line-height: 1.12 !important; margin: 4px 0 !important; letter-spacing: -0.02em !important; }
+        .page-subtitle { font-size: .9rem !important; line-height: 1.45 !important; margin-top: 4px !important; }
+        .filter-panel { padding: 14px !important; margin-bottom: 22px !important; border-radius: 14px !important; }
+        .filter-group select, .filter-group input { font-size: .87rem !important; padding: 9px 11px !important; }
+        .btn-primary, .btn-secondary { min-height: 36px !important; height: 36px !important; padding: 0 13px !important; font-size: .84rem !important; border-radius: 8px !important; }
+        .section-header { margin: 26px 0 14px !important; }
+        .section-title { font-size: 1.05rem !important; }
+        .radial-card { border-radius: 14px !important; padding: 20px 18px 18px !important; }
+        .radial-card-title { font-size: .78rem !important; margin-bottom: 16px !important; }
+        .radial-wrap, .radial-svg { width: 170px !important; height: 170px !important; }
+        .radial-pct { font-size: 2.15rem !important; }
+        .radial-pct-sym { font-size: 1rem !important; }
+        .radial-sub { font-size: 10px !important; }
+        .radial-meta { gap: 18px !important; margin-bottom: 12px !important; }
+        .radial-meta-value { font-size: 1.1rem !important; }
+        .panel { border-radius: 14px !important; }
+        .panel-head { padding: 12px 14px !important; }
+        .panel-body { padding: 12px 14px !important; }
+        .panel-title { font-size: .78rem !important; }
+        @media (max-width: 720px) {
+            .page-title { font-size: 1.55rem !important; }
+            .radial-wrap, .radial-svg { width: 150px !important; height: 150px !important; }
+            .radial-pct { font-size: 1.9rem !important; }
+        }
+
+</style>
     {% include "includes/topbar_styles.html" %}
 </head>
 <body>
@@ -843,24 +872,7 @@
             </div>
         </div>
 
-        <div class="panel">
-            <div class="panel-head"><span class="panel-title">Top técnicas ATT&amp;CK cubiertas por Producción</span></div>
-            <div class="panel-body">
-                {% if top_attack_techniques %}
-                    {% for item in top_attack_techniques %}
-                    <a class="list-item" href="{% url 'usecase_list' %}?mitre_id={{ item.id }}">
-                        <div>
-                            <div class="list-item-main">{{ item.external_id }} — {{ item.name }}</div>
-                            <div class="list-item-sub">Ver casos productivos asociados</div>
-                        </div>
-                        <span class="count-badge">{{ item.count }}</span>
-                    </a>
-                    {% endfor %}
-                {% else %}
-                    <div class="empty-note">// Sin técnicas vinculadas en Producción</div>
-                {% endif %}
-            </div>
-        </div>
+
 
         <div class="panel">
             <div class="panel-head"><span class="panel-title">Técnicas D3FEND sin cobertura ATT&amp;CK productiva</span></div>

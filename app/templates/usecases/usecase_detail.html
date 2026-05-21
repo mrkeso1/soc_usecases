@@ -433,7 +433,39 @@
             .history-header { align-items: flex-start; flex-direction: column; }
             .pagination { justify-content: flex-start; }
         }
-    </style>
+    
+
+    /* Normalización visual alineada a Ciclo de Vida */
+    .page-header { margin-bottom: 18px !important; gap: 14px !important; }
+    .page-eyebrow, .eyebrow { font-size: 11px !important; letter-spacing: .12em !important; }
+    .page-title { font-size: 1.9rem !important; line-height: 1.12 !important; margin: 4px 0 !important; letter-spacing: -0.02em !important; }
+    .page-subtitle { font-size: .9rem !important; line-height: 1.45 !important; margin-top: 4px !important; }
+    .section-title, .history-title, .summary-title { font-size: 1.05rem !important; line-height: 1.25 !important; }
+    .section-help { font-size: .88rem !important; line-height: 1.45 !important; margin-bottom: 14px !important; }
+    .summary-strip { gap: 10px !important; margin: 18px 0 !important; }
+    .summary-card, .summary-chip, .panel, .card, .side-card { border-radius: 14px !important; }
+    .summary-card, .summary-chip { padding: 10px 14px !important; }
+    .summary-value, .chip-value { font-size: 1.2rem !important; line-height: 1.05 !important; margin-top: 6px !important; }
+    .summary-label, .chip-label, .field label, .detail-label, .readonly-label { font-size: 10px !important; letter-spacing: .07em !important; }
+    .btn, .btn-primary, .btn-secondary, .btn-ghost, .mini-btn, .save-btn, .action-link, .tab-button, .tab-link { font-size: 12px !important; border-radius: 8px !important; }
+    .btn, .btn-primary, .btn-secondary, .btn-ghost { min-height: 36px !important; padding: 8px 12px !important; }
+    .badge, .status-chip, .mapping-chip, .technique-chip, .attack-chip { font-size: .78rem !important; }
+    th, td { font-size: .88rem !important; }
+    th { font-size: .72rem !important; letter-spacing: .06em !important; }
+    @media (max-width: 720px) {
+        .page-title { font-size: 1.55rem !important; }
+        .page-header { margin-bottom: 14px !important; }
+    }
+
+    .detail-shell { gap: 18px !important; }
+    .card, .side-card { box-shadow: 0 16px 48px rgba(0,0,0,.18) !important; }
+    .section { padding: 18px !important; }
+    .detail-value { font-size: .9rem !important; }
+    .case-title-box { padding: 7px 11px !important; border-radius: 10px !important; }
+    .case-title-value { font-size: .88rem !important; }
+    .side-card { padding: 14px !important; }
+
+</style>
     {% include "includes/topbar_styles.html" %}
 </head>
 <body>
@@ -778,7 +810,7 @@
                     </tr>
                 </thead>
                 <tbody>
-                    {% for log in change_logs %}
+                    {% for log in change_logs_page %}
                     <tr>
                         <td class="mono">{{ log.changed_at|date:"d/m/Y H:i" }}</td>
                         <td>

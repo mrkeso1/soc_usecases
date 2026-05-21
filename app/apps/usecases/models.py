@@ -1,4 +1,3 @@
-import calendar
 from datetime import date, datetime, timedelta
 
 from django.conf import settings
@@ -6,13 +5,6 @@ from django.core.exceptions import ValidationError
 from django.db import models
 from django.db.models import Q
 
-
-def add_months(source_date, months):
-    month = source_date.month - 1 + months
-    year = source_date.year + month // 12
-    month = month % 12 + 1
-    day = min(source_date.day, calendar.monthrange(year, month)[1])
-    return date(year, month, day)
 
 
 class MitreAttack(models.Model):
@@ -213,9 +205,24 @@ class CoverageOverride(models.Model):
             raise ValidationError({"reason": "Indicá el motivo o evidencia para este estado."})
 
 
-class DashboardReportSettings(models.Model):
-    name = models.CharField(max_length=100, default="Reporte principal", unique=True)
+
+class SingleActiveSettingsMixin(models.Model):
     is_active = models.BooleanField(default=True)
+
+    class Meta:
+        abstract = True
+
+    def save(self, *args, **kwargs):
+        if self.is_active:
+            qs = type(self).objects.filter(is_active=True)
+            if self.pk:
+                qs = qs.exclude(pk=self.pk)
+            qs.update(is_active=False)
+        super().save(*args, **kwargs)
+
+
+class DashboardReportSettings(SingleActiveSettingsMixin):
+    name = models.CharField(max_length=100, default="Reporte principal", unique=True)
     logo = models.ImageField("Logo", upload_to="dashboard_reports/logos/", blank=True)
     report_title = models.CharField("Título", max_length=160, default="Reporte ejecutivo SOC")
     report_subtitle = models.CharField(
@@ -241,19 +248,10 @@ class DashboardReportSettings(models.Model):
     def __str__(self):
         return f"{self.name} ({'Activo' if self.is_active else 'Inactivo'})"
 
-    def save(self, *args, **kwargs):
-        if self.is_active:
-            qs = DashboardReportSettings.objects.filter(is_active=True)
-            if self.pk:
-                qs = qs.exclude(pk=self.pk)
-            qs.update(is_active=False)
-        super().save(*args, **kwargs)
 
-
-class LifecycleSettings(models.Model):
+class LifecycleSettings(SingleActiveSettingsMixin):
     name = models.CharField(max_length=100, default="Política principal", unique=True)
     review_interval_days = models.PositiveIntegerField("Días entre controles", default=120)
-    is_active = models.BooleanField(default=True)
 
     class Meta:
         verbose_name = "Configuración ciclo de vida"
@@ -269,23 +267,34 @@ class LifecycleSettings(models.Model):
     def __str__(self):
         return f"{self.name} ({self.review_interval_days} días)"
 
-    def save(self, *args, **kwargs):
-        if self.is_active:
-            qs = LifecycleSettings.objects.filter(is_active=True)
-            if self.pk:
-                qs = qs.exclude(pk=self.pk)
-            qs.update(is_active=False)
-        super().save(*args, **kwargs)
-
 
 def get_review_interval_days() -> int:
-    settings_obj = LifecycleSettings.objects.filter(is_active=True).order_by("-id").first()
-    if settings_obj and settings_obj.review_interval_days > 0:
-        return settings_obj.review_interval_days
-    return 120
+    interval_days = (
+        LifecycleSettings.objects
+        .filter(is_active=True)
+        .order_by("-id")
+        .values_list("review_interval_days", flat=True)
+        .first()
+    )
+    return interval_days if interval_days and interval_days > 0 else 120
 
 
 class UseCase(models.Model):
+    STATUS_TEST = "Test"
+    STATUS_PRODUCTION = "Producción"
+    STATUS_DEVELOPMENT = "Desarrollo"
+    STATUS_RETIRED = "Baja"
+    STATUS_PROPOSAL = "Propuesta"
+
+    VALIDATION_STATUS_FINISHED = "Finalizado"
+    VALIDATION_STATUS_IN_PROGRESS = "En progreso"
+    VALIDATION_STATUS_NOT_DONE = "No realizado"
+
+    VALIDATION_RESULT_NONE = "Nada"
+    VALIDATION_RESULT_OK = "OK"
+    VALIDATION_RESULT_WARNING = "Advertencia"
+    VALIDATION_RESULT_FAILED = "Falló"
+
     BLOCKING_TYPE_CHOICES = [
         ("Manual", "Manual"),
         ("Automático", "Automático"),
@@ -293,11 +302,11 @@ class UseCase(models.Model):
     ]
 
     STATUS_CHOICES = [
-        ("Test", "Test"),
-        ("Producción", "Producción"),
-        ("Desarrollo", "Desarrollo"),
-        ("Baja", "Baja"),
-        ("Propuesta", "Propuesta"),
+        (STATUS_TEST, STATUS_TEST),
+        (STATUS_PRODUCTION, STATUS_PRODUCTION),
+        (STATUS_DEVELOPMENT, STATUS_DEVELOPMENT),
+        (STATUS_RETIRED, STATUS_RETIRED),
+        (STATUS_PROPOSAL, STATUS_PROPOSAL),
     ]
 
     ESCALATION_CHOICES = [
@@ -312,16 +321,16 @@ class UseCase(models.Model):
     ]
 
     VALIDATION_STATUS_CHOICES = [
-        ("Finalizado", "Finalizado"),
-        ("En progreso", "En progreso"),
-        ("No realizado", "No realizado"),
+        (VALIDATION_STATUS_FINISHED, VALIDATION_STATUS_FINISHED),
+        (VALIDATION_STATUS_IN_PROGRESS, VALIDATION_STATUS_IN_PROGRESS),
+        (VALIDATION_STATUS_NOT_DONE, VALIDATION_STATUS_NOT_DONE),
     ]
 
     VALIDATION_RESULT_CHOICES = [
-        ("Nada", "Nada"),
-        ("OK", "OK"),
-        ("Advertencia", "Advertencia"),
-        ("Falló", "Falló"),
+        (VALIDATION_RESULT_NONE, VALIDATION_RESULT_NONE),
+        (VALIDATION_RESULT_OK, VALIDATION_RESULT_OK),
+        (VALIDATION_RESULT_WARNING, VALIDATION_RESULT_WARNING),
+        (VALIDATION_RESULT_FAILED, VALIDATION_RESULT_FAILED),
     ]
 
     SEVERITY_CHOICES = [
@@ -408,14 +417,14 @@ class UseCase(models.Model):
         "Estado de validación",
         max_length=20,
         choices=VALIDATION_STATUS_CHOICES,
-        default="No realizado",
+        default=VALIDATION_STATUS_NOT_DONE,
     )
 
     validation_result = models.CharField(
         "Resultado",
         max_length=20,
         choices=VALIDATION_RESULT_CHOICES,
-        default="Nada",
+        default=VALIDATION_RESULT_NONE,
     )
 
     is_enabled = models.BooleanField("Habilitado", default=True)
@@ -461,13 +470,9 @@ class UseCase(models.Model):
     def __str__(self):
         return self.name
 
-    def inferred_d3fends_queryset(self):
-        """D3FEND calculado automáticamente desde las técnicas ATT&CK del caso.
-
-        La relación UseCase.d3fends se conserva como caché interno para filtros,
-        dashboard y exportaciones, pero no debe cargarse manualmente.
-        """
-        attack_ids = list(self.mitre_attacks.values_list("id", flat=True))
+    @staticmethod
+    def inferred_d3fends_for_attack_ids_queryset(attack_ids):
+        attack_ids = list(attack_ids or [])
         if not attack_ids:
             return D3Fend.objects.none()
 
@@ -478,9 +483,19 @@ class UseCase(models.Model):
                 related_attacks__is_enabled=True,
                 related_attacks__id__in=attack_ids,
             )
+            .prefetch_related("related_attacks")
             .distinct()
             .order_by("code", "name")
         )
+
+    def inferred_d3fends_queryset(self):
+        """D3FEND calculado automáticamente desde las técnicas ATT&CK del caso.
+
+        La relación UseCase.d3fends se conserva como caché interno para filtros,
+        dashboard y exportaciones, pero no debe cargarse manualmente.
+        """
+        attack_ids = list(self.mitre_attacks.values_list("id", flat=True))
+        return self.inferred_d3fends_for_attack_ids_queryset(attack_ids)
 
     def inferred_d3fend_ids(self):
         return set(self.inferred_d3fends_queryset().values_list("id", flat=True))
@@ -499,17 +514,36 @@ class UseCase(models.Model):
         self.d3fends.set(D3Fend.objects.filter(id__in=inferred_ids))
         return True
 
+    def _clean_mitre_attack_ids_for_validation(self):
+        pending_ids = getattr(self, "_clean_mitre_attack_ids", None)
+        if pending_ids is not None:
+            # Puede recibir IDs internos desde formularios o IDs ATT&CK externos
+            # desde importadores. Para esta regla solo importa que haya mapeo.
+            return {str(item).strip() for item in pending_ids if str(item).strip()}
+        if self.pk:
+            return set(self.mitre_attacks.values_list("id", flat=True))
+        return set()
+
     def clean(self):
         super().clean()
         errors = {}
+        status = (self.status or "").strip()
+        mitre_attack_ids = self._clean_mitre_attack_ids_for_validation()
 
-        if self.status == "Producción" and not self.production_date:
+        if status == self.STATUS_PRODUCTION and not self.production_date:
             errors["production_date"] = "Para pasar un caso a Producción tenés que cargar la fecha de puesta en producción."
 
-        validation_finished = self.validation_status == "Finalizado"
-        validation_has_result = self.validation_result in {"OK", "Advertencia", "Falló"}
+        if status == self.STATUS_PRODUCTION and not mitre_attack_ids:
+            errors["mitre_attacks"] = "Un caso en Producción debe tener al menos una técnica MITRE ATT&CK asociada."
 
-        if validation_finished and self.validation_result == "Nada":
+        validation_finished = self.validation_status == self.VALIDATION_STATUS_FINISHED
+        validation_has_result = self.validation_result in {
+            self.VALIDATION_RESULT_OK,
+            self.VALIDATION_RESULT_WARNING,
+            self.VALIDATION_RESULT_FAILED,
+        }
+
+        if validation_finished and self.validation_result == self.VALIDATION_RESULT_NONE:
             errors["validation_result"] = "Si la validación está Finalizada, indicá un resultado distinto de Nada."
 
         if (validation_finished or validation_has_result) and not self.last_validation_date:
@@ -522,16 +556,6 @@ class UseCase(models.Model):
             raise ValidationError(errors)
 
     def save(self, *args, **kwargs):
-        if isinstance(self.last_validation_date, str):
-            raw = self.last_validation_date.strip()
-            if raw:
-                try:
-                    self.last_validation_date = datetime.strptime(raw, "%Y-%m-%d").date()
-                except ValueError:
-                    self.last_validation_date = None
-            else:
-                self.last_validation_date = None
-
         if self.last_validation_date:
             interval_days = get_review_interval_days()
             self.next_review_date = self.last_validation_date + timedelta(days=interval_days)
@@ -585,7 +609,7 @@ class LifecycleReview(models.Model):
         related_name="lifecycle_reviews_completed",
         verbose_name="Finalizado por",
     )
-    status = models.CharField("Estado", max_length=20, default="Finalizado")
+    status = models.CharField("Estado", max_length=20, default=UseCase.VALIDATION_STATUS_FINISHED)
     result = models.CharField("Resultado", max_length=20, blank=True, default="")
     notes = models.TextField("Notas", blank=True)
     checked_at = models.DateField("Fecha control", default=date.today)
@@ -653,6 +677,31 @@ class UseCaseChangeLog(models.Model):
     class Meta:
         ordering = ["-changed_at"]
 
+    @staticmethod
+    def _normalize_snapshot_value(value) -> str:
+        if value is None:
+            return ""
+        if isinstance(value, bool):
+            return "Sí" if value else "No"
+        if isinstance(value, (date, datetime)):
+            return value.strftime("%Y-%m-%d")
+        return str(value).strip()
+
+    @classmethod
+    def create_diff(cls, usecase, old_data: dict, new_data: dict, user) -> None:
+        changed_by = user if getattr(user, "is_authenticated", False) else None
+        for field in cls.FIELD_LABELS:
+            old_val = cls._normalize_snapshot_value(old_data.get(field))
+            new_val = cls._normalize_snapshot_value(new_data.get(field))
+            if old_val != new_val:
+                cls.objects.create(
+                    use_case=usecase,
+                    field_name=field,
+                    old_value=old_val,
+                    new_value=new_val,
+                    changed_by=changed_by,
+                )
+
     def __str__(self):
         return f"{self.use_case.name} - {self.field_name}"
 
@@ -663,10 +712,6 @@ class UseCaseChangeLog(models.Model):
     def _pretty_value(self, value):
         if value in (None, ""):
             return "-"
-        if value == "True":
-            return "Sí"
-        if value == "False":
-            return "No"
         return value
 
     @property

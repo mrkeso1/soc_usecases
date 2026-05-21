@@ -3,28 +3,29 @@
 import re
 import unicodedata
 
-from apps.accounts.roles import is_admin_role, is_analyst_role, is_readonly_role
-
 from .models import UseCase
 
 
-def _roles_from_user(user, _roles: dict | None) -> dict:
-    """Return a resolved roles dict, computing it from the user if not supplied.
-
-    Pass a pre-computed dict (from views._resolve_user_roles) to avoid one
-    groups DB query per permission call inside loops.
-    """
-    if _roles is not None:
-        return _roles
+def resolve_user_roles(user) -> dict:
+    """Resolve role/group flags in one place and one DB query."""
     if not getattr(user, "is_authenticated", False):
-        return {"is_admin": False, "is_analyst": False, "is_readonly": False}
+        return {"groups": set(), "is_admin": False, "is_analyst": False, "is_readonly": False}
+
     group_names = set(user.groups.values_list("name", flat=True))
-    is_admin    = bool(getattr(user, "is_superuser", False) or "Admin" in group_names)
+    is_admin = bool(getattr(user, "is_superuser", False) or "Admin" in group_names)
+    is_analyst = "Analyst" in group_names
+    is_readonly = "ReadOnly" in group_names and not is_admin and not is_analyst
     return {
-        "is_admin":    is_admin,
-        "is_analyst":  "Analyst" in group_names,
-        "is_readonly": "ReadOnly" in group_names and not is_admin,
+        "groups": group_names,
+        "is_admin": is_admin,
+        "is_analyst": is_analyst,
+        "is_readonly": is_readonly,
     }
+
+
+def _roles_from_user(user, _roles: dict | None) -> dict:
+    """Return a resolved roles dict, computing it from the user if not supplied."""
+    return _roles if _roles is not None else resolve_user_roles(user)
 
 
 def can_access_usecases(user, *, _roles: dict | None = None) -> bool:

@@ -6,6 +6,7 @@ or when an item does not apply and must be removed from coverage calculations.
 """
 
 from dataclasses import dataclass
+import unicodedata
 from typing import Iterable
 
 from .models import CoverageOverride
@@ -77,8 +78,24 @@ def resolve_status(
     return ResolvedCoverageStatus(STATUS_ENABLED, "", "default")
 
 
+def normalize_search_text(value: str) -> str:
+    """Normalize text for forgiving admin searches.
+
+    It removes accents and lowercases values so searches like "tecnica",
+    "técnica", "credential access" or "T1059" behave consistently.
+    """
+    text = unicodedata.normalize("NFKD", str(value or ""))
+    text = "".join(ch for ch in text if not unicodedata.combining(ch))
+    return text.casefold()
+
+
 def item_matches_query(values: Iterable[str], query: str) -> bool:
-    query = str(query or "").strip().casefold()
-    if not query:
+    query_text = normalize_search_text(query).strip()
+    if not query_text:
         return True
-    return any(query in str(value or "").casefold() for value in values)
+
+    haystack = " ".join(normalize_search_text(value) for value in values)
+    # All typed words must be present somewhere in the joined searchable text.
+    # This makes searches more useful for inputs such as "credential access" or
+    # "T1059 command" without requiring an exact contiguous substring.
+    return all(term in haystack for term in query_text.split())

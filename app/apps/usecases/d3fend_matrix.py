@@ -25,7 +25,7 @@ def build_d3fend_matrix_context(request):
     severity = request.GET.get("severity", "").strip()
     sort = request.GET.get("sort", "code").strip()
 
-    production_qs = UseCase.objects.filter(status__iexact="Producción", is_enabled=True)
+    production_qs = UseCase.objects.filter(status__iexact=UseCase.STATUS_PRODUCTION, is_enabled=True)
     if device:
         production_qs = production_qs.filter(device__iexact=device)
     if severity:
