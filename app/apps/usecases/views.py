@@ -8,13 +8,14 @@ from django.contrib.auth import get_user_model
 from django.contrib.auth.decorators import login_required
 from django.core.paginator import Paginator
 from django.core.exceptions import ValidationError
-from django.db import transaction
 from django.db.models import Q
 from django.http import HttpResponse, JsonResponse, HttpResponseForbidden, QueryDict
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
 
 from .attack_matrix import build_attack_matrix_context
+from .bulk_updates import parse_csv_ids as _parse_csv_ids
+from .bulk_updates import parse_posted_usecase_ids, update_usecases_bulk
 from .d3fend_matrix import build_d3fend_matrix_context
 from .dashboard import build_dashboard_context
 from .forms import UseCaseForm
@@ -136,12 +137,6 @@ def _redirect_usecase_list_with_query(return_qs: str = ""):
     query_string = query.urlencode()
     base_url = reverse("usecase_list")
     return redirect(f"{base_url}?{query_string}" if query_string else base_url)
-
-
-def _parse_csv_ids(raw_value: str) -> list[int]:
-    if not raw_value:
-        return []
-    return [int(x) for x in raw_value.split(",") if x.strip().isdigit()]
 
 
 def _serialize_mitre(usecase) -> str:
@@ -930,96 +925,23 @@ def usecase_bulk_update(request):
         return redirect("usecase_list")
 
     return_qs = request.POST.get("return_qs", "").strip()
-    if "changed_ids" in request.POST:
-        usecase_ids = _parse_csv_ids(request.POST.get("changed_ids", ""))
-    else:
-        raw_ids     = request.POST.getlist("uc_ids")
-        usecase_ids = [int(x) for x in raw_ids if str(x).isdigit()]
-
-    if not usecase_ids:
+    if not parse_posted_usecase_ids(request.POST):
         messages.info(request, "No se detectaron cambios para guardar.")
         return _redirect_usecase_list_with_query(return_qs)
 
-    usecases = (
-        UseCase.objects
-        .filter(pk__in=usecase_ids, status__iexact=PRODUCTION_STATUS)
-        .prefetch_related("mitre_attacks", "d3fends")
-        .order_by("name")
+    result = update_usecases_bulk(
+        user=request.user,
+        post_data=request.POST,
+        parse_date=_parse_date_field,
+        validate_usecase=_usecase_business_rule_errors,
+        snapshot_usecase=_snapshot_usecase,
     )
 
-    # Resolve roles once for the whole bulk operation.
-    roles       = resolve_user_roles(request.user)
-    updated_count = 0
+    for error in result.errors:
+        messages.error(request, error)
 
-    with transaction.atomic():
-        for usecase in usecases:
-            if not can_manage_usecases(request.user, usecase, _roles=roles):
-                continue
-
-            pk       = str(usecase.pk)
-            old_data = _snapshot_usecase(usecase)
-
-            # Preserve lifecycle dates — bulk form never sends them.
-            _saved_last_review = usecase.last_review_date
-            _saved_next_review = usecase.next_review_date
-
-            scalar_changes = {
-                "owner_name":          request.POST.get(f"owner_name_{pk}", "").strip(),
-                "severity":            request.POST.get(f"severity_{pk}", "").strip(),
-                "last_validation_date": _parse_date_field(
-                    request.POST.get(f"last_validation_date_{pk}", "").strip()
-                ),
-                "is_enabled": request.POST.get(f"is_enabled_{pk}") == "on",
-            }
-            # El inventario ya no permite buscar ni pasar casos a estados no productivos.
-            # Si por compatibilidad llega status_N desde un template viejo, lo respetamos;
-            # si no llega, no tocamos el estado para evitar dejarlo vacío.
-            if f"status_{pk}" in request.POST:
-                scalar_changes["status"] = request.POST.get(f"status_{pk}", "").strip()
-            if f"validation_status_{pk}" in request.POST:
-                scalar_changes["validation_status"] = request.POST.get(f"validation_status_{pk}", "").strip()
-            if f"validation_result_{pk}" in request.POST:
-                scalar_changes["validation_result"] = request.POST.get(f"validation_result_{pk}", "").strip()
-            if f"disabled_reason_{pk}" in request.POST:
-                scalar_changes["disabled_reason"] = request.POST.get(f"disabled_reason_{pk}", "").strip()
-
-            changed_fields = []
-            for field_name, new_value in scalar_changes.items():
-                if getattr(usecase, field_name) != new_value:
-                    setattr(usecase, field_name, new_value)
-                    changed_fields.append(field_name)
-
-            # Restore lifecycle dates after scalar assignments.
-            usecase.last_review_date = _saved_last_review
-            usecase.next_review_date = _saved_next_review
-
-            current_mitre_ids = {item.id for item in usecase.mitre_attacks.all()}
-            posted_mitre_ids  = set(_parse_csv_ids(request.POST.get(f"mitre_attack_ids_{pk}", "")))
-
-            errors = _usecase_business_rule_errors(usecase, mitre_ids=posted_mitre_ids)
-            if errors:
-                messages.error(request, f"{usecase.name}: " + " ".join(errors))
-                continue
-
-            m2m_changed = False
-            if current_mitre_ids != posted_mitre_ids:
-                usecase.mitre_attacks.set(MitreAttack.objects.filter(id__in=posted_mitre_ids))
-                m2m_changed = True
-            if usecase.sync_d3fends_from_attacks():
-                m2m_changed = True
-
-            if changed_fields or m2m_changed:
-                usecase.updated_by = request.user
-                if changed_fields:
-                    usecase.save()
-                else:
-                    usecase.save(update_fields=["updated_by", "updated_at"])
-                new_data = _snapshot_usecase(usecase)
-                UseCaseChangeLog.create_diff(usecase, old_data, new_data, request.user)
-                updated_count += 1
-
-    if updated_count:
-        messages.success(request, f"Se actualizaron {updated_count} caso(s).")
+    if result.updated_count:
+        messages.success(request, f"Se actualizaron {result.updated_count} caso(s).")
         return _redirect_usecase_list_with_query(return_qs)
 
     messages.info(request, "No se detectaron cambios para guardar.")
