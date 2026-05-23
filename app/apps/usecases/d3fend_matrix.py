@@ -169,6 +169,7 @@ def build_d3fend_matrix_context(request):
 
     devices = (
         UseCase.objects
+        .filter(status__iexact=UseCase.STATUS_PRODUCTION, is_enabled=True)
         .exclude(device="")
         .values_list("device", flat=True)
         .distinct()

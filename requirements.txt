@@ -6,4 +6,4 @@ openpyxl==3.1.5
 requests==2.32.3
 ldap3==2.9.1
 Pillow==10.4.0
-weasyprint==62.3
+reportlab==4.2.2

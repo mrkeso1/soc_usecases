@@ -1183,7 +1183,9 @@ def lifecycle_mark_done(request, pk):
         elif owner_id == "":
             uc.lifecycle_control_owner = None
 
-    uc.last_validation_date = date.today()
+    checked_at = date.today()
+    uc.last_validation_date = checked_at
+    uc.set_lifecycle_review_dates(checked_at)
     uc.validation_status    = UseCase.VALIDATION_STATUS_FINISHED
     uc.updated_by           = request.user
     uc.save()
@@ -1194,7 +1196,7 @@ def lifecycle_mark_done(request, pk):
         completed_by=request.user,
         status=uc.validation_status,
         result=uc.validation_result,
-        checked_at=uc.last_validation_date,
+        checked_at=checked_at,
         next_review_date=uc.next_review_date,
     )
     UseCaseChangeLog.create_diff(uc, old_data, _snapshot_usecase(uc), request.user)

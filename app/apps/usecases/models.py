@@ -555,14 +555,10 @@ class UseCase(models.Model):
         if errors:
             raise ValidationError(errors)
 
-    def save(self, *args, **kwargs):
-        if self.last_validation_date:
-            interval_days = get_review_interval_days()
-            self.next_review_date = self.last_validation_date + timedelta(days=interval_days)
-        else:
-            self.next_review_date = None
-
-        super().save(*args, **kwargs)
+    def set_lifecycle_review_dates(self, checked_at=None):
+        checked_at = checked_at or date.today()
+        self.last_review_date = checked_at
+        self.next_review_date = checked_at + timedelta(days=get_review_interval_days())
 
     @property
     def is_review_overdue(self):
