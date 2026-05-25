@@ -12,7 +12,7 @@ from django.db import OperationalError, ProgrammingError
 from .models import DashboardReportSettings
 
 DEFAULT_REPORT_TITLE = "Reporte ejecutivo SOC"
-DEFAULT_REPORT_SUBTITLE = "Cobertura ATT&CK y D3FEND sobre casos de uso en producción"
+DEFAULT_REPORT_SUBTITLE = "Cobertura ATT&CK y D3FEND sobre casos de uso en produccion"
 DEFAULT_REPORT_FOOTER = "SOC Use Cases Manager"
 
 
@@ -26,6 +26,29 @@ def get_active_dashboard_report_settings():
 
 def _as_text(value, default="-"):
     text = str(value if value is not None else default).replace("\r", " ").replace("\n", " ").strip()
+    replacements = {
+        "\u00c3\u0192\u00c2\u00a1": "a",
+        "\u00c3\u0192\u00c2\u00a9": "e",
+        "\u00c3\u0192\u00c2\u00ad": "i",
+        "\u00c3\u0192\u00c2\u00b3": "o",
+        "\u00c3\u0192\u00c2\u00ba": "u",
+        "\u00c3\u0192\u00c2\u00b1": "n",
+        "\u00c3\u00a1": "a",
+        "\u00c3\u00a9": "e",
+        "\u00c3\u00ad": "i",
+        "\u00c3\u00b3": "o",
+        "\u00c3\u00ba": "u",
+        "\u00c3\u00b1": "n",
+        "á": "a",
+        "é": "e",
+        "í": "i",
+        "ó": "o",
+        "ú": "u",
+        "ñ": "n",
+        "\u00c2\u00b7": "-",
+    }
+    for broken, replacement in replacements.items():
+        text = text.replace(broken, replacement)
     return text or default
 
 
@@ -53,7 +76,7 @@ def _draw_pdf_footer(canvas, doc, footer_text):
     canvas.setFillColorRGB(0.45, 0.49, 0.56)
     canvas.setFont("Helvetica", 8)
     canvas.drawString(doc.leftMargin, 24, footer_text or DEFAULT_REPORT_FOOTER)
-    canvas.drawRightString(doc.pagesize[0] - doc.rightMargin, 24, f"Página {doc.page}")
+    canvas.drawRightString(doc.pagesize[0] - doc.rightMargin, 24, f"Pagina {doc.page}")
     canvas.restoreState()
 
 
@@ -89,6 +112,7 @@ def build_dashboard_pdf(buffer, context, report_settings, generated_by):
     from reportlab.lib.pagesizes import A4
     from reportlab.lib.styles import ParagraphStyle, getSampleStyleSheet
     from reportlab.lib.units import cm
+    from reportlab.graphics.shapes import Drawing, Rect, String
     from reportlab.platypus import Image, LongTable, Paragraph, SimpleDocTemplate, Spacer, Table, TableStyle
 
     page_width, _ = A4
@@ -122,7 +146,7 @@ def build_dashboard_pdf(buffer, context, report_settings, generated_by):
         fontName="Helvetica-Bold",
         fontSize=20,
         leading=22,
-        textColor=colors.HexColor("#111827"),
+        textColor=colors.white,
     )
     subtitle_style = ParagraphStyle(
         "ReportSubtitle",
@@ -147,7 +171,7 @@ def build_dashboard_pdf(buffer, context, report_settings, generated_by):
         alignment=TA_RIGHT,
         fontSize=8,
         leading=11,
-        textColor=colors.HexColor("#6b7280"),
+        textColor=colors.HexColor("#e5e7eb"),
     )
     cell_style = ParagraphStyle(
         "TableCell",
@@ -212,6 +236,109 @@ def build_dashboard_pdf(buffer, context, report_settings, generated_by):
             ("ROWBACKGROUNDS", (0, 1), (-1, -1), [colors.white, colors.HexColor("#fbfdff")]),
         ])
 
+    def metric_percent(metric):
+        try:
+            return float(metric.get("percent", 0) or 0)
+        except (TypeError, ValueError):
+            return 0.0
+
+    def clean_metric_title(metric):
+        title = _as_text(metric.get("title", ""))
+        title = title.replace("Cobertura ", "").replace(" inferida por ATT&CK", "")
+        return _clip(title, 28)
+
+    def coverage_color(percent):
+        if percent >= 80:
+            return colors.HexColor("#15803d")
+        if percent >= 40:
+            return colors.HexColor("#b45309")
+        return colors.HexColor("#b91c1c")
+
+    def coverage_panel(title_text, metrics, drawing_width):
+        clean_metrics = [
+            metric for metric in metrics
+            if "manual" not in _as_text(metric.get("title", "")).lower()
+        ]
+        if not clean_metrics:
+            return None
+
+        row_height = 28
+        drawing_height = 34 + row_height * len(clean_metrics)
+        drawing = Drawing(drawing_width, drawing_height)
+        drawing.add(Rect(0, 0, drawing_width, drawing_height, fillColor=colors.HexColor("#f8fafc"), strokeColor=colors.HexColor("#dbe3ef"), strokeWidth=0.6))
+        drawing.add(String(10, drawing_height - 18, title_text, fontName="Helvetica-Bold", fontSize=9, fillColor=colors.HexColor("#111827")))
+
+        bar_x = 10
+        bar_width = drawing_width - 70
+        for index, metric in enumerate(clean_metrics):
+            percent = max(0.0, min(metric_percent(metric), 100.0))
+            y = drawing_height - 42 - index * row_height
+            bar_color = coverage_color(percent)
+            drawing.add(String(bar_x, y + 11, clean_metric_title(metric), fontName="Helvetica", fontSize=7, fillColor=colors.HexColor("#4b5563")))
+            drawing.add(Rect(bar_x, y, bar_width, 7, fillColor=colors.HexColor("#e5e7eb"), strokeColor=colors.HexColor("#e5e7eb")))
+            drawing.add(Rect(bar_x, y, bar_width * (percent / 100.0), 7, fillColor=bar_color, strokeColor=bar_color))
+            drawing.add(String(bar_x + bar_width + 8, y, f"{percent:.1f}%", fontName="Helvetica-Bold", fontSize=7, fillColor=colors.HexColor("#111827")))
+        return drawing
+
+    def d3fend_distribution_panel(drawing_width):
+        total = int(context.get("all_d3fend_techniques", 0) or 0)
+        full = int(context.get("fully_covered_d3fend_techniques", 0) or 0)
+        partial = int(context.get("partially_covered_d3fend_techniques", 0) or 0)
+        pending = max(total - full - partial, 0)
+        if total <= 0:
+            return None
+
+        values = [
+            ("100%", full, colors.HexColor("#15803d")),
+            ("Parcial", partial, colors.HexColor("#b45309")),
+            ("Pendiente", pending, colors.HexColor("#b91c1c")),
+        ]
+        drawing_height = 118
+        drawing = Drawing(drawing_width, drawing_height)
+        drawing.add(Rect(0, 0, drawing_width, drawing_height, fillColor=colors.HexColor("#f8fafc"), strokeColor=colors.HexColor("#dbe3ef"), strokeWidth=0.6))
+        drawing.add(String(10, drawing_height - 18, "Distribucion D3FEND", fontName="Helvetica-Bold", fontSize=9, fillColor=colors.HexColor("#111827")))
+
+        bar_x = 10
+        bar_y = drawing_height - 46
+        bar_width = drawing_width - 20
+        current_x = bar_x
+        for _, value, color in values:
+            segment_width = bar_width * (value / total)
+            if segment_width:
+                drawing.add(Rect(current_x, bar_y, segment_width, 12, fillColor=color, strokeColor=colors.white, strokeWidth=0.4))
+            current_x += segment_width
+
+        legend_y = 42
+        for index, (label, value, color) in enumerate(values):
+            x = 10 + index * (drawing_width / 3)
+            percent = round((value / total) * 100, 1)
+            drawing.add(Rect(x, legend_y, 8, 8, fillColor=color, strokeColor=color))
+            drawing.add(String(x + 12, legend_y + 1, label, fontName="Helvetica-Bold", fontSize=7, fillColor=colors.HexColor("#374151")))
+            drawing.add(String(x + 12, legend_y - 11, f"{value} ({percent}%)", fontName="Helvetica", fontSize=7, fillColor=colors.HexColor("#6b7280")))
+        return drawing
+
+    def coverage_status(percent):
+        if percent >= 80:
+            return ("Saludable", colors.HexColor("#dcfce7"), colors.HexColor("#166534"))
+        if percent >= 40:
+            return ("En progreso", colors.HexColor("#fef3c7"), colors.HexColor("#92400e"))
+        return ("Brecha alta", colors.HexColor("#fee2e2"), colors.HexColor("#991b1b"))
+
+    def percent_from_context(key):
+        try:
+            return float(context.get(key, 0) or 0)
+        except (TypeError, ValueError):
+            return 0.0
+
+    def executive_focus():
+        attack_percent = metric_percent((context.get("attack_radials") or [{}])[0])
+        d3fend_percent = percent_from_context("global_d3fend_coverage_percent")
+        if d3fend_percent and d3fend_percent < attack_percent:
+            return "Priorizar controles D3FEND con cobertura parcial o sin relaciones cubiertas."
+        if attack_percent < 40:
+            return "Priorizar tecnicas ATT&CK pendientes en casos productivos."
+        return "Mantener revision periodica y cerrar brechas pendientes de mayor impacto."
+
     story = []
     title = report_settings.report_title if report_settings else DEFAULT_REPORT_TITLE
     subtitle = report_settings.report_subtitle if report_settings else DEFAULT_REPORT_SUBTITLE
@@ -232,7 +359,7 @@ def build_dashboard_pdf(buffer, context, report_settings, generated_by):
     if context.get("selected_severity"):
         filters.append(f'Severidad: {context["selected_severity"]}')
     if context.get("selected_enabled"):
-        filters.append(f'Habilitado: {"Sí" if context["selected_enabled"] == "yes" else "No"}')
+        filters.append(f'Habilitado: {"Si" if context["selected_enabled"] == "yes" else "No"}')
     filter_text = " - ".join(filters) if filters else "Sin filtros adicionales"
 
     meta = Paragraph(
@@ -245,11 +372,12 @@ def build_dashboard_pdf(buffer, context, report_settings, generated_by):
     )
     header = Table([[header_left, meta]], colWidths=[content_width * 0.58, content_width * 0.42])
     header.setStyle(TableStyle([
+        ("BACKGROUND", (0, 0), (-1, -1), colors.HexColor("#111827")),
         ("VALIGN", (0, 0), (-1, -1), "TOP"),
-        ("LINEBELOW", (0, 0), (-1, -1), 0.6, colors.HexColor("#d1d5db")),
-        ("BOTTOMPADDING", (0, 0), (-1, -1), 9),
-        ("LEFTPADDING", (0, 0), (-1, -1), 0),
-        ("RIGHTPADDING", (0, 0), (-1, -1), 0),
+        ("BOTTOMPADDING", (0, 0), (-1, -1), 12),
+        ("TOPPADDING", (0, 0), (-1, -1), 12),
+        ("LEFTPADDING", (0, 0), (-1, -1), 14),
+        ("RIGHTPADDING", (0, 0), (-1, -1), 14),
     ]))
     story.append(header)
     story.append(Spacer(1, 10))
@@ -257,10 +385,38 @@ def build_dashboard_pdf(buffer, context, report_settings, generated_by):
     story.append(Paragraph(escape(_as_text(subtitle)), subtitle_style))
     story.append(Spacer(1, 10))
 
+    overall_percent = percent_from_context("global_d3fend_coverage_percent")
+    if not overall_percent and context.get("d3fend_radials"):
+        overall_percent = metric_percent(context["d3fend_radials"][0])
+    status_label, status_bg, status_fg = coverage_status(overall_percent)
+    executive_summary = Table(
+        [[
+            [p("Estado ejecutivo", kpi_label_style, 36), p(status_label, kpi_value_style, 24)],
+            [p("Cobertura D3FEND global", kpi_label_style, 40), p(f"{round(overall_percent, 1)}%", kpi_value_style, 18)],
+            [p("Foco recomendado", kpi_label_style, 36), p(executive_focus(), cell_style, 86)],
+        ]],
+        colWidths=[content_width * 0.22, content_width * 0.24, content_width * 0.54],
+        hAlign="LEFT",
+    )
+    executive_summary.setStyle(TableStyle([
+        ("BACKGROUND", (0, 0), (0, 0), status_bg),
+        ("TEXTCOLOR", (0, 0), (0, 0), status_fg),
+        ("BACKGROUND", (1, 0), (-1, -1), colors.HexColor("#f8fafc")),
+        ("BOX", (0, 0), (-1, -1), 0.5, colors.HexColor("#dbe3ef")),
+        ("INNERGRID", (0, 0), (-1, -1), 0.35, colors.HexColor("#e5e7eb")),
+        ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+        ("LEFTPADDING", (0, 0), (-1, -1), 8),
+        ("RIGHTPADDING", (0, 0), (-1, -1), 8),
+        ("TOPPADDING", (0, 0), (-1, -1), 7),
+        ("BOTTOMPADDING", (0, 0), (-1, -1), 7),
+    ]))
+    story.append(executive_summary)
+    story.append(Spacer(1, 9))
+
     kpi_items = [
         ("Casos productivos", context.get("total_cases", 0)),
-        ("ATT&CK técnicas", f'{context.get("covered_attack_techniques", 0)} / {context.get("all_attack_techniques", 0)}'),
-        ("ATT&CK tácticas", f'{context.get("covered_tactics", 0)} / {context.get("total_tactics", 0)}'),
+        ("ATT&CK tecnicas", f'{context.get("covered_attack_techniques", 0)} / {context.get("all_attack_techniques", 0)}'),
+        ("ATT&CK tacticas", f'{context.get("covered_tactics", 0)} / {context.get("total_tactics", 0)}'),
         ("D3FEND inferido", f'{context.get("covered_d3fend_techniques", 0)} / {context.get("all_d3fend_techniques", 0)}'),
         ("D3FEND 100% cubiertos", f'{context.get("fully_covered_d3fend_techniques", 0)} / {context.get("all_d3fend_techniques", 0)}'),
         ("D3FEND parciales", f'{context.get("partially_covered_d3fend_techniques", 0)} / {context.get("all_d3fend_techniques", 0)}'),
@@ -283,6 +439,17 @@ def build_dashboard_pdf(buffer, context, report_settings, generated_by):
         ("BOTTOMPADDING", (0, 0), (-1, -1), 7),
     ]))
     story.append(kpi_table)
+    story.append(Spacer(1, 9))
+
+    chart_items = [
+        coverage_panel("Cobertura ATT&CK", context.get("attack_radials", []), content_width),
+        coverage_panel("Cobertura D3FEND", context.get("d3fend_radials", []), content_width),
+        d3fend_distribution_panel(content_width),
+    ]
+    chart_items = [item for item in chart_items if item is not None]
+    for chart_item in chart_items:
+        story.append(chart_item)
+        story.append(Spacer(1, 7))
 
     metric_widths = [content_width * 0.58, content_width * 0.15, content_width * 0.27]
     for title_text, metrics in (
@@ -290,13 +457,13 @@ def build_dashboard_pdf(buffer, context, report_settings, generated_by):
         ("Cobertura D3FEND inferida", context.get("d3fend_radials", [])),
     ):
         story.append(Paragraph(escape(title_text), section_style))
-        rows = [["Métrica", "%", "Cubierto / Total"]] + _pdf_metric_table(metrics)
+        rows = [["Metrica", "%", "Cubierto / Total"]] + _pdf_metric_table(metrics)
         table = LongTable(paragraph_rows(rows, {0: 90, 1: 12, 2: 24}), colWidths=metric_widths, repeatRows=1)
         table.setStyle(base_table_style(colors.HexColor("#eaf2ff"), colors.HexColor("#dbe3ef"), colors.HexColor("#1d4ed8")))
         story.append(table)
 
     story.append(Paragraph(escape("Pendientes ATT&CK"), section_style))
-    attack_rows = [["ID", "Técnica", "Táctica"]] + _safe_table_rows(
+    attack_rows = [["ID", "Tecnica", "Tactica"]] + _safe_table_rows(
         context.get("uncovered_attacks", []),
         "external_id",
         "tactic",
@@ -311,7 +478,7 @@ def build_dashboard_pdf(buffer, context, report_settings, generated_by):
     story.append(table)
 
     story.append(Paragraph(escape("Pendientes D3FEND por cobertura ATT&CK inferida"), section_style))
-    d3_rows = [["Código", "Control", "Categoría"]] + _safe_table_rows(
+    d3_rows = [["Codigo", "Control", "Categoria"]] + _safe_table_rows(
         context.get("uncovered_d3fends", []),
         "code",
         "category",
@@ -326,7 +493,7 @@ def build_dashboard_pdf(buffer, context, report_settings, generated_by):
     story.append(table)
 
     story.append(Paragraph("Detalle ejecutivo D3FEND", section_style))
-    executive_rows = [["Código", "Nombre", "Categoría", "% actual"]] + _d3fend_executive_rows(
+    executive_rows = [["Codigo", "Nombre", "Categoria", "% actual"]] + _d3fend_executive_rows(
         context.get("d3fend_coverage_rows", []),
         limit=35,
     )

@@ -1,4 +1,6 @@
 from datetime import date
+from io import BytesIO
+from types import SimpleNamespace
 
 from django.contrib.auth import get_user_model
 from django.contrib.auth.models import Group
@@ -6,7 +8,9 @@ from django.core.exceptions import ValidationError
 from django.test import TestCase
 from django.urls import reverse
 
-from .models import D3Fend, LifecycleSettings, MitreAttack, UseCase
+from .coverage_admin import build_coverage_admin_context
+from .models import CoverageOverride, D3Fend, LifecycleReview, LifecycleSettings, MitreAttack, UseCase
+from .reports import build_dashboard_pdf
 
 
 class UseCaseBusinessRuleTests(TestCase):
@@ -115,6 +119,59 @@ class UseCasePermissionTests(TestCase):
 
         self.assertEqual(response.status_code, 403)
 
+    def test_readonly_cannot_export_csv_or_pdf(self):
+        self.client.login(username="readonly", password="pass")
+
+        csv_response = self.client.get(reverse("export_usecases_csv"))
+        pdf_response = self.client.get(reverse("dashboard_pdf_export"))
+
+        self.assertEqual(csv_response.status_code, 403)
+        self.assertEqual(pdf_response.status_code, 403)
+
+    def test_analyst_can_export_dashboard_pdf(self):
+        self.client.login(username="analyst", password="pass")
+
+        response = self.client.get(reverse("dashboard_pdf_export"))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response["Content-Type"], "application/pdf")
+        self.assertIn("dashboard-soc-", response["Content-Disposition"])
+        self.assertTrue(response.content.startswith(b"%PDF"))
+
+    def test_csv_export_respects_device_filter(self):
+        self.owned_usecase.device = "EDR"
+        self.owned_usecase.save()
+        self.other_usecase.device = "SIEM"
+        self.other_usecase.save()
+        self.client.login(username="analyst", password="pass")
+
+        response = self.client.get(reverse("export_usecases_csv"), {"device": "EDR"})
+        content = response.content.decode("utf-8-sig")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertIn("Owned use case", content)
+        self.assertNotIn("Other use case", content)
+
+    def test_csv_export_only_includes_production_usecases(self):
+        draft = UseCase.objects.create(
+            name="Draft only use case",
+            owner_name=self.analyst.username,
+            created_by=self.analyst,
+            status=UseCase.STATUS_DEVELOPMENT,
+            severity="Low",
+            is_enabled=True,
+        )
+        draft.mitre_attacks.add(self.attack)
+        self.client.login(username="analyst", password="pass")
+
+        response = self.client.get(reverse("export_usecases_csv"))
+        content = response.content.decode("utf-8-sig")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertIn("Owned use case", content)
+        self.assertIn("Other use case", content)
+        self.assertNotIn("Draft only use case", content)
+
     def test_analyst_bulk_update_only_changes_owned_usecases(self):
         self.client.login(username="analyst", password="pass")
 
@@ -140,3 +197,91 @@ class UseCasePermissionTests(TestCase):
         self.assertEqual(response.status_code, 302)
         self.other_usecase.refresh_from_db()
         self.assertEqual(self.other_usecase.severity, "High")
+
+    def test_coverage_override_requires_reason_for_fulfilled_status(self):
+        self.client.login(username="analyst", password="pass")
+
+        response = self.client.post(reverse("coverage_override_update"), {
+            "framework": CoverageOverride.FRAMEWORK_ATTACK,
+            "object_type": CoverageOverride.OBJECT_TECHNIQUE,
+            "object_key": self.attack.external_id,
+            "object_name": self.attack.name,
+            "status": CoverageOverride.STATUS_FULFILLED,
+            "reason": "",
+            "default_enabled": "1",
+        })
+
+        self.assertEqual(response.status_code, 302)
+        self.assertFalse(CoverageOverride.objects.exists())
+
+    def test_coverage_admin_context_searches_tactics_by_child_technique(self):
+        context = build_coverage_admin_context({
+            "tab": CoverageOverride.FRAMEWORK_ATTACK,
+            "scope": CoverageOverride.OBJECT_TACTIC,
+            "q": "T1059",
+        })
+
+        self.assertEqual(context["tab"], CoverageOverride.FRAMEWORK_ATTACK)
+        self.assertEqual(context["scope"], CoverageOverride.OBJECT_TACTIC)
+        self.assertEqual(len(context["rows"]), 1)
+
+    def test_lifecycle_owner_can_mark_review_done(self):
+        self.owned_usecase.lifecycle_control_owner = self.analyst
+        self.owned_usecase.save()
+        self.client.login(username="analyst", password="pass")
+
+        response = self.client.post(reverse("lifecycle_mark_done", args=[self.owned_usecase.pk]))
+
+        self.assertEqual(response.status_code, 302)
+        self.owned_usecase.refresh_from_db()
+        self.assertEqual(self.owned_usecase.validation_status, UseCase.VALIDATION_STATUS_FINISHED)
+        self.assertEqual(LifecycleReview.objects.filter(use_case=self.owned_usecase).count(), 1)
+
+    def test_non_owner_cannot_mark_lifecycle_review_done(self):
+        self.owned_usecase.lifecycle_control_owner = self.analyst
+        self.owned_usecase.save()
+        self.client.login(username="other", password="pass")
+
+        response = self.client.post(reverse("lifecycle_mark_done", args=[self.owned_usecase.pk]))
+
+        self.assertEqual(response.status_code, 403)
+        self.assertFalse(LifecycleReview.objects.filter(use_case=self.owned_usecase).exists())
+
+    def test_admin_can_delete_usecase(self):
+        self.client.login(username="admin", password="pass")
+
+        response = self.client.post(reverse("usecase_delete", args=[self.other_usecase.pk]))
+
+        self.assertEqual(response.status_code, 302)
+        self.assertFalse(UseCase.objects.filter(pk=self.other_usecase.pk).exists())
+
+
+class DashboardPdfReportTests(TestCase):
+    def test_dashboard_pdf_renders_with_charts(self):
+        buffer = BytesIO()
+        context = {
+            "total_cases": 5,
+            "covered_attack_techniques": 3,
+            "all_attack_techniques": 10,
+            "covered_tactics": 2,
+            "total_tactics": 4,
+            "covered_d3fend_techniques": 2.5,
+            "all_d3fend_techniques": 8,
+            "fully_covered_d3fend_techniques": 2,
+            "partially_covered_d3fend_techniques": 3,
+            "attack_radials": [
+                {"title": "Cobertura Técnicas ATT&CK", "percent": 30, "percent_label": "30", "covered": 3, "total": 10},
+                {"title": "Cobertura Tácticas ATT&CK", "percent": 50, "percent_label": "50", "covered": 2, "total": 4},
+            ],
+            "d3fend_radials": [
+                {"title": "Cobertura D3FEND inferida por ATT&CK", "percent": 31.3, "percent_label": "31,3", "covered": 2.5, "total": 8},
+                {"title": "D3FEND totalmente cubiertos", "percent": 25, "percent_label": "25", "covered": 2, "total": 8},
+            ],
+            "uncovered_attacks": [],
+            "uncovered_d3fends": [],
+            "d3fend_coverage_rows": [],
+        }
+
+        build_dashboard_pdf(buffer, context, None, SimpleNamespace(username="tester"))
+
+        self.assertTrue(buffer.getvalue().startswith(b"%PDF"))

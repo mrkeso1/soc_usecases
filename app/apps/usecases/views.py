@@ -1,10 +1,8 @@
-from collections import Counter
 from datetime import date, timedelta, datetime
 import csv
 from io import BytesIO
 
 from django.contrib import messages
-from django.contrib.auth import get_user_model
 from django.contrib.auth.decorators import login_required
 from django.core.paginator import Paginator
 from django.core.exceptions import ValidationError
@@ -16,12 +14,13 @@ from django.urls import reverse
 from .attack_matrix import build_attack_matrix_context
 from .bulk_updates import parse_csv_ids as _parse_csv_ids
 from .bulk_updates import parse_posted_usecase_ids, update_usecases_bulk
+from .coverage_admin import build_coverage_admin_context
 from .d3fend_matrix import build_d3fend_matrix_context
 from .dashboard import build_dashboard_context
 from .forms import UseCaseForm
-from .coverage_overrides import get_override_map, item_matches_query, resolve_status, split_values
-from .lifecycle import current_lifecycle_window
-from .models import CoverageOverride, D3Fend, LifecycleReview, MitreAttack, UseCase, UseCaseChangeLog
+from .coverage_overrides import update_coverage_override_from_post
+from .lifecycle import build_lifecycle_management_context, mark_lifecycle_review_done, assign_lifecycle_owner
+from .models import D3Fend, MitreAttack, UseCase, UseCaseChangeLog
 from .permissions import (
     can_access_usecases,
     can_add_usecases,
@@ -29,21 +28,20 @@ from .permissions import (
     can_delete_usecases,
     can_finish_lifecycle_review,
     can_manage_usecases,
-    is_lifecycle_admin as user_is_lifecycle_admin,
     resolve_user_roles,
 )
 from .reports import build_dashboard_pdf, get_active_dashboard_report_settings
 
-_FORBIDDEN_MSG = "No tenés permisos para acceder a esta sección."
+_FORBIDDEN_MSG = "No tenes permisos para acceder a esta seccion."
 PRODUCTION_STATUS = UseCase.STATUS_PRODUCTION
 
 
-# ── Helpers ──────────────────────────────────────────────────────────────────
+# Helpers
 
 
 def _get_filtered_usecases(request, *, with_prefetch: bool = True, ignore_quick: bool = False):
     # El inventario operativo y los links del dashboard trabajan solo sobre casos
-    # en Producción. Los estados Draft/Test/Desarrollo/Baja no participan en
+    # en Produccion. Los estados Draft/Test/Desarrollo/Baja no participan en
     # cobertura ni se pueden consultar desde estos filtros del front.
     qs = UseCase.objects.filter(status__iexact=PRODUCTION_STATUS)
 
@@ -250,207 +248,7 @@ def _usecase_business_rule_errors(usecase, *, mitre_ids=None):
 
 
 
-def _coverage_status_label(status: str) -> str:
-    return dict(CoverageOverride.STATUS_CHOICES).get(status, status)
-
-
-def _coverage_admin_status_options():
-    return CoverageOverride.STATUS_CHOICES
-
-
-def _coverage_object_type_label(object_type: str) -> str:
-    return dict(CoverageOverride.OBJECT_TYPE_CHOICES).get(object_type, object_type)
-
-
-def _build_attack_tactic_rows(q: str, overrides: dict) -> list[dict]:
-    tactic_map: dict[str, dict] = {}
-    qs = MitreAttack.objects.all().only("external_id", "name", "tactic", "is_enabled").order_by("external_id", "name")
-    for attack in qs:
-        attack_tactics = split_values(attack.tactic) or ["Sin táctica"]
-        for tactic in attack_tactics:
-            data = tactic_map.setdefault(
-                tactic,
-                {
-                    "techniques": 0,
-                    "enabled": 0,
-                    "fulfilled": 0,
-                    "disabled": 0,
-                    "search_values": {tactic},
-                },
-            )
-            data["search_values"].update([attack.external_id, attack.name, attack.tactic])
-            technique_status = resolve_status(
-                overrides,
-                framework=CoverageOverride.FRAMEWORK_ATTACK,
-                object_type=CoverageOverride.OBJECT_TECHNIQUE,
-                object_key=attack.external_id,
-                default_enabled=attack.is_enabled,
-            )
-            data["techniques"] += 1
-            if technique_status.status == CoverageOverride.STATUS_FULFILLED:
-                data["fulfilled"] += 1
-            elif technique_status.status == CoverageOverride.STATUS_DISABLED:
-                data["disabled"] += 1
-            else:
-                data["enabled"] += 1
-
-    rows = []
-    for tactic, data in tactic_map.items():
-        # In the tactic scope the visible row is the tactic, but the user will
-        # naturally search by child technique ID/name as well. Include those
-        # child values so the search does not look broken from the default tab.
-        if not item_matches_query(data["search_values"], q):
-            continue
-        status = resolve_status(
-            overrides,
-            framework=CoverageOverride.FRAMEWORK_ATTACK,
-            object_type=CoverageOverride.OBJECT_TACTIC,
-            object_key=tactic,
-            default_enabled=True,
-        )
-        rows.append({
-            "framework": CoverageOverride.FRAMEWORK_ATTACK,
-            "object_type": CoverageOverride.OBJECT_TACTIC,
-            "object_type_label": "Táctica",
-            "object_key": tactic,
-            "object_name": tactic,
-            "title": tactic,
-            "subtitle": f"{data['techniques']} técnicas/subtécnicas · {data['fulfilled']} cumplidas · {data['disabled']} deshabilitadas",
-            "status": status.status,
-            "status_label": status.label,
-            "status_class": status.css_class,
-            "reason": status.reason,
-            "default_enabled": True,
-            "source": status.source,
-        })
-    return sorted(rows, key=lambda row: row["title"].lower())
-
-
-def _build_attack_technique_rows(q: str, overrides: dict) -> list[dict]:
-    rows = []
-    qs = MitreAttack.objects.all().order_by("external_id", "name")
-    for attack in qs:
-        if not item_matches_query([attack.external_id, attack.name, attack.tactic], q):
-            continue
-        status = resolve_status(
-            overrides,
-            framework=CoverageOverride.FRAMEWORK_ATTACK,
-            object_type=CoverageOverride.OBJECT_TECHNIQUE,
-            object_key=attack.external_id,
-            default_enabled=attack.is_enabled,
-        )
-        rows.append({
-            "framework": CoverageOverride.FRAMEWORK_ATTACK,
-            "object_type": CoverageOverride.OBJECT_TECHNIQUE,
-            "object_type_label": "Técnica",
-            "object_key": attack.external_id,
-            "object_name": attack.name,
-            "title": f"{attack.external_id} · {attack.name or 'Sin nombre'}",
-            "subtitle": attack.tactic or "Sin táctica",
-            "status": status.status,
-            "status_label": status.label,
-            "status_class": status.css_class,
-            "reason": status.reason,
-            "default_enabled": attack.is_enabled,
-            "source": status.source,
-        })
-    return rows
-
-
-def _build_d3fend_category_rows(q: str, overrides: dict) -> list[dict]:
-    category_map: dict[str, dict] = {}
-    qs = D3Fend.objects.all().only("code", "name", "category", "is_enabled").order_by("category", "code")
-    for d3fend in qs:
-        category = d3fend.category or "Sin categoría"
-        data = category_map.setdefault(
-            category,
-            {
-                "techniques": 0,
-                "enabled": 0,
-                "fulfilled": 0,
-                "disabled": 0,
-                "search_values": {category},
-            },
-        )
-        data["search_values"].update([d3fend.code, d3fend.name, d3fend.category])
-        technique_status = resolve_status(
-            overrides,
-            framework=CoverageOverride.FRAMEWORK_D3FEND,
-            object_type=CoverageOverride.OBJECT_TECHNIQUE,
-            object_key=d3fend.code,
-            default_enabled=d3fend.is_enabled,
-        )
-        data["techniques"] += 1
-        if technique_status.status == CoverageOverride.STATUS_FULFILLED:
-            data["fulfilled"] += 1
-        elif technique_status.status == CoverageOverride.STATUS_DISABLED:
-            data["disabled"] += 1
-        else:
-            data["enabled"] += 1
-
-    rows = []
-    for category, data in category_map.items():
-        # Same UX rule as ATT&CK tactics: in the category scope, searching by a
-        # child D3FEND code/name should still return the parent category.
-        if not item_matches_query(data["search_values"], q):
-            continue
-        status = resolve_status(
-            overrides,
-            framework=CoverageOverride.FRAMEWORK_D3FEND,
-            object_type=CoverageOverride.OBJECT_CATEGORY,
-            object_key=category,
-            default_enabled=True,
-        )
-        rows.append({
-            "framework": CoverageOverride.FRAMEWORK_D3FEND,
-            "object_type": CoverageOverride.OBJECT_CATEGORY,
-            "object_type_label": "Categoría",
-            "object_key": category,
-            "object_name": category,
-            "title": category,
-            "subtitle": f"{data['techniques']} técnicas · {data['fulfilled']} cumplidas · {data['disabled']} deshabilitadas",
-            "status": status.status,
-            "status_label": status.label,
-            "status_class": status.css_class,
-            "reason": status.reason,
-            "default_enabled": True,
-            "source": status.source,
-        })
-    return sorted(rows, key=lambda row: row["title"].lower())
-
-
-def _build_d3fend_technique_rows(q: str, overrides: dict) -> list[dict]:
-    rows = []
-    qs = D3Fend.objects.all().order_by("code", "name")
-    for d3fend in qs:
-        if not item_matches_query([d3fend.code, d3fend.name, d3fend.category], q):
-            continue
-        status = resolve_status(
-            overrides,
-            framework=CoverageOverride.FRAMEWORK_D3FEND,
-            object_type=CoverageOverride.OBJECT_TECHNIQUE,
-            object_key=d3fend.code,
-            default_enabled=d3fend.is_enabled,
-        )
-        rows.append({
-            "framework": CoverageOverride.FRAMEWORK_D3FEND,
-            "object_type": CoverageOverride.OBJECT_TECHNIQUE,
-            "object_type_label": "Técnica",
-            "object_key": d3fend.code,
-            "object_name": d3fend.name,
-            "title": f"{d3fend.code} · {d3fend.name or 'Sin nombre'}",
-            "subtitle": d3fend.category or "Sin categoría",
-            "status": status.status,
-            "status_label": status.label,
-            "status_class": status.css_class,
-            "reason": status.reason,
-            "default_enabled": d3fend.is_enabled,
-            "source": status.source,
-        })
-    return rows
-
-
-# ── Views ─────────────────────────────────────────────────────────────────────
+# Views
 
 @login_required
 def dashboard_view(request):
@@ -491,61 +289,7 @@ def coverage_admin_view(request):
     if not can_manage_usecases(request.user, None):
         return HttpResponseForbidden(_FORBIDDEN_MSG)
 
-    tab = request.GET.get("tab", CoverageOverride.FRAMEWORK_ATTACK).strip().upper()
-    if tab not in {CoverageOverride.FRAMEWORK_ATTACK, CoverageOverride.FRAMEWORK_D3FEND}:
-        tab = CoverageOverride.FRAMEWORK_ATTACK
-
-    if tab == CoverageOverride.FRAMEWORK_ATTACK:
-        scope = request.GET.get("scope", CoverageOverride.OBJECT_TACTIC).strip().lower()
-        allowed_scopes = {CoverageOverride.OBJECT_TACTIC, CoverageOverride.OBJECT_TECHNIQUE}
-    else:
-        scope = request.GET.get("scope", CoverageOverride.OBJECT_CATEGORY).strip().lower()
-        allowed_scopes = {CoverageOverride.OBJECT_CATEGORY, CoverageOverride.OBJECT_TECHNIQUE}
-    if scope not in allowed_scopes:
-        scope = CoverageOverride.OBJECT_TACTIC if tab == CoverageOverride.FRAMEWORK_ATTACK else CoverageOverride.OBJECT_CATEGORY
-
-    q = request.GET.get("q", "").strip()
-    status_filter = request.GET.get("status", "").strip()
-    if status_filter not in {"", CoverageOverride.STATUS_ENABLED, CoverageOverride.STATUS_FULFILLED, CoverageOverride.STATUS_DISABLED}:
-        status_filter = ""
-
-    overrides = get_override_map(tab)
-    if tab == CoverageOverride.FRAMEWORK_ATTACK and scope == CoverageOverride.OBJECT_TACTIC:
-        rows = _build_attack_tactic_rows(q, overrides)
-    elif tab == CoverageOverride.FRAMEWORK_ATTACK:
-        rows = _build_attack_technique_rows(q, overrides)
-    elif scope == CoverageOverride.OBJECT_CATEGORY:
-        rows = _build_d3fend_category_rows(q, overrides)
-    else:
-        rows = _build_d3fend_technique_rows(q, overrides)
-
-    counters = Counter(row["status"] for row in rows)
-    if status_filter:
-        rows = [row for row in rows if row["status"] == status_filter]
-
-    paginator = Paginator(rows, 25)
-    page_obj = paginator.get_page(request.GET.get("page"))
-
-    return render(request, "usecases/coverage_admin.html", {
-        "rows": page_obj.object_list,
-        "page_obj": page_obj,
-        "paginator": paginator,
-        "tab": tab,
-        "scope": scope,
-        "q": q,
-        "status_filter": status_filter,
-        "status_options": _coverage_admin_status_options(),
-        "counters": counters,
-        "counter_enabled": counters.get(CoverageOverride.STATUS_ENABLED, 0),
-        "counter_fulfilled": counters.get(CoverageOverride.STATUS_FULFILLED, 0),
-        "counter_disabled": counters.get(CoverageOverride.STATUS_DISABLED, 0),
-        "total_rows": len(rows),
-        "attack_framework": CoverageOverride.FRAMEWORK_ATTACK,
-        "d3fend_framework": CoverageOverride.FRAMEWORK_D3FEND,
-        "object_tactic": CoverageOverride.OBJECT_TACTIC,
-        "object_technique": CoverageOverride.OBJECT_TECHNIQUE,
-        "object_category": CoverageOverride.OBJECT_CATEGORY,
-    })
+    return render(request, "usecases/coverage_admin.html", build_coverage_admin_context(request.GET))
 
 
 @login_required
@@ -555,52 +299,13 @@ def coverage_override_update(request):
     if not can_manage_usecases(request.user, None):
         return HttpResponseForbidden(_FORBIDDEN_MSG)
 
-    framework = request.POST.get("framework", "").strip().upper()
-    object_type = request.POST.get("object_type", "").strip().lower()
-    object_key = request.POST.get("object_key", "").strip()
-    object_name = request.POST.get("object_name", "").strip()
-    status = request.POST.get("status", "").strip()
-    reason = request.POST.get("reason", "").strip()
-    default_enabled = request.POST.get("default_enabled") == "1"
     next_url = request.POST.get("next") or reverse("coverage_admin")
-
-    valid_frameworks = {CoverageOverride.FRAMEWORK_ATTACK, CoverageOverride.FRAMEWORK_D3FEND}
-    valid_types = {CoverageOverride.OBJECT_TACTIC, CoverageOverride.OBJECT_TECHNIQUE, CoverageOverride.OBJECT_CATEGORY}
-    valid_statuses = {CoverageOverride.STATUS_ENABLED, CoverageOverride.STATUS_FULFILLED, CoverageOverride.STATUS_DISABLED}
-
-    if framework not in valid_frameworks or object_type not in valid_types or status not in valid_statuses or not object_key:
-        messages.error(request, "No se pudo actualizar la cobertura: datos inválidos.")
-        return redirect(next_url)
-
-    if status in {CoverageOverride.STATUS_FULFILLED, CoverageOverride.STATUS_DISABLED} and not reason:
-        messages.error(request, "Indicá el motivo/evidencia antes de guardar ese estado.")
-        return redirect(next_url)
-
-    # Si vuelve al estado normal y el catálogo original ya estaba habilitado, no
-    # hace falta guardar override: limpiamos la excepción y queda mantenible.
-    if status == CoverageOverride.STATUS_ENABLED and default_enabled:
-        CoverageOverride.objects.filter(
-            framework=framework,
-            object_type=object_type,
-            object_key=object_key,
-        ).delete()
-        messages.success(request, "Cobertura restablecida a Habilitada.")
-        return redirect(next_url)
-
-    override, _ = CoverageOverride.objects.update_or_create(
-        framework=framework,
-        object_type=object_type,
-        object_key=object_key,
-        defaults={
-            "object_name": object_name,
-            "status": status,
-            "reason": reason,
-            "updated_by": request.user,
-        },
-    )
-    messages.success(request, f"Cobertura actualizada: {override.get_status_display()}.")
+    result = update_coverage_override_from_post(request.POST, request.user)
+    if result.ok:
+        messages.success(request, result.message)
+    else:
+        messages.error(request, result.message)
     return redirect(next_url)
-
 
 @login_required
 def usecase_list(request):
@@ -615,7 +320,7 @@ def usecase_list(request):
     if legacy_query.urlencode() != request.GET.urlencode():
         return _redirect_usecase_list_with_query(legacy_query.urlencode())
 
-    # _get_filtered_usecases returns (queryset, filters) — unpack correctly.
+    # _get_filtered_usecases returns (queryset, filters) - unpack correctly.
     qs, filters = _get_filtered_usecases(request, with_prefetch=True)
 
     q              = filters["q"]
@@ -692,7 +397,7 @@ def usecase_list(request):
             if attack.is_enabled:
                 d3fend_by_attack_id.setdefault(attack.id, []).append(d3fend)
 
-    # Resolve user roles once — avoids N*2 group DB queries in the loop below.
+    # Resolve user roles once - avoids repeated group DB queries in the loop below.
     roles = resolve_user_roles(request.user)
 
     for usecase in qs:
@@ -756,7 +461,7 @@ def export_usecases_csv(request):
     writer = csv.writer(response)
     writer.writerow([
         "Nombre", "Dispositivo", "Responsable desarrollo", "Estado", "Severidad",
-        "Ultimo control", "Proximo control", "Habilitado", "Motivo deshabilitación", "ATT&CK", "D3FEND",
+        "Ultimo control", "Proximo control", "Habilitado", "Motivo deshabilitacion", "ATT&CK", "D3FEND",
     ])
     for uc in qs:
         writer.writerow([
@@ -771,7 +476,7 @@ def export_usecases_csv(request):
 @login_required
 def usecase_create(request):
     if not can_add_usecases(request.user):
-        return HttpResponseForbidden("No tenés permisos para crear casos de uso.")
+        return HttpResponseForbidden("No tenes permisos para crear casos de uso.")
 
     if request.method == "POST":
         form = UseCaseForm(request.POST)
@@ -798,7 +503,7 @@ def usecase_edit(request, pk):
         UseCase.objects.prefetch_related("mitre_attacks", "d3fends"), pk=pk,
     )
     if not can_manage_usecases(request.user, usecase):
-        return HttpResponseForbidden("Solo podés editar casos de uso propios.")
+        return HttpResponseForbidden("Solo podes editar casos de uso propios.")
 
     old_data = _snapshot_usecase(usecase)
 
@@ -806,7 +511,7 @@ def usecase_edit(request, pk):
         form = UseCaseForm(request.POST, instance=usecase)
         if form.is_valid():
             updated = form.save(commit=False)
-            # Preserve lifecycle dates — managed only by the lifecycle review system.
+            # Preserve lifecycle dates - managed only by the lifecycle review system.
             updated.last_review_date = usecase.last_review_date
             updated.next_review_date = usecase.next_review_date
             updated.updated_by = request.user
@@ -872,11 +577,11 @@ def usecase_quick_update(request, pk):
         UseCase.objects.prefetch_related("mitre_attacks", "d3fends"), pk=pk,
     )
     if not can_manage_usecases(request.user, usecase):
-        return HttpResponseForbidden("Solo podés actualizar casos de uso propios.")
+        return HttpResponseForbidden("Solo podes actualizar casos de uso propios.")
 
     old_data = _snapshot_usecase(usecase)
 
-    # Preserve lifecycle dates before any scalar assignment.
+            # Preserve lifecycle dates - managed only by the lifecycle review system.
     _saved_last_review = usecase.last_review_date
     _saved_next_review = usecase.next_review_date
 
@@ -912,7 +617,7 @@ def usecase_quick_update(request, pk):
 
     new_data = _snapshot_usecase(usecase)
     UseCaseChangeLog.create_diff(usecase, old_data, new_data, request.user)
-    messages.success(request, f"Se actualizó '{usecase.name}'.")
+    messages.success(request, f"Se actualizo '{usecase.name}'.")
     return redirect("usecase_list")
 
 
@@ -989,100 +694,7 @@ def lifecycle_management_view(request):
     if not can_access_usecases(request.user):
         return HttpResponseForbidden(_FORBIDDEN_MSG)
 
-    today            = date.today()
-    cycle_start, cycle_end = current_lifecycle_window(today)
-    only_pending     = request.GET.get("only_pending") == "1"
-    lifecycle_admin  = user_is_lifecycle_admin(request.user)
-
-    usecases = list(UseCase.objects.select_related("lifecycle_control_owner").filter(status__iexact=UseCase.STATUS_PRODUCTION).order_by("name"))
-
-    User = get_user_model()
-    lifecycle_users = (
-        User.objects.filter(is_active=True).order_by("username")
-        if lifecycle_admin else User.objects.none()
-    )
-
-    # Resolve roles once — can_finish_lifecycle_review and can_assign_lifecycle_owner
-    # each call is_admin_role / user_in_group, which hits the DB without caching.
-    roles                = resolve_user_roles(request.user)
-    can_finish_cache     = can_finish_lifecycle_review(request.user, None, _roles=roles) if lifecycle_admin else None
-    can_assign           = can_assign_lifecycle_owner(request.user, _roles=roles)
-
-    rows                 = []
-    completed_in_cycle   = 0
-    owner_pending_counter = Counter()
-
-    for uc in usecases:
-        last_check = uc.last_validation_date
-        completed  = bool(last_check and cycle_start <= last_check <= cycle_end)
-        if completed:
-            completed_in_cycle += 1
-
-        review_days = uc.days_until_review
-        if review_days is None:
-            review_badge, review_level = "Sin fecha", "neutral"
-        elif review_days < 0:
-            review_badge, review_level = f"Vencido ({abs(review_days)}d)", "danger"
-        elif review_days <= 15:
-            review_badge, review_level = f"Por vencer ({review_days}d)", "warn"
-        else:
-            review_badge, review_level = f"Al día ({review_days}d)", "ok"
-
-        is_pending = not completed
-        if is_pending:
-            owner_key = (
-                uc.lifecycle_control_owner.get_full_name() or uc.lifecycle_control_owner.username
-                if uc.lifecycle_control_owner else "Sin responsable de control"
-            )
-            owner_pending_counter[owner_key] += 1
-
-        if only_pending and not is_pending:
-            continue
-
-        # Per-row can_finish: admins already resolved; non-admins check ownership only.
-        if lifecycle_admin:
-            can_finish_row = True
-        else:
-            can_finish_row = (
-                not roles["is_readonly"]
-                and (roles["is_analyst"] or request.user.has_perm("usecases.add_lifecyclereview"))
-                and uc.lifecycle_control_owner_id == request.user.id
-            )
-
-        rows.append({
-            "usecase":          uc,
-            "last_check":       last_check,
-            "next_check":       uc.next_review_date,
-            "owner":            uc.lifecycle_control_owner,
-            "task_status":      "Finalizada" if completed else "Pendiente",
-            "is_pending":       is_pending,
-            "can_finish":       can_finish_row,
-            "can_assign_owner": can_assign,
-            "review_badge":     review_badge,
-            "review_level":     review_level,
-        })
-
-    total     = len(usecases)
-    pending   = total - completed_in_cycle
-    days_left = (cycle_end - today).days
-
-    context = {
-        "rows":                rows,
-        "cycle_start":         cycle_start,
-        "cycle_end":           cycle_end,
-        "summary_total":       total,
-        "summary_completed":   completed_in_cycle,
-        "summary_pending":     pending,
-        "summary_days_left":   days_left,
-        "only_pending":        only_pending,
-        "owner_pending_summary": owner_pending_counter.most_common(5),
-        "lifecycle_users":     lifecycle_users,
-        "can_manage_lifecycle": lifecycle_admin,
-        "lifecycle_scope_label": (
-            "Solo casos en Producción" if lifecycle_admin
-            else "Solo casos en Producción · solo podés finalizar los asignados a vos"
-        ),
-    }
+    context = build_lifecycle_management_context(request.user, request.GET)
     return render(request, "usecases/lifecycle_management.html", context)
 
 
@@ -1094,34 +706,10 @@ def lifecycle_mark_done(request, pk):
     uc = get_object_or_404(UseCase, pk=pk)
     if not can_finish_lifecycle_review(request.user, uc):
         return HttpResponseForbidden(
-            "Solo el responsable de control asignado o un administrador puede finalizar esta revisión."
+            "Solo el responsable de control asignado o un administrador puede finalizar esta revision."
         )
 
-    old_data = _snapshot_usecase(uc)
-    if can_assign_lifecycle_owner(request.user):
-        owner_id = request.POST.get("lifecycle_control_owner", "").strip()
-        if owner_id.isdigit():
-            uc.lifecycle_control_owner_id = int(owner_id)
-        elif owner_id == "":
-            uc.lifecycle_control_owner = None
-
-    checked_at = date.today()
-    uc.last_validation_date = checked_at
-    uc.set_lifecycle_review_dates(checked_at)
-    uc.validation_status    = UseCase.VALIDATION_STATUS_FINISHED
-    uc.updated_by           = request.user
-    uc.save()
-
-    LifecycleReview.objects.create(
-        use_case=uc,
-        control_owner=uc.lifecycle_control_owner,
-        completed_by=request.user,
-        status=uc.validation_status,
-        result=uc.validation_result,
-        checked_at=checked_at,
-        next_review_date=uc.next_review_date,
-    )
-    UseCaseChangeLog.create_diff(uc, old_data, _snapshot_usecase(uc), request.user)
+    mark_lifecycle_review_done(uc, request.user, request.POST, _snapshot_usecase)
     messages.success(request, f"Ciclo de vida actualizado para '{uc.name}'.")
     return redirect("lifecycle_management")
 
@@ -1135,15 +723,7 @@ def lifecycle_assign_owner(request, pk):
         return HttpResponseForbidden("Solo administradores pueden reasignar responsables de control.")
 
     uc       = get_object_or_404(UseCase, pk=pk)
-    old_data = _snapshot_usecase(uc)
-    owner_id = request.POST.get("lifecycle_control_owner", "").strip()
-    if owner_id.isdigit():
-        uc.lifecycle_control_owner_id = int(owner_id)
-    else:
-        uc.lifecycle_control_owner = None
-    uc.updated_by = request.user
-    uc.save()
-    UseCaseChangeLog.create_diff(uc, old_data, _snapshot_usecase(uc), request.user)
+    assign_lifecycle_owner(uc, request.user, request.POST, _snapshot_usecase)
     messages.success(request, f"Responsable de control actualizado para '{uc.name}'.")
     return redirect("lifecycle_management")
 
@@ -1155,7 +735,7 @@ def usecase_delete(request, pk):
 
     usecase = get_object_or_404(UseCase, pk=pk)
     if not can_delete_usecases(request.user, usecase):
-        return HttpResponseForbidden("Solo podés eliminar casos de uso propios si tenés permiso de borrado.")
+        return HttpResponseForbidden("Solo podes eliminar casos de uso propios si tenes permiso de borrado.")
 
     name = usecase.name
     usecase.delete()

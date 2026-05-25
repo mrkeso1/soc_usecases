@@ -8,6 +8,7 @@ from django.db.utils import OperationalError, ProgrammingError
 
 from ldap3 import ALL, SUBTREE, Connection, Server
 
+from .ldap_utils import escape_ldap_dn_value, escape_ldap_filter_value, safe_ldap_error_message
 from .models import LDAPAuthLog, LDAPSettings
 
 
@@ -62,7 +63,7 @@ class AdminConfiguredLDAPBackend(BaseBackend):
                 username=username,
                 config=config,
                 success=False,
-                message=str(exc),
+                message=safe_ldap_error_message(exc, "Error LDAP durante autenticacion."),
             )
             return None
 
@@ -80,7 +81,7 @@ class AdminConfiguredLDAPBackend(BaseBackend):
             username=username,
             config=config,
             success=True,
-            message="Autenticación LDAP exitosa.",
+            message="Autenticacion LDAP exitosa.",
         )
         return user
 
@@ -93,7 +94,7 @@ class AdminConfiguredLDAPBackend(BaseBackend):
 
     def _resolve_user_dn(self, config: LDAPSettings, username: str) -> Optional[str]:
         if config.user_dn_template:
-            return config.user_dn_template.format(username=username)
+            return config.user_dn_template.format(username=escape_ldap_dn_value(username))
 
         if not (config.bind_dn and config.bind_password and config.user_search_base):
             return None
@@ -101,7 +102,7 @@ class AdminConfiguredLDAPBackend(BaseBackend):
         server = Server(config.server_uri, use_ssl=config.use_ssl, get_info=ALL)
         try:
             with Connection(server, user=config.bind_dn, password=config.bind_password, auto_bind=True) as service_conn:
-                search_filter = config.user_search_filter.format(username=username)
+                search_filter = config.user_search_filter.format(username=escape_ldap_filter_value(username))
                 service_conn.search(
                     search_base=config.user_search_base,
                     search_filter=search_filter,
