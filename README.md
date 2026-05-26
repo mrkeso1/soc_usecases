@@ -267,19 +267,34 @@ Documentacion nueva:
 - `docs/FUNCTIONAL_OVERVIEW.md`: mapa de funciones y modulos.
 - `docs/OPERATIONS.md`: comandos operativos y checklist diario.
 
-## Instalación local orientativa
+## Instalación local orientativa con Docker
 
 ```bash
-python -m venv .venv
-source .venv/bin/activate
-python -m pip install -r requirements.txt
-python app/manage.py migrate
-python app/manage.py seed_groups
-python app/manage.py createsuperuser
-python app/manage.py runserver 0.0.0.0:8000
+git clone https://github.com/mrkeso1/soc_usecases.git
+cd soc_usecases
+cp .env.example .env  # si no existe, crear .env con las variables de PostgreSQL y Django
+docker compose up -d --build
+docker compose run --rm web python manage.py migrate
+docker compose run --rm web python manage.py seed_groups
+docker compose run --rm web python manage.py createsuperuser
 ```
 
-> Nota: la base PostgreSQL debe estar disponible antes de ejecutar `migrate`.
+Luego abrir:
+
+```text
+http://localhost:8000/
+```
+
+Comandos utiles para desarrollo:
+
+```bash
+docker compose run --rm web python manage.py test
+docker compose run --rm web python manage.py makemigrations --check --dry-run
+docker compose run --rm web python manage.py load_mitre_attack
+docker compose run --rm web python manage.py load_d3fend
+```
+
+> Nota: `docker compose up -d --build` levanta PostgreSQL y Django. La DB queda persistida en el volumen `postgres_data`.
 
 ## Checklist de despliegue
 
