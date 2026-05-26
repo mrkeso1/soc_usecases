@@ -4,6 +4,7 @@ from django.conf import settings
 from django.core.exceptions import ValidationError
 from django.db import models
 from django.db.models import Q
+from django.utils import timezone
 
 
 
@@ -277,6 +278,110 @@ def get_review_interval_days() -> int:
         .first()
     )
     return interval_days if interval_days and interval_days > 0 else 120
+
+
+class MitreAttackSyncSettings(SingleActiveSettingsMixin):
+    UNIT_HOURS = "hours"
+    UNIT_DAYS = "days"
+    UNIT_CHOICES = [
+        (UNIT_HOURS, "Horas"),
+        (UNIT_DAYS, "Dias"),
+    ]
+
+    STATUS_NEVER = "never"
+    STATUS_RUNNING = "running"
+    STATUS_SUCCESS = "success"
+    STATUS_ERROR = "error"
+    STATUS_CHOICES = [
+        (STATUS_NEVER, "Nunca ejecutado"),
+        (STATUS_RUNNING, "En ejecucion"),
+        (STATUS_SUCCESS, "OK"),
+        (STATUS_ERROR, "Error"),
+    ]
+
+    name = models.CharField(max_length=100, default="Sincronizacion MITRE principal", unique=True)
+    interval_value = models.PositiveIntegerField("Intervalo", default=24)
+    interval_unit = models.CharField("Unidad", max_length=10, choices=UNIT_CHOICES, default=UNIT_HOURS)
+    last_run_at = models.DateTimeField("Ultima ejecucion", null=True, blank=True)
+    last_success_at = models.DateTimeField("Ultima ejecucion OK", null=True, blank=True)
+    last_status = models.CharField("Ultimo estado", max_length=20, choices=STATUS_CHOICES, default=STATUS_NEVER)
+    last_message = models.TextField("Ultimo mensaje", blank=True, default="")
+    last_created = models.PositiveIntegerField("Ultimos creados", default=0)
+    last_updated = models.PositiveIntegerField("Ultimos actualizados", default=0)
+    last_skipped = models.PositiveIntegerField("Ultimos omitidos", default=0)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name = "Configuracion sync MITRE"
+        verbose_name_plural = "Configuraciones sync MITRE"
+        constraints = [
+            models.UniqueConstraint(
+                fields=["is_active"],
+                condition=Q(is_active=True),
+                name="unique_active_mitre_attack_sync_settings",
+            )
+        ]
+
+    def __str__(self):
+        return f"{self.name} (cada {self.interval_value} {self.get_interval_unit_display().lower()})"
+
+    @classmethod
+    def get_active(cls):
+        return cls.objects.filter(is_active=True).order_by("-id").first()
+
+    def interval_delta(self):
+        if self.interval_unit == self.UNIT_DAYS:
+            return timedelta(days=self.interval_value)
+        return timedelta(hours=self.interval_value)
+
+    def clean(self):
+        super().clean()
+        if self.interval_value < 1:
+            raise ValidationError({"interval_value": "El intervalo debe ser mayor o igual a 1."})
+
+    def next_run_at(self):
+        baseline = self.last_success_at or self.last_run_at
+        if not baseline:
+            return None
+        return baseline + self.interval_delta()
+
+    def is_due(self, now=None) -> bool:
+        next_run = self.next_run_at()
+        if not next_run:
+            return True
+        return (now or timezone.now()) >= next_run
+
+    def mark_running(self, when=None):
+        self.last_run_at = when or timezone.now()
+        self.last_status = self.STATUS_RUNNING
+        self.last_message = "Sincronizacion MITRE en ejecucion."
+        self.save(update_fields=["last_run_at", "last_status", "last_message", "updated_at"])
+
+    def mark_success(self, result, when=None):
+        when = when or timezone.now()
+        self.last_run_at = when
+        self.last_success_at = when
+        self.last_status = self.STATUS_SUCCESS
+        self.last_message = result.message or "Sincronizacion MITRE finalizada."
+        self.last_created = result.created
+        self.last_updated = result.updated
+        self.last_skipped = result.skipped
+        self.save(update_fields=[
+            "last_run_at",
+            "last_success_at",
+            "last_status",
+            "last_message",
+            "last_created",
+            "last_updated",
+            "last_skipped",
+            "updated_at",
+        ])
+
+    def mark_error(self, message, when=None):
+        self.last_run_at = when or timezone.now()
+        self.last_status = self.STATUS_ERROR
+        self.last_message = str(message or "Error desconocido")[:2000]
+        self.save(update_fields=["last_run_at", "last_status", "last_message", "updated_at"])
 
 
 class UseCase(models.Model):

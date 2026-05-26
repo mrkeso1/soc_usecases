@@ -1,4 +1,4 @@
-from datetime import date
+from datetime import date, timedelta
 from io import BytesIO
 from types import SimpleNamespace
 
@@ -7,9 +7,11 @@ from django.contrib.auth.models import Group
 from django.core.exceptions import ValidationError
 from django.test import TestCase
 from django.urls import reverse
+from django.utils import timezone
 
 from .coverage_admin import build_coverage_admin_context
-from .models import CoverageOverride, D3Fend, LifecycleReview, LifecycleSettings, MitreAttack, UseCase
+from .mitre_sync import load_mitre_attack_data, run_scheduled_mitre_attack_sync
+from .models import CoverageOverride, D3Fend, LifecycleReview, LifecycleSettings, MitreAttack, MitreAttackSyncSettings, UseCase
 from .reports import build_dashboard_pdf
 
 
@@ -62,6 +64,75 @@ class UseCaseLifecycleDateTests(TestCase):
 
         self.assertEqual(usecase.last_review_date, date(2026, 1, 1))
         self.assertEqual(usecase.next_review_date, date(2026, 1, 31))
+
+
+class MitreAttackSyncTests(TestCase):
+    def test_load_mitre_attack_data_creates_and_updates_catalog(self):
+        MitreAttack.objects.create(external_id="T1059", name="Old name", tactic="Execution")
+        data = {
+            "objects": [
+                {
+                    "type": "attack-pattern",
+                    "name": "Command and Scripting Interpreter",
+                    "external_references": [{"source_name": "mitre-attack", "external_id": "T1059"}],
+                    "kill_chain_phases": [{"kill_chain_name": "mitre-attack", "phase_name": "execution"}],
+                },
+                {
+                    "type": "attack-pattern",
+                    "name": "Valid Accounts",
+                    "external_references": [{"source_name": "mitre-attack", "external_id": "T1078"}],
+                    "kill_chain_phases": [{"kill_chain_name": "mitre-attack", "phase_name": "defense-evasion"}],
+                },
+                {"type": "attack-pattern", "name": "No external id", "external_references": []},
+            ]
+        }
+
+        result = load_mitre_attack_data(data)
+
+        self.assertEqual(result.created, 1)
+        self.assertEqual(result.updated, 1)
+        self.assertEqual(result.skipped, 1)
+        self.assertEqual(MitreAttack.objects.get(external_id="T1059").name, "Command and Scripting Interpreter")
+        self.assertEqual(MitreAttack.objects.get(external_id="T1078").tactic, "Defense Evasion")
+
+    def test_scheduled_sync_skips_until_interval_is_due(self):
+        settings = MitreAttackSyncSettings.objects.create(
+            name="Hourly",
+            interval_value=6,
+            interval_unit=MitreAttackSyncSettings.UNIT_HOURS,
+            last_success_at=timezone.now() - timedelta(hours=1),
+        )
+
+        result = run_scheduled_mitre_attack_sync(settings=settings, fetcher=lambda: self.fail("fetcher should not run"))
+
+        self.assertFalse(result.ran)
+        self.assertIn("omitida", result.message)
+
+    def test_scheduled_sync_runs_when_due_and_updates_status(self):
+        settings = MitreAttackSyncSettings.objects.create(
+            name="Daily",
+            interval_value=1,
+            interval_unit=MitreAttackSyncSettings.UNIT_DAYS,
+            last_success_at=timezone.now() - timedelta(days=2),
+        )
+        data = {
+            "objects": [
+                {
+                    "type": "attack-pattern",
+                    "name": "Brute Force",
+                    "external_references": [{"source_name": "mitre-attack", "external_id": "T1110"}],
+                    "kill_chain_phases": [{"kill_chain_name": "mitre-attack", "phase_name": "credential-access"}],
+                }
+            ]
+        }
+
+        result = run_scheduled_mitre_attack_sync(settings=settings, fetcher=lambda: data)
+
+        self.assertTrue(result.ran)
+        settings.refresh_from_db()
+        self.assertEqual(settings.last_status, MitreAttackSyncSettings.STATUS_SUCCESS)
+        self.assertEqual(settings.last_created, 1)
+        self.assertIsNotNone(settings.last_success_at)
 
 
 class UseCasePermissionTests(TestCase):

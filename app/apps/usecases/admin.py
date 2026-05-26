@@ -9,6 +9,7 @@ from .models import (
     LifecycleReview,
     LifecycleSettings,
     MitreAttack,
+    MitreAttackSyncSettings,
     UseCase,
     UseCaseChangeLog,
 )
@@ -116,6 +117,57 @@ class MitreAttackAdmin(admin.ModelAdmin):
         if obj.is_enabled:
             return "-"
         return _short_text(obj.disabled_reason)
+
+
+@admin.register(MitreAttackSyncSettings)
+class MitreAttackSyncSettingsAdmin(admin.ModelAdmin):
+    list_display = (
+        "name",
+        "is_active",
+        "interval_value",
+        "interval_unit",
+        "last_status",
+        "last_success_at",
+        "next_run_display",
+        "last_created",
+        "last_updated",
+        "last_skipped",
+    )
+    list_filter = ("is_active", "interval_unit", "last_status")
+    readonly_fields = (
+        "last_run_at",
+        "last_success_at",
+        "last_status",
+        "last_message",
+        "last_created",
+        "last_updated",
+        "last_skipped",
+        "updated_at",
+        "next_run_display",
+    )
+    fieldsets = (
+        ("Programacion", {
+            "fields": ("name", "is_active", "interval_value", "interval_unit"),
+            "description": "El cron externo puede ejecutarse seguido; esta configuracion decide si ya corresponde sincronizar ATT&CK.",
+        }),
+        ("Ultima ejecucion", {
+            "fields": (
+                "last_status",
+                "last_message",
+                "last_run_at",
+                "last_success_at",
+                "next_run_display",
+                "last_created",
+                "last_updated",
+                "last_skipped",
+                "updated_at",
+            ),
+        }),
+    )
+
+    @admin.display(description="Proxima ejecucion")
+    def next_run_display(self, obj):
+        return obj.next_run_at() or "Ahora"
 
 
 @admin.register(D3Fend)

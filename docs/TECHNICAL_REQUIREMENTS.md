@@ -1,74 +1,98 @@
-# Requisitos técnicos
+# Requisitos tecnicos
 
-Este documento resume los requisitos técnicos mínimos y recomendados para operar SOC Use Cases Manager.
+Este documento resume lo necesario para desarrollar, probar y operar SOC Use Cases Manager.
 
 ## Plataforma
 
-- Python 3.12+.
-- Django 6.0.5.
-- PostgreSQL accesible desde la aplicación.
-- Sistema operativo Linux recomendado para despliegue.
-- Gunicorn como servidor WSGI en producción.
-
-## Dependencias de sistema
-
-- Compiladores/librerías necesarias para instalar wheels Python si no se usan wheels binarios.
-- Conectividad TCP hacia PostgreSQL.
-- Conectividad TCP hacia LDAP/LDAPS si se habilita autenticación LDAP.
-- Volumen persistente para `MEDIA_ROOT` cuando se suban logos de reportes.
+| Componente | Requisito |
+| --- | --- |
+| Runtime | Python 3.12+ |
+| Framework | Django 6.0.5 |
+| Base de datos | PostgreSQL |
+| Servidor app | Gunicorn en produccion |
+| Contenedores | Docker y Docker Compose |
+| Sistema recomendado | Linux para produccion |
 
 ## Dependencias Python
 
-Instalar desde la raíz del repositorio:
+Se instalan desde `requirements.txt`.
 
-```bash
-python -m pip install -r requirements.txt
-```
-
-Dependencias fijadas:
-
-| Paquete | Uso |
+| Paquete | Uso principal |
 | --- | --- |
-| Django | Framework web. |
+| Django | Framework web y ORM. |
 | psycopg[binary] | Driver PostgreSQL. |
-| gunicorn | WSGI en producción. |
-| python-dotenv | Variables de entorno. |
-| openpyxl | Importación Excel. |
-| requests | Integraciones HTTP/cargas auxiliares. |
-| ldap3 | LDAP. |
-| Pillow | Imágenes para logos. |
-| reportlab | PDF. |
+| gunicorn | Servidor WSGI. |
+| python-dotenv | Variables de entorno locales. |
+| openpyxl | Importacion Excel. |
+| requests | Descarga de datasets MITRE/D3FEND. |
+| ldap3 | Autenticacion y pruebas LDAP/LDAPS. |
+| Pillow | Logos de reportes. |
+| reportlab | Exportacion PDF. |
 
-## Variables obligatorias en producción
+## Variables de entorno
 
-- `SECRET_KEY`: valor secreto y único.
-- `DEBUG=0`.
-- `ALLOWED_HOSTS`: dominios/hosts válidos.
-- `POSTGRES_DB`.
-- `POSTGRES_USER`.
-- `POSTGRES_PASSWORD`.
-- `POSTGRES_HOST`.
-- `POSTGRES_PORT`.
+| Variable | Requerida | Comentario |
+| --- | --- | --- |
+| `SECRET_KEY` | Si | Usar un valor unico y secreto en produccion. |
+| `DEBUG` | Si | `0` en produccion. |
+| `ALLOWED_HOSTS` | Si | Hosts separados por coma. |
+| `POSTGRES_DB` | Si | Nombre de la DB. |
+| `POSTGRES_USER` | Si | Usuario DB. |
+| `POSTGRES_PASSWORD` | Si | Password DB. |
+| `POSTGRES_HOST` | Si | En Docker suele ser `db`. |
+| `POSTGRES_PORT` | Si | Default `5432`. |
 
-## Puertos y rutas
+## Servicios externos
 
-- Aplicación Django/Gunicorn: definido por el despliegue, usualmente `8000` interno.
-- PostgreSQL: default `5432`.
-- LDAP: usualmente `389` para LDAP o `636` para LDAPS.
+- PostgreSQL es obligatorio.
+- LDAP/LDAPS es opcional y se habilita desde `LDAPSettings`.
+- MITRE ATT&CK se descarga desde GitHub mediante `requests`; el contenedor que ejecute la sincronizacion necesita salida HTTPS.
+- D3FEND se carga con el comando existente `load_d3fend`.
+- `MEDIA_ROOT` debe persistirse si se usan logos en PDF.
 
-## Comandos de validación
+## Validacion local
+
+El proyecto esta preparado para probarse por Docker:
 
 ```bash
-python app/manage.py check
-python app/manage.py migrate --plan
-python app/manage.py test
+docker compose run --rm web python manage.py test
+docker compose run --rm web python manage.py makemigrations --check --dry-run
 ```
 
-## Consideraciones de seguridad
+El workflow de CI ejecuta esos mismos checks.
 
-- No usar el `SECRET_KEY` default en producción.
-- Mantener `DEBUG=0` en producción.
-- Usar HTTPS delante de Django.
-- Restringir acceso a `/admin/`.
-- Validar certificados si se usa LDAPS.
-- Hacer backup de PostgreSQL y de `MEDIA_ROOT`.
+## Cron MITRE
+
+La frecuencia vive en la base de datos, en `MitreAttackSyncSettings`.
+
+Campos importantes:
+
+- `is_active`: solo una configuracion activa decide la agenda.
+- `interval_value`: numero del intervalo.
+- `interval_unit`: `hours` o `days`.
+- `last_success_at`: ultima sincronizacion exitosa.
+- `last_status`, `last_message`, `last_created`, `last_updated`, `last_skipped`: auditoria de la ultima corrida.
+
+El cron del sistema puede correr frecuente, por ejemplo cada hora:
+
+```bash
+docker compose run --rm web python manage.py sync_mitre_attack_scheduled
+```
+
+El comando consulta la DB y solo descarga MITRE si ya vencio el intervalo configurado. Para forzar una corrida manual:
+
+```bash
+docker compose run --rm web python manage.py sync_mitre_attack_scheduled --force
+```
+
+## Checklist de produccion
+
+1. Configurar variables de entorno.
+2. Ejecutar migraciones.
+3. Ejecutar `seed_groups`.
+4. Crear superusuario.
+5. Configurar `MitreAttackSyncSettings`.
+6. Configurar cron externo para `sync_mitre_attack_scheduled`.
+7. Configurar LDAP solo si aplica.
+8. Montar volumen de `MEDIA_ROOT`.
+9. Ejecutar tests y check de migraciones antes de desplegar.

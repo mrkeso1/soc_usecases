@@ -1,0 +1,23 @@
+name: Django
+
+on:
+  push:
+    branches: ["master", "main"]
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Build services
+        run: docker compose build web
+
+      - name: Run tests
+        run: docker compose run --rm web python manage.py test
+
+      - name: Check migrations
+        run: docker compose run --rm web python manage.py makemigrations --check --dry-run

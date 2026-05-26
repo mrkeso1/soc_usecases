@@ -245,12 +245,27 @@ python app/manage.py import_usecases <archivo.xlsx>
 # Cargar técnicas MITRE ATT&CK
 python app/manage.py load_mitre_attack
 
+# Ejecutar sync MITRE respetando intervalo configurado en DB
+python app/manage.py sync_mitre_attack_scheduled
+
+# Forzar sync MITRE manual
+python app/manage.py sync_mitre_attack_scheduled --force
+
 # Cargar controles D3FEND y relaciones inferidas D3FEND→ATT&CK
 python app/manage.py load_d3fend
 
 # Cargar D3FEND sin sincronizar relaciones
 python app/manage.py load_d3fend --skip-mappings
 ```
+
+La frecuencia de `sync_mitre_attack_scheduled` se configura desde Django Admin en `MitreAttackSyncSettings`.
+El cron externo puede correr cada hora; el comando decide si corresponde descargar segun `interval_value` e `interval_unit`.
+
+Documentacion nueva:
+
+- `docs/TECHNICAL_REQUIREMENTS.md`: runtime, dependencias, variables y cron MITRE.
+- `docs/FUNCTIONAL_OVERVIEW.md`: mapa de funciones y modulos.
+- `docs/OPERATIONS.md`: comandos operativos y checklist diario.
 
 ## Instalación local orientativa
 
