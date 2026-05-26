@@ -1,7 +1,12 @@
 from django import forms
-from django.contrib import admin
+from django.contrib import admin, messages
+from django.shortcuts import redirect
+from django.urls import path, reverse
+from django.utils import timezone
+from django.utils.html import format_html
 
 from .forms import MitreAttackM2MBridgeMixin
+from .mitre_sync import run_scheduled_mitre_attack_sync
 from .models import (
     CoverageOverride,
     D3Fend,
@@ -41,7 +46,7 @@ def _short_text(value, max_length=90):
         return "-"
     if len(value) <= max_length:
         return value
-    return f"{value[:max_length - 1]}…"
+    return f"{value[:max_length - 1]}..."
 
 
 @admin.register(CoverageOverride)
@@ -126,9 +131,10 @@ class MitreAttackSyncSettingsAdmin(admin.ModelAdmin):
         "is_active",
         "interval_value",
         "interval_unit",
-        "last_status",
-        "last_success_at",
+        "status_badge",
+        "last_success_display",
         "next_run_display",
+        "run_now_link",
         "last_created",
         "last_updated",
         "last_skipped",
@@ -165,9 +171,63 @@ class MitreAttackSyncSettingsAdmin(admin.ModelAdmin):
         }),
     )
 
+    def get_urls(self):
+        urls = super().get_urls()
+        custom_urls = [
+            path(
+                "<int:object_id>/run-now/",
+                self.admin_site.admin_view(self.run_now),
+                name="usecases_mitreattacksyncsettings_run_now",
+            )
+        ]
+        return custom_urls + urls
+
+    @admin.display(description="Estado")
+    def status_badge(self, obj):
+        colors = {
+            MitreAttackSyncSettings.STATUS_SUCCESS: ("#047857", "OK"),
+            MitreAttackSyncSettings.STATUS_ERROR: ("#b91c1c", "Error"),
+            MitreAttackSyncSettings.STATUS_RUNNING: ("#1d4ed8", "En ejecucion"),
+            MitreAttackSyncSettings.STATUS_NEVER: ("#6b7280", "Nunca"),
+        }
+        color, label = colors.get(obj.last_status, ("#6b7280", obj.last_status))
+        return format_html('<strong style="color:{};">{}</strong>', color, label)
+
+    @admin.display(description="Ultima OK")
+    def last_success_display(self, obj):
+        if not obj.last_success_at:
+            return "-"
+        return timezone.localtime(obj.last_success_at).strftime("%Y-%m-%d %H:%M")
+
     @admin.display(description="Proxima ejecucion")
     def next_run_display(self, obj):
-        return obj.next_run_at() or "Ahora"
+        next_run = obj.next_run_at()
+        if not next_run or obj.is_due():
+            return format_html('<strong style="color:#047857;">Ahora</strong>')
+        return timezone.localtime(next_run).strftime("%Y-%m-%d %H:%M")
+
+    @admin.display(description="Accion")
+    def run_now_link(self, obj):
+        url = reverse("admin:usecases_mitreattacksyncsettings_run_now", args=[obj.pk])
+        return format_html('<a class="button" href="{}">Ejecutar ahora</a>', url)
+
+    def run_now(self, request, object_id):
+        config = self.get_object(request, object_id)
+        if not config:
+            self.message_user(request, "No se encontro la configuracion MITRE.", messages.ERROR)
+            return redirect("..")
+
+        try:
+            result = run_scheduled_mitre_attack_sync(force=True, settings=config)
+        except Exception as exc:
+            self.message_user(request, f"Fallo la sincronizacion MITRE: {exc}", messages.ERROR)
+        else:
+            self.message_user(
+                request,
+                f"Sincronizacion MITRE finalizada. Creados: {result.created}. Actualizados: {result.updated}. Omitidos: {result.skipped}.",
+                messages.SUCCESS,
+            )
+        return redirect("../..")
 
 
 @admin.register(D3Fend)
@@ -442,3 +502,4 @@ class DashboardReportSettingsAdmin(admin.ModelAdmin):
     list_display = ("name", "is_active", "report_title", "updated_at")
     list_filter = ("is_active",)
     search_fields = ("name", "report_title", "report_subtitle", "footer_text")
+

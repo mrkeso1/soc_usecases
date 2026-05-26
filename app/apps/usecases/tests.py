@@ -1,16 +1,18 @@
 from datetime import date, timedelta
-from io import BytesIO
+from io import BytesIO, StringIO
 from types import SimpleNamespace
+from unittest.mock import patch
 
 from django.contrib.auth import get_user_model
 from django.contrib.auth.models import Group
+from django.core.management import call_command
 from django.core.exceptions import ValidationError
 from django.test import TestCase
 from django.urls import reverse
 from django.utils import timezone
 
 from .coverage_admin import build_coverage_admin_context
-from .mitre_sync import load_mitre_attack_data, run_scheduled_mitre_attack_sync
+from .mitre_sync import MitreAttackSyncResult, load_mitre_attack_data, run_scheduled_mitre_attack_sync
 from .models import CoverageOverride, D3Fend, LifecycleReview, LifecycleSettings, MitreAttack, MitreAttackSyncSettings, UseCase
 from .reports import build_dashboard_pdf
 
@@ -133,6 +135,48 @@ class MitreAttackSyncTests(TestCase):
         self.assertEqual(settings.last_status, MitreAttackSyncSettings.STATUS_SUCCESS)
         self.assertEqual(settings.last_created, 1)
         self.assertIsNotNone(settings.last_success_at)
+
+
+class SeedDemoDataCommandTests(TestCase):
+    def test_seed_demo_data_creates_demo_catalog_users_and_cases(self):
+        call_command("seed_demo_data", verbosity=0, stdout=StringIO())
+
+        User = get_user_model()
+        self.assertTrue(User.objects.filter(username="demo_admin", is_superuser=True).exists())
+        self.assertTrue(User.objects.filter(username="demo_analyst").exists())
+        self.assertGreaterEqual(MitreAttack.objects.filter(external_id__in=["T1059", "T1078", "T1110"]).count(), 3)
+        self.assertGreaterEqual(D3Fend.objects.filter(code__startswith="D3-").count(), 5)
+        self.assertGreaterEqual(UseCase.objects.filter(name__startswith="Demo - ").count(), 8)
+        self.assertTrue(LifecycleReview.objects.filter(use_case__name__startswith="Demo - ").exists())
+        self.assertTrue(CoverageOverride.objects.filter(reason__icontains="[demo]").exists())
+
+    def test_seed_demo_data_is_idempotent(self):
+        call_command("seed_demo_data", verbosity=0, stdout=StringIO())
+        call_command("seed_demo_data", verbosity=0, stdout=StringIO())
+
+        self.assertEqual(get_user_model().objects.filter(username="demo_admin").count(), 1)
+        self.assertEqual(MitreAttack.objects.filter(external_id="T1059").count(), 1)
+        self.assertEqual(UseCase.objects.filter(name="Demo - PowerShell suspicious execution").count(), 1)
+        self.assertTrue(LifecycleSettings.objects.get(name="Demo lifecycle").is_active)
+
+
+class MitreAttackSyncAdminTests(TestCase):
+    def test_run_now_admin_action_executes_sync(self):
+        User = get_user_model()
+        admin_user = User.objects.create_superuser("admin", "admin@example.test", "pass")
+        settings = MitreAttackSyncSettings.objects.create(name="Admin run", interval_value=24)
+        self.client.force_login(admin_user)
+
+        with patch(
+            "apps.usecases.admin.run_scheduled_mitre_attack_sync",
+            return_value=MitreAttackSyncResult(created=1, updated=2, skipped=3, message="OK"),
+        ) as mocked_sync:
+            response = self.client.get(reverse("admin:usecases_mitreattacksyncsettings_run_now", args=[settings.pk]))
+
+        self.assertEqual(response.status_code, 302)
+        mocked_sync.assert_called_once()
+        self.assertTrue(mocked_sync.call_args.kwargs["force"])
+        self.assertEqual(mocked_sync.call_args.kwargs["settings"], settings)
 
 
 class UseCasePermissionTests(TestCase):

@@ -23,6 +23,7 @@ Este mapa sirve como punto de partida para entender que hace cada parte del proy
 - `mitre_sync.run_scheduled_mitre_attack_sync`: valida intervalo DB, ejecuta la carga y actualiza auditoria.
 - `load_mitre_attack`: comando manual historico, siempre descarga y actualiza.
 - `sync_mitre_attack_scheduled`: comando pensado para cron; respeta `MitreAttackSyncSettings`.
+- Admin de `MitreAttackSyncSettings`: muestra estado visual, proxima ejecucion y accion "Ejecutar ahora".
 
 ## Casos de uso
 
@@ -30,6 +31,7 @@ Este mapa sirve como punto de partida para entender que hace cada parte del proy
 - `UseCase.sync_d3fends_from_attacks`: infiere D3FEND desde ATT&CK relacionado.
 - `UseCaseChangeLog`: registra diffs relevantes cuando se edita un caso.
 - `bulk_updates.py`: aplica cambios masivos con validacion y permisos por ownership.
+- `seed_demo_data`: crea un set idempotente de usuarios, casos, ATT&CK, D3FEND, lifecycle y overrides para pruebas.
 
 ## Dashboard y cobertura
 

@@ -251,6 +251,9 @@ python app/manage.py sync_mitre_attack_scheduled
 # Forzar sync MITRE manual
 python app/manage.py sync_mitre_attack_scheduled --force
 
+# Cargar datos demo para probar todo el flujo
+python app/manage.py seed_demo_data
+
 # Cargar controles D3FEND y relaciones inferidas D3FEND→ATT&CK
 python app/manage.py load_d3fend
 
@@ -277,6 +280,7 @@ docker compose up -d --build
 docker compose run --rm web python manage.py migrate
 docker compose run --rm web python manage.py seed_groups
 docker compose run --rm web python manage.py createsuperuser
+docker compose run --rm web python manage.py seed_demo_data
 ```
 
 Luego abrir:
@@ -291,6 +295,8 @@ Comandos utiles para desarrollo:
 docker compose run --rm web python manage.py test
 docker compose run --rm web python manage.py makemigrations --check --dry-run
 docker compose run --rm web python manage.py load_mitre_attack
+docker compose run --rm web python manage.py sync_mitre_attack_scheduled --force
+docker compose run --rm web python manage.py seed_demo_data --reset
 docker compose run --rm web python manage.py load_d3fend
 ```
 

@@ -61,6 +61,23 @@ docker compose run --rm web python manage.py makemigrations --check --dry-run
 
 El workflow de CI ejecuta esos mismos checks.
 
+## Datos demo
+
+Para validar la aplicacion sin datos reales:
+
+```bash
+docker compose run --rm web python manage.py seed_demo_data
+```
+
+Incluye:
+
+- Usuarios demo por rol.
+- Tecnicas ATT&CK y controles D3FEND relacionados.
+- Casos productivos, test y desarrollo.
+- Revisiones lifecycle y proximos controles.
+- Overrides de cobertura.
+- Configuraciones demo de PDF, lifecycle, LDAP inactivo y sync MITRE.
+
 ## Cron MITRE
 
 La frecuencia vive en la base de datos, en `MitreAttackSyncSettings`.
@@ -84,6 +101,12 @@ El comando consulta la DB y solo descarga MITRE si ya vencio el intervalo config
 ```bash
 docker compose run --rm web python manage.py sync_mitre_attack_scheduled --force
 ```
+
+En produccion:
+
+- Usar `docker compose run --rm web ...` si el cron debe crear un contenedor efimero.
+- Usar `docker compose exec -T web ...` si el contenedor `web` esta siempre corriendo.
+- Registrar salida en un archivo de log del host.
 
 ## Checklist de produccion
 

@@ -26,6 +26,31 @@ docker compose run --rm web python manage.py load_mitre_attack
 docker compose run --rm web python manage.py load_d3fend
 ```
 
+## Datos demo
+
+Para levantar un entorno de prueba completo despues de clonar:
+
+```bash
+docker compose run --rm web python manage.py seed_demo_data
+```
+
+El comando crea usuarios, casos, ATT&CK, D3FEND, revisiones lifecycle, overrides de cobertura y configuraciones demo.
+
+Usuarios:
+
+| Usuario | Rol | Password default |
+| --- | --- | --- |
+| `demo_admin` | Admin | `Demo12345!` |
+| `demo_analyst` | Analyst | `Demo12345!` |
+| `demo_owner` | Analyst/control owner | `Demo12345!` |
+| `demo_readonly` | ReadOnly | `Demo12345!` |
+
+Para regenerar solo datos demo:
+
+```bash
+docker compose run --rm web python manage.py seed_demo_data --reset
+```
+
 ## Sincronizacion programada MITRE
 
 La programacion se guarda en Django Admin:
@@ -51,6 +76,37 @@ Para probar manualmente:
 
 ```bash
 docker compose run --rm web python manage.py sync_mitre_attack_scheduled --force
+```
+
+### Linux cron
+
+Si no hay un contenedor `web` siempre corriendo, usar `run`:
+
+```cron
+0 * * * * cd /opt/soc_usecases && /usr/bin/docker compose run --rm web python manage.py sync_mitre_attack_scheduled >> /var/log/soc-usecases-mitre.log 2>&1
+```
+
+Si el servicio `web` ya esta corriendo de forma permanente, usar `exec` evita crear un contenedor nuevo:
+
+```cron
+0 * * * * cd /opt/soc_usecases && /usr/bin/docker compose exec -T web python manage.py sync_mitre_attack_scheduled >> /var/log/soc-usecases-mitre.log 2>&1
+```
+
+### Windows Task Scheduler
+
+Crear una tarea programada con:
+
+- Program/script: `powershell.exe`
+- Add arguments:
+
+```powershell
+-NoProfile -ExecutionPolicy Bypass -Command "cd C:\ruta\soc_usecases; docker compose run --rm web python manage.py sync_mitre_attack_scheduled"
+```
+
+Para un servicio ya levantado:
+
+```powershell
+-NoProfile -ExecutionPolicy Bypass -Command "cd C:\ruta\soc_usecases; docker compose exec -T web python manage.py sync_mitre_attack_scheduled"
 ```
 
 ## LDAP
