@@ -7,11 +7,14 @@ from django.contrib.auth import get_user_model
 from django.contrib.auth.models import Group
 from django.core.management import call_command
 from django.core.exceptions import ValidationError
+from django.core.files.uploadedfile import SimpleUploadedFile
 from django.test import TestCase
 from django.urls import reverse
 from django.utils import timezone
+from openpyxl import Workbook, load_workbook
 
 from .coverage_admin import build_coverage_admin_context
+from .framework_sync import run_scheduled_security_frameworks_sync
 from .mitre_sync import MitreAttackSyncResult, load_mitre_attack_data, run_scheduled_mitre_attack_sync
 from .models import CoverageOverride, D3Fend, LifecycleReview, LifecycleSettings, MitreAttack, MitreAttackSyncSettings, UseCase
 from .reports import build_dashboard_pdf
@@ -136,6 +139,83 @@ class MitreAttackSyncTests(TestCase):
         self.assertEqual(settings.last_created, 1)
         self.assertIsNotNone(settings.last_success_at)
 
+    def test_scheduled_sync_logs_failures(self):
+        settings = MitreAttackSyncSettings.objects.create(name="Failing sync", interval_value=1)
+
+        with patch("apps.usecases.mitre_sync.logger") as mocked_logger:
+            with self.assertRaises(RuntimeError):
+                run_scheduled_mitre_attack_sync(
+                    settings=settings,
+                    fetcher=lambda: (_ for _ in ()).throw(RuntimeError("network down")),
+                )
+
+        mocked_logger.exception.assert_called_once()
+        settings.refresh_from_db()
+        self.assertEqual(settings.last_status, MitreAttackSyncSettings.STATUS_ERROR)
+
+    def test_full_framework_sync_skips_when_mitre_sync_is_not_due(self):
+        with patch(
+            "apps.usecases.framework_sync.run_scheduled_mitre_attack_sync",
+            return_value=MitreAttackSyncResult(ran=False, message="Sincronizacion MITRE omitida."),
+        ) as mocked_mitre, patch(
+            "apps.usecases.framework_sync.call_command"
+        ) as mocked_call:
+            call_command("sync_security_frameworks_scheduled", stdout=StringIO())
+
+        mocked_mitre.assert_called_once()
+        mocked_call.assert_not_called()
+
+    def test_full_framework_sync_runs_d3fend_mapping_and_usecase_steps(self):
+        with patch(
+            "apps.usecases.framework_sync.run_scheduled_mitre_attack_sync",
+            return_value=MitreAttackSyncResult(created=1, updated=2, skipped=3, message="OK"),
+        ), patch(
+            "apps.usecases.framework_sync.call_command"
+        ) as mocked_call:
+            call_command("sync_security_frameworks_scheduled", force=True, stdout=StringIO())
+
+        calls = [item.args for item in mocked_call.call_args_list]
+        self.assertEqual(
+            calls,
+            [
+                ("load_d3fend", "--disable-non-detect"),
+                ("normalize_d3fend_codes",),
+                ("load_d3fend", "--mappings-only", "--disable-non-detect"),
+                ("sync_usecase_d3fends",),
+            ],
+        )
+        self.assertEqual(mocked_call.call_args_list[1].kwargs["sleep"], 0)
+
+    def test_full_framework_sync_updates_settings_message(self):
+        settings = MitreAttackSyncSettings.objects.create(name="Full sync", interval_value=1)
+        MitreAttack.objects.create(external_id="T1000", name="Existing attack")
+        D3Fend.objects.create(code="D3-TEST", name="Existing defense")
+
+        def fake_call_command(command_name, *args, **kwargs):
+            output = kwargs.get("stdout")
+            if not output:
+                return
+            if command_name == "load_d3fend" and "--mappings-only" not in args:
+                output.write("Creados: 2\nActualizados: 3\nNormalizados a código oficial: 1\n")
+            elif command_name == "normalize_d3fend_codes":
+                output.write("Normalizados: 4\nFusionados con registros existentes: 1\n")
+            elif command_name == "load_d3fend" and "--mappings-only" in args:
+                output.write("Relaciones únicas procesadas: 9\nD3FEND creados desde mappings: 1\n")
+            elif command_name == "sync_usecase_d3fends":
+                output.write("Casos revisados: 7\nCasos con cambios: 5\n")
+
+        with patch(
+            "apps.usecases.framework_sync.run_scheduled_mitre_attack_sync",
+            return_value=MitreAttackSyncResult(created=1, updated=2, skipped=3, message="Carga ATT&CK finalizada."),
+        ), patch("apps.usecases.framework_sync.call_command", side_effect=fake_call_command):
+            run_scheduled_security_frameworks_sync(force=True, settings=settings)
+
+        settings.refresh_from_db()
+        self.assertIn("ATT&CK: existentes 1, creados 1, modificados 2, omitidos 3", settings.last_message)
+        self.assertIn("D3FEND: existentes 1, creados 3, modificados/normalizados 9", settings.last_message)
+        self.assertIn("Mappings D3FEND->ATT&CK: relaciones procesadas 9", settings.last_message)
+        self.assertIn("Casos: revisados 7, matcheados/actualizados 5", settings.last_message)
+
 
 class SeedDemoDataCommandTests(TestCase):
     def test_seed_demo_data_creates_demo_catalog_users_and_cases(self):
@@ -161,6 +241,15 @@ class SeedDemoDataCommandTests(TestCase):
 
 
 class MitreAttackSyncAdminTests(TestCase):
+    def test_add_sync_settings_admin_page_renders(self):
+        User = get_user_model()
+        admin_user = User.objects.create_superuser("admin", "admin@example.test", "pass")
+        self.client.force_login(admin_user)
+
+        response = self.client.get(reverse("admin:usecases_mitreattacksyncsettings_add"))
+
+        self.assertEqual(response.status_code, 200)
+
     def test_run_now_admin_action_executes_sync(self):
         User = get_user_model()
         admin_user = User.objects.create_superuser("admin", "admin@example.test", "pass")
@@ -168,7 +257,7 @@ class MitreAttackSyncAdminTests(TestCase):
         self.client.force_login(admin_user)
 
         with patch(
-            "apps.usecases.admin.run_scheduled_mitre_attack_sync",
+            "apps.usecases.admin.run_scheduled_security_frameworks_sync",
             return_value=MitreAttackSyncResult(created=1, updated=2, skipped=3, message="OK"),
         ) as mocked_sync:
             response = self.client.get(reverse("admin:usecases_mitreattacksyncsettings_run_now", args=[settings.pk]))
@@ -177,6 +266,19 @@ class MitreAttackSyncAdminTests(TestCase):
         mocked_sync.assert_called_once()
         self.assertTrue(mocked_sync.call_args.kwargs["force"])
         self.assertEqual(mocked_sync.call_args.kwargs["settings"], settings)
+        messages = [str(message) for message in response.wsgi_request._messages]
+        self.assertTrue(any("D3FEND" in message and "casos" in message for message in messages))
+
+    def test_change_sync_settings_admin_page_shows_full_sync_button(self):
+        User = get_user_model()
+        admin_user = User.objects.create_superuser("admin", "admin@example.test", "pass")
+        settings = MitreAttackSyncSettings.objects.create(name="Admin page", interval_value=24)
+        self.client.force_login(admin_user)
+
+        response = self.client.get(reverse("admin:usecases_mitreattacksyncsettings_change", args=[settings.pk]))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Ejecutar sync completo ATT&CK + D3FEND")
 
 
 class UseCasePermissionTests(TestCase):
@@ -286,6 +388,95 @@ class UseCasePermissionTests(TestCase):
         self.assertIn("Owned use case", content)
         self.assertIn("Other use case", content)
         self.assertNotIn("Draft only use case", content)
+
+    def test_analyst_can_export_usecases_xlsx(self):
+        self.client.login(username="analyst", password="pass")
+
+        response = self.client.get(reverse("export_usecases_xlsx"))
+        workbook = load_workbook(BytesIO(response.content))
+        sheet = workbook.active
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response["Content-Type"], "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+        self.assertEqual(sheet["F1"].value, "NOMBRE NETWITNESS")
+        self.assertIn("Owned use case", [cell.value for cell in sheet["F"]])
+
+    def test_analyst_can_download_import_template(self):
+        self.client.login(username="analyst", password="pass")
+
+        response = self.client.get(reverse("download_usecase_import_template"))
+        workbook = load_workbook(BytesIO(response.content))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(workbook.active["F1"].value, "NOMBRE NETWITNESS")
+
+    def test_analyst_can_import_usecases_excel(self):
+        workbook = Workbook()
+        sheet = workbook.active
+        sheet.append([
+            "GRUPO",
+            "DISPOSITIVO",
+            "TIPO",
+            "OBJETIVO2",
+            "Tipo_bloqueo",
+            "NOMBRE NETWITNESS",
+            "RESPONSABLE",
+            "Monitoreo",
+            "status2",
+            "Fecha alta/ajuste",
+            "Fecha puesta en producción",
+            "MITRE ATT&CK",
+            "Severidad",
+            "Escalamiento",
+            "ENVIO.HO",
+            "HO",
+            "Fecha última validación",
+        ])
+        sheet.append([
+            "SOC",
+            "SIEM",
+            "Correlation",
+            "Detect test import",
+            "Manual",
+            "Imported Excel use case",
+            "analyst",
+            "24x7",
+            UseCase.STATUS_PRODUCTION,
+            date(2026, 1, 1),
+            date(2026, 1, 2),
+            "T1059 - Command and Scripting Interpreter",
+            "High",
+            "SOC",
+            "No",
+            "No",
+            date(2026, 1, 3),
+        ])
+        buffer = BytesIO()
+        workbook.save(buffer)
+        upload = SimpleUploadedFile(
+            "usecases.xlsx",
+            buffer.getvalue(),
+            content_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        )
+        self.client.login(username="analyst", password="pass")
+
+        response = self.client.post(reverse("import_usecases_excel"), {"excel_file": upload})
+
+        self.assertEqual(response.status_code, 302)
+        imported = UseCase.objects.get(name="Imported Excel use case")
+        self.assertEqual(imported.status, UseCase.STATUS_PRODUCTION)
+        self.assertEqual(list(imported.mitre_attacks.values_list("external_id", flat=True)), ["T1059"])
+
+    def test_readonly_cannot_import_or_export_xlsx(self):
+        self.client.login(username="readonly", password="pass")
+
+        xlsx_response = self.client.get(reverse("export_usecases_xlsx"))
+        template_response = self.client.get(reverse("download_usecase_import_template"))
+        import_response = self.client.get(reverse("import_usecases_excel"))
+
+        self.assertEqual(xlsx_response.status_code, 403)
+        self.assertEqual(template_response.status_code, 403)
+        self.assertEqual(import_response.status_code, 403)
 
     def test_analyst_bulk_update_only_changes_owned_usecases(self):
         self.client.login(username="analyst", password="pass")

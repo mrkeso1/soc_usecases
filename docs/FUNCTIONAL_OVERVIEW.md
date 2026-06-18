@@ -7,6 +7,7 @@ Este mapa sirve como punto de partida para entender que hace cada parte del proy
 - `apps.accounts.models.User`: usuario custom con `display_name`, `ldap_dn` y `area`.
 - `LDAPSettings`: configuracion LDAP activa/inactiva, modo de login y parametros de busqueda.
 - `LDAPAuthLog`: auditoria de pruebas LDAP y autenticaciones.
+- `signals.py`: registra login, logout y login fallido en `logs/auth.log`.
 - `roles.py`: reglas de rol `Admin`, `Analyst` y `ReadOnly`.
 - `seed_groups`: normaliza grupos y permisos base.
 
@@ -21,8 +22,10 @@ Este mapa sirve como punto de partida para entender que hace cada parte del proy
 - `mitre_sync.fetch_mitre_attack_enterprise`: descarga el dataset Enterprise ATT&CK.
 - `mitre_sync.load_mitre_attack_data`: transforma STIX en registros `MitreAttack`.
 - `mitre_sync.run_scheduled_mitre_attack_sync`: valida intervalo DB, ejecuta la carga y actualiza auditoria.
+- `logs/mitre_sync.log`: auditoria de descarga, skip, exito y error.
 - `load_mitre_attack`: comando manual historico, siempre descarga y actualiza.
 - `sync_mitre_attack_scheduled`: comando pensado para cron; respeta `MitreAttackSyncSettings`.
+- `sync_security_frameworks_scheduled`: cron completo; sincroniza ATT&CK, D3FEND, mappings D3FEND->ATT&CK y D3FEND inferido en casos.
 - Admin de `MitreAttackSyncSettings`: muestra estado visual, proxima ejecucion y accion "Ejecutar ahora".
 
 ## Casos de uso
@@ -32,6 +35,8 @@ Este mapa sirve como punto de partida para entender que hace cada parte del proy
 - `UseCaseChangeLog`: registra diffs relevantes cuando se edita un caso.
 - `bulk_updates.py`: aplica cambios masivos con validacion y permisos por ownership.
 - `seed_demo_data`: crea un set idempotente de usuarios, casos, ATT&CK, D3FEND, lifecycle y overrides para pruebas.
+- `import_usecases_excel`: vista para cargar Excel desde la UI usando el importador existente.
+- `export_usecases_xlsx`: exporta la vista filtrada en formato Excel.
 
 ## Dashboard y cobertura
 

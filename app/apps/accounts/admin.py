@@ -1,3 +1,5 @@
+import logging
+
 from django.contrib import admin, messages
 from django.contrib.auth.admin import GroupAdmin as DjangoGroupAdmin, UserAdmin as DjangoUserAdmin
 from django.contrib.auth.models import Group
@@ -16,6 +18,7 @@ from .roles import ROLE_GROUPS
 
 
 _PASSWORD_MASK = "********"
+logger = logging.getLogger("soc.auth")
 
 
 class LDAPSettingsAdminForm(forms.ModelForm):
@@ -132,8 +135,8 @@ class LDAPSettingsAdmin(admin.ModelAdmin):
 
     def status_badge(self, obj):
         if obj.is_enabled:
-            return format_html('<strong style="color:#047857;">Activa</strong>')
-        return format_html('<span style="color:#6b7280;">Inactiva</span>')
+            return format_html('<strong style="color:#047857;">{}</strong>', "Activa")
+        return format_html('<span style="color:#6b7280;">{}</span>', "Inactiva")
     status_badge.short_description = "Estado"
 
     def test_connection_link(self, obj):
@@ -143,7 +146,7 @@ class LDAPSettingsAdmin(admin.ModelAdmin):
 
     def activate_link(self, obj):
         if obj.is_enabled:
-            return format_html('<span style="color:#6b7280;">Activa</span>')
+            return format_html('<span style="color:#6b7280;">{}</span>', "Activa")
         url = reverse("admin:accounts_ldapsettings_activate", args=[obj.pk])
         return format_html('<a class="button" href="{}">Activar</a>', url)
     activate_link.short_description = "Activacion"
@@ -189,9 +192,11 @@ class LDAPSettingsAdmin(admin.ModelAdmin):
             conn.unbind()
             success = True
             message = "Conexion LDAP exitosa."
+            logger.info("ldap_test_success server_uri=%s", config.server_uri)
             self.message_user(request, message, messages.SUCCESS)
         except Exception as exc:
             message = safe_ldap_error_message(exc, "Error LDAP durante prueba de conexion.")
+            logger.warning("ldap_test_failed server_uri=%s message=%s", config.server_uri, message)
             self.message_user(request, f"Fallo la conexion LDAP: {message}", messages.ERROR)
 
         LDAPAuthLog.objects.create(

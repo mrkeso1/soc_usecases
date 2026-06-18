@@ -979,8 +979,10 @@
         <div class="header-actions">
             {% if can_add_usecases %}
                 <a class="btn btn-primary" href="{% url 'usecase_create' %}">+ Nuevo caso</a>
+                <a class="btn" href="{% url 'import_usecases_excel' %}">Importar Excel</a>
             {% endif %}
             <a class="btn" href="{% url 'export_usecases_csv' %}?{% for k,v in request.GET.items %}{{ k }}={{ v|urlencode }}&{% endfor %}">Exportar CSV</a>
+            <a class="btn" href="{% url 'export_usecases_xlsx' %}?{% for k,v in request.GET.items %}{{ k }}={{ v|urlencode }}&{% endfor %}">Exportar Excel</a>
         </div>
     </div>
 

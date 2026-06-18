@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 from typing import Optional
 
 from django.contrib.auth.backends import BaseBackend, ModelBackend
@@ -12,6 +13,9 @@ from .ldap_utils import escape_ldap_dn_value, escape_ldap_filter_value, safe_lda
 from .models import LDAPAuthLog, LDAPSettings
 
 
+logger = logging.getLogger("soc.auth")
+
+
 def _active_ldap_config() -> Optional[LDAPSettings]:
     try:
         return LDAPSettings.objects.filter(is_enabled=True).order_by("-updated_at").first()
@@ -20,6 +24,17 @@ def _active_ldap_config() -> Optional[LDAPSettings]:
 
 
 def _log_ldap_event(*, event_type: str, username: str = "", config: Optional[LDAPSettings] = None, success: bool = False, message: str = "") -> None:
+    log_message = (
+        "ldap_event event_type=%s username=%s server_uri=%s success=%s message=%s"
+    )
+    logger.info(
+        log_message,
+        event_type,
+        username or "",
+        config.server_uri if config else "",
+        success,
+        (message or "").replace("\n", " ")[:500],
+    )
     try:
         LDAPAuthLog.objects.create(
             event_type=event_type,

@@ -1,9 +1,12 @@
 from datetime import date, timedelta, datetime
 import csv
-from io import BytesIO
+from io import BytesIO, StringIO
+import tempfile
+from pathlib import Path
 
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
+from django.core.management import call_command
 from django.core.paginator import Paginator
 from django.core.exceptions import ValidationError
 from django.db.models import Q
@@ -31,6 +34,7 @@ from .permissions import (
     resolve_user_roles,
 )
 from .reports import build_dashboard_pdf, get_active_dashboard_report_settings
+from openpyxl import Workbook
 
 _FORBIDDEN_MSG = "No tenes permisos para acceder a esta seccion."
 PRODUCTION_STATUS = UseCase.STATUS_PRODUCTION
@@ -473,6 +477,151 @@ def export_usecases_csv(request):
     return response
 
 
+def _xlsx_response(workbook, filename: str):
+    buffer = BytesIO()
+    workbook.save(buffer)
+    response = HttpResponse(
+        buffer.getvalue(),
+        content_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    )
+    response["Content-Disposition"] = f'attachment; filename="{filename}"'
+    return response
+
+
+def _append_usecase_excel_row(ws, usecase):
+    ws.append([
+        usecase.group_name,
+        usecase.device,
+        usecase.case_type,
+        usecase.objective,
+        usecase.blocking_type,
+        usecase.name,
+        usecase.owner_name,
+        usecase.monitoring,
+        usecase.status,
+        usecase.created_or_adjusted_at,
+        usecase.production_date,
+        _serialize_mitre(usecase),
+        usecase.severity,
+        usecase.escalation,
+        usecase.sent_to_ho,
+        usecase.ho_flag,
+        usecase.last_validation_date,
+    ])
+
+
+def _usecase_excel_headers():
+    return [
+        "GRUPO",
+        "DISPOSITIVO",
+        "TIPO",
+        "OBJETIVO2",
+        "Tipo_bloqueo",
+        "NOMBRE NETWITNESS",
+        "RESPONSABLE",
+        "Monitoreo",
+        "status2",
+        "Fecha alta/ajuste",
+        "Fecha puesta en producción",
+        "MITRE ATT&CK",
+        "Severidad",
+        "Escalamiento",
+        "ENVIO.HO",
+        "HO",
+        "Fecha última validación",
+    ]
+
+
+@login_required
+def export_usecases_xlsx(request):
+    if not can_access_usecases(request.user):
+        return HttpResponseForbidden(_FORBIDDEN_MSG)
+
+    qs, _ = _get_filtered_usecases(request, with_prefetch=True)
+    wb = Workbook()
+    ws = wb.active
+    ws.title = "Casos de uso"
+    ws.append(_usecase_excel_headers())
+    for usecase in qs.order_by("name"):
+        _append_usecase_excel_row(ws, usecase)
+    return _xlsx_response(wb, "usecases_export.xlsx")
+
+
+@login_required
+def download_usecase_import_template(request):
+    if not can_add_usecases(request.user):
+        return HttpResponseForbidden("No tenes permisos para importar casos de uso.")
+
+    wb = Workbook()
+    ws = wb.active
+    ws.title = "Casos de uso"
+    ws.append(_usecase_excel_headers())
+    ws.append([
+        "SOC",
+        "SIEM",
+        "Correlation",
+        "Detectar ejecucion sospechosa",
+        "Manual",
+        "Ejemplo - PowerShell sospechoso",
+        "analyst",
+        "24x7",
+        UseCase.STATUS_PRODUCTION,
+        date.today(),
+        date.today(),
+        "T1059 - Command and Scripting Interpreter",
+        "High",
+        "SOC",
+        "No",
+        "No",
+        date.today(),
+    ])
+    return _xlsx_response(wb, "plantilla_casos_uso.xlsx")
+
+
+@login_required
+def import_usecases_excel(request):
+    if not can_add_usecases(request.user):
+        return HttpResponseForbidden("No tenes permisos para importar casos de uso.")
+
+    if request.method == "POST":
+        uploaded_file = request.FILES.get("excel_file")
+        allow_update = request.POST.get("update_existing") == "on"
+        if not uploaded_file:
+            messages.error(request, "Selecciona un archivo Excel para importar.")
+            return redirect("import_usecases_excel")
+
+        suffix = Path(uploaded_file.name).suffix.lower()
+        if suffix not in {".xlsx", ".xlsm"}:
+            messages.error(request, "El archivo debe ser .xlsx o .xlsm.")
+            return redirect("import_usecases_excel")
+
+        temp_path = None
+        output = StringIO()
+        try:
+            with tempfile.NamedTemporaryFile(delete=False, suffix=suffix) as temp_file:
+                temp_path = temp_file.name
+                for chunk in uploaded_file.chunks():
+                    temp_file.write(chunk)
+            call_command("import_usecases", temp_path, update=allow_update, stdout=output)
+        except Exception as exc:
+            messages.error(request, f"No se pudo importar el Excel: {exc}")
+        else:
+            messages.success(request, "Importacion finalizada. Revisa el resumen debajo.")
+            request.session["last_usecase_import_output"] = output.getvalue()
+            return redirect("import_usecases_excel")
+        finally:
+            if temp_path:
+                try:
+                    Path(temp_path).unlink(missing_ok=True)
+                except OSError:
+                    pass
+
+    import_output = request.session.pop("last_usecase_import_output", "")
+    return render(request, "usecases/import_usecases_excel.html", {
+        "import_output": import_output,
+    })
+
+
 @login_required
 def usecase_create(request):
     if not can_add_usecases(request.user):
@@ -494,7 +643,7 @@ def usecase_create(request):
     else:
         form = UseCaseForm()
 
-    return render(request, "usecases/usecase_form.html", {"form": form, "title": "Nuevo caso de uso"})
+    return render(request, "usecases/usecase_form.html", {"form": form, "title": "Crear caso"})
 
 
 @login_required

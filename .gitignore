@@ -9,6 +9,10 @@ venv/
 staticfiles/
 media/
 *.log
+logs/*
+!logs/.gitkeep
+app/logs/*
+!app/logs/.gitkeep
 
 .pytest_cache/
 .coverage

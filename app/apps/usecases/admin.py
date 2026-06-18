@@ -3,10 +3,10 @@ from django.contrib import admin, messages
 from django.shortcuts import redirect
 from django.urls import path, reverse
 from django.utils import timezone
-from django.utils.html import format_html
+from django.utils.html import format_html, format_html_join
 
+from .framework_sync import run_scheduled_security_frameworks_sync
 from .forms import MitreAttackM2MBridgeMixin
-from .mitre_sync import run_scheduled_mitre_attack_sync
 from .models import (
     CoverageOverride,
     D3Fend,
@@ -145,6 +145,8 @@ class MitreAttackSyncSettingsAdmin(admin.ModelAdmin):
         "last_success_at",
         "last_status",
         "last_message",
+        "framework_summary_display",
+        "run_now_link",
         "last_created",
         "last_updated",
         "last_skipped",
@@ -154,12 +156,17 @@ class MitreAttackSyncSettingsAdmin(admin.ModelAdmin):
     fieldsets = (
         ("Programacion", {
             "fields": ("name", "is_active", "interval_value", "interval_unit"),
-            "description": "El cron externo puede ejecutarse seguido; esta configuracion decide si ya corresponde sincronizar ATT&CK.",
+            "description": (
+                "El cron externo puede ejecutarse seguido; esta configuracion decide "
+                "si ya corresponde sincronizar ATT&CK, D3FEND, mappings y casos."
+            ),
         }),
         ("Ultima ejecucion", {
             "fields": (
                 "last_status",
                 "last_message",
+                "framework_summary_display",
+                "run_now_link",
                 "last_run_at",
                 "last_success_at",
                 "next_run_display",
@@ -199,17 +206,28 @@ class MitreAttackSyncSettingsAdmin(admin.ModelAdmin):
             return "-"
         return timezone.localtime(obj.last_success_at).strftime("%Y-%m-%d %H:%M")
 
+    @admin.display(description="Resumen catalogos y casos")
+    def framework_summary_display(self, obj):
+        if not obj.last_message:
+            return "-"
+        return format_html_join("", "{}<br>", ((line,) for line in obj.last_message.splitlines()))
+
     @admin.display(description="Proxima ejecucion")
     def next_run_display(self, obj):
         next_run = obj.next_run_at()
         if not next_run or obj.is_due():
-            return format_html('<strong style="color:#047857;">Ahora</strong>')
+            return format_html('<strong style="color:#047857;">{}</strong>', "Ahora")
         return timezone.localtime(next_run).strftime("%Y-%m-%d %H:%M")
 
-    @admin.display(description="Accion")
+    @admin.display(description="Accion manual")
     def run_now_link(self, obj):
+        if not obj or not obj.pk:
+            return "Disponible despues de guardar la configuracion."
         url = reverse("admin:usecases_mitreattacksyncsettings_run_now", args=[obj.pk])
-        return format_html('<a class="button" href="{}">Ejecutar ahora</a>', url)
+        return format_html(
+            '<a class="button" href="{}">Ejecutar sync completo ATT&CK + D3FEND</a>',
+            url,
+        )
 
     def run_now(self, request, object_id):
         config = self.get_object(request, object_id)
@@ -218,13 +236,20 @@ class MitreAttackSyncSettingsAdmin(admin.ModelAdmin):
             return redirect("..")
 
         try:
-            result = run_scheduled_mitre_attack_sync(force=True, settings=config)
+            result = run_scheduled_security_frameworks_sync(force=True, settings=config)
         except Exception as exc:
-            self.message_user(request, f"Fallo la sincronizacion MITRE: {exc}", messages.ERROR)
+            self.message_user(request, f"Fallo la sincronizacion completa: {exc}", messages.ERROR)
         else:
             self.message_user(
                 request,
-                f"Sincronizacion MITRE finalizada. Creados: {result.created}. Actualizados: {result.updated}. Omitidos: {result.skipped}.",
+                (
+                    "Sincronizacion completa finalizada: ATT&CK actualizado, "
+                    "D3FEND actualizado, mappings D3FEND->ATT&CK reconstruidos "
+                    "y casos recalculados. "
+                    f"ATT&CK creados: {result.created}. "
+                    f"ATT&CK actualizados: {result.updated}. "
+                    f"ATT&CK omitidos: {result.skipped}."
+                ),
                 messages.SUCCESS,
             )
         return redirect("../..")

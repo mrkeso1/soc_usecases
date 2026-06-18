@@ -19,6 +19,7 @@
             {% endif %}
         {% endwith %}
         <div class="topbar-divider"></div>
+        <button type="button" class="theme-toggle-button" data-theme-toggle aria-label="Cambiar tema">Tema</button>
         {% if not is_role_readonly %}{% if is_role_admin or request.user.is_staff %}<a href="/admin/">Admin</a>{% endif %}{% endif %}
         <form method="post" action="{% url 'logout' %}" class="topbar-logout-form">
             {% csrf_token %}
@@ -26,3 +27,24 @@
         </form>
     </div>
 </nav>
+<script>
+    (function () {
+        const button = document.querySelector('[data-theme-toggle]');
+        if (!button) return;
+
+        function syncLabel() {
+            const current = document.documentElement.dataset.theme || 'dark';
+            button.textContent = current === 'light' ? 'Oscuro' : 'Claro';
+            button.setAttribute('aria-label', current === 'light' ? 'Cambiar a tema oscuro' : 'Cambiar a tema claro');
+        }
+
+        button.addEventListener('click', function () {
+            const current = document.documentElement.dataset.theme || 'dark';
+            const next = current === 'light' ? 'dark' : 'light';
+            document.documentElement.dataset.theme = next;
+            localStorage.setItem('soc-theme', next);
+            syncLabel();
+        });
+        syncLabel();
+    })();
+</script>

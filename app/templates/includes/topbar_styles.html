@@ -1,4 +1,39 @@
+<script>
+    (function () {
+        const storedTheme = localStorage.getItem('soc-theme');
+        const prefersLight = window.matchMedia && window.matchMedia('(prefers-color-scheme: light)').matches;
+        const theme = storedTheme || (prefersLight ? 'light' : 'dark');
+        document.documentElement.dataset.theme = theme;
+    })();
+</script>
 <style>
+    html[data-theme="light"] {
+        --bg: #f3f6fb;
+        --surface: #ffffff;
+        --surface-2: #eef3f9;
+        --surface-3: #dce7f3;
+        --border: rgba(39, 76, 119, 0.26);
+        --border-bright: rgba(39, 76, 119, 0.52);
+        --text: #243b55;
+        --text-strong: #0b1f33;
+        --text-muted: #365472;
+        --accent: #155fce;
+        --accent-dim: rgba(21, 95, 206, 0.14);
+        --accent-glow: rgba(21, 95, 206, 0.24);
+        --good: #04724d;
+        --good-dim: rgba(4, 114, 77, 0.13);
+        --medium: #946200;
+        --medium-dim: rgba(148, 98, 0, 0.14);
+        --bad: #b4232d;
+        --bad-dim: rgba(180, 35, 45, 0.13);
+        --grid-color: rgba(39, 76, 119, 0.075);
+        --topbar-bg: rgba(255, 255, 255, 0.96);
+    }
+
+    html[data-theme="dark"] {
+        --topbar-bg: rgba(6, 11, 20, 0.92);
+    }
+
     .topbar {
         position: sticky;
         top: 0;
@@ -8,7 +43,7 @@
         align-items: center;
         padding: 0 28px;
         height: 56px;
-        background: rgba(6, 11, 20, 0.92);
+        background: var(--topbar-bg, rgba(6, 11, 20, 0.92));
         backdrop-filter: blur(12px);
         border-bottom: 1px solid var(--border, rgba(56, 100, 163, 0.22));
     }
@@ -93,11 +128,381 @@
         background: var(--surface-3, #172540);
     }
 
+    .theme-toggle-button {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        min-width: 74px;
+        height: 30px;
+        font-family: 'JetBrains Mono', monospace;
+        font-size: 11px;
+        font-weight: 600;
+        color: var(--text-muted, #4e6a8e);
+        background: var(--surface-2, #111d30);
+        border: 1px solid var(--border, rgba(56, 100, 163, 0.22));
+        border-radius: 8px;
+        cursor: pointer;
+        transition: color 0.15s, background 0.15s, border-color 0.15s;
+    }
+
+    .theme-toggle-button:hover {
+        color: var(--text-strong, #e8f1ff);
+        border-color: var(--border-bright, rgba(56, 100, 163, 0.55));
+        background: var(--surface-3, #172540);
+    }
+
     .topbar-divider {
         width: 1px;
         height: 18px;
         background: var(--border, rgba(56, 100, 163, 0.22));
         margin: 0 6px;
+    }
+
+    html[data-theme="light"] body {
+        color: var(--text);
+        background: var(--bg);
+    }
+
+    html[data-theme="light"] body::before {
+        opacity: 0.65;
+    }
+
+    html[data-theme="light"] .page-subtitle,
+    html[data-theme="light"] .summary-label,
+    html[data-theme="light"] .summary-note,
+    html[data-theme="light"] .chip-label,
+    html[data-theme="light"] .field label,
+    html[data-theme="light"] .muted,
+    html[data-theme="light"] .empty-state,
+    html[data-theme="light"] .empty-note,
+    html[data-theme="light"] .empty-value,
+    html[data-theme="light"] .meta-label,
+    html[data-theme="light"] .detail-label,
+    html[data-theme="light"] .list-item-sub,
+    html[data-theme="light"] .row-subtitle,
+    html[data-theme="light"] .tactic-meta,
+    html[data-theme="light"] .d3-category,
+    html[data-theme="light"] .coverage-count,
+    html[data-theme="light"] .owner-summary,
+    html[data-theme="light"] .radial-card-title,
+    html[data-theme="light"] .radial-sub,
+    html[data-theme="light"] .legend {
+        color: var(--text-muted) !important;
+        opacity: 1 !important;
+    }
+
+    html[data-theme="light"] .filter-panel,
+    html[data-theme="light"] .filters,
+    html[data-theme="light"] .panel,
+    html[data-theme="light"] .summary-card,
+    html[data-theme="light"] .summary-chip,
+    html[data-theme="light"] .radial-card,
+    html[data-theme="light"] .card,
+    html[data-theme="light"] .side-card,
+    html[data-theme="light"] .table-wrap,
+    html[data-theme="light"] .matrix-wrap,
+    html[data-theme="light"] .coverage-row,
+    html[data-theme="light"] .detail-card,
+    html[data-theme="light"] .mapping-card,
+    html[data-theme="light"] .history-row,
+    html[data-theme="light"] .change-log-row,
+    html[data-theme="light"] .form-shell,
+    html[data-theme="light"] .section-card,
+    html[data-theme="light"] .toolbar,
+    html[data-theme="light"] .explain-box,
+    html[data-theme="light"] .feedback-bar,
+    html[data-theme="light"] .message {
+        background: var(--surface) !important;
+        border-color: var(--border) !important;
+        color: var(--text) !important;
+        box-shadow: 0 12px 28px rgba(15, 31, 51, 0.08) !important;
+    }
+
+    html[data-theme="light"] input,
+    html[data-theme="light"] select,
+    html[data-theme="light"] textarea,
+    html[data-theme="light"] .row-form select,
+    html[data-theme="light"] .row-form textarea,
+    html[data-theme="light"] .owner-select {
+        background: #ffffff !important;
+        color: var(--text-strong) !important;
+        border-color: var(--border) !important;
+    }
+
+    html[data-theme="light"] input::placeholder,
+    html[data-theme="light"] textarea::placeholder {
+        color: #516d8d !important;
+        opacity: 1 !important;
+    }
+
+    html[data-theme="light"] th {
+        background: var(--surface-2) !important;
+        color: var(--text-muted) !important;
+    }
+
+    html[data-theme="light"] td,
+    html[data-theme="light"] .list-item,
+    html[data-theme="light"] .summary-row,
+    html[data-theme="light"] .history-cell,
+    html[data-theme="light"] .panel-row {
+        border-color: var(--border) !important;
+        color: var(--text) !important;
+    }
+
+    html[data-theme="light"] .btn,
+    html[data-theme="light"] .btn-secondary,
+    html[data-theme="light"] .btn-ghost,
+    html[data-theme="light"] .mini-btn,
+    html[data-theme="light"] .btn-tab,
+    html[data-theme="light"] .btn-mini,
+    html[data-theme="light"] .tab-link {
+        background: var(--surface-2) !important;
+        border-color: var(--border) !important;
+        color: var(--text-strong) !important;
+    }
+
+    html[data-theme="light"] .btn-primary,
+    html[data-theme="light"] .tab-link.active {
+        background: var(--accent) !important;
+        border-color: var(--accent) !important;
+        color: #ffffff !important;
+    }
+
+    html[data-theme="light"] .status-chip,
+    html[data-theme="light"] .badge,
+    html[data-theme="light"] .mapping-chip,
+    html[data-theme="light"] .technique-chip,
+    html[data-theme="light"] .attack-chip {
+        background: var(--surface-2) !important;
+        border-color: var(--border) !important;
+        color: var(--text-muted) !important;
+    }
+
+    html[data-theme="light"] .status-chip.good,
+    html[data-theme="light"] .status-chip.enabled,
+    html[data-theme="light"] .technique-chip.covered,
+    html[data-theme="light"] .attack-chip.covered,
+    html[data-theme="light"] .badge.good,
+    html[data-theme="light"] .okb {
+        background: var(--good-dim) !important;
+        border-color: rgba(4, 114, 77, 0.38) !important;
+        color: var(--good) !important;
+    }
+
+    html[data-theme="light"] .status-chip.medium,
+    html[data-theme="light"] .status-chip.catalog,
+    html[data-theme="light"] .badge.warn,
+    html[data-theme="light"] .warn {
+        background: var(--medium-dim) !important;
+        border-color: rgba(148, 98, 0, 0.38) !important;
+        color: var(--medium) !important;
+    }
+
+    html[data-theme="light"] .status-chip.bad,
+    html[data-theme="light"] .status-chip.disabled,
+    html[data-theme="light"] .technique-chip.missing,
+    html[data-theme="light"] .attack-chip.missing,
+    html[data-theme="light"] .badge.bad,
+    html[data-theme="light"] .danger {
+        background: var(--bad-dim) !important;
+        border-color: rgba(180, 35, 45, 0.38) !important;
+        color: var(--bad) !important;
+    }
+
+    html[data-theme="light"] .status-chip.fulfilled,
+    html[data-theme="light"] .technique-chip.fulfilled,
+    html[data-theme="light"] .badge.accent,
+    html[data-theme="light"] .chip,
+    html[data-theme="light"] .explain-icon {
+        background: var(--accent-dim) !important;
+        border-color: rgba(21, 95, 206, 0.38) !important;
+        color: var(--accent) !important;
+    }
+
+    html[data-theme="light"] .bar {
+        background: #d5e0ec !important;
+    }
+
+    html[data-theme="light"] .radial-bg {
+        stroke: #dce7f3 !important;
+    }
+
+    html[data-theme="light"] .autocomplete-results,
+    html[data-theme="light"] .mapping-suggestions {
+        background: #ffffff !important;
+        border-color: var(--border) !important;
+        box-shadow: 0 18px 38px rgba(15, 31, 51, 0.16) !important;
+    }
+
+    html[data-theme="light"] .autocomplete-item:hover {
+        background: var(--surface-2) !important;
+        color: var(--text-strong) !important;
+    }
+
+    html[data-theme="light"] .tactic-header,
+    html[data-theme="light"] thead th,
+    html[data-theme="light"] tr th {
+        background: var(--surface-2) !important;
+        color: var(--text-muted) !important;
+    }
+
+    html[data-theme="light"] tr td {
+        background: #ffffff !important;
+    }
+
+    html[data-theme="light"] tr:hover td {
+        background: #eef3f9 !important;
+    }
+
+    html[data-theme="light"] .row-overdue td {
+        background: #fff1f2 !important;
+    }
+
+    html[data-theme="light"] .row-soon td {
+        background: #fff7e6 !important;
+    }
+
+    html[data-theme="light"] .feedback-bar {
+        background: #e8f1ff !important;
+        border-color: rgba(21, 95, 206, 0.32) !important;
+        color: #143f7f !important;
+    }
+
+    html[data-theme="light"] .feedback-bar a {
+        color: var(--accent) !important;
+    }
+
+    html[data-theme="light"] .mapping-filter-bar {
+        background: #fff7e6 !important;
+        border-color: rgba(148, 98, 0, 0.32) !important;
+        color: #6f4a00 !important;
+    }
+
+    html[data-theme="light"] .mapping-filter-bar strong {
+        color: #4b3200 !important;
+    }
+
+    html[data-theme="light"] .edit-hint {
+        background: #e8f8f1 !important;
+        border-color: rgba(4, 114, 77, 0.28) !important;
+        color: #065f46 !important;
+    }
+
+    html[data-theme="light"] .cell-select,
+    html[data-theme="light"] .cell-input,
+    html[data-theme="light"] .cell-date,
+    html[data-theme="light"] .disabled-reason-input,
+    html[data-theme="light"] .mapping-input {
+        background: #ffffff !important;
+        border-color: var(--border) !important;
+        color: var(--text-strong) !important;
+    }
+
+    html[data-theme="light"] .cell-select:focus,
+    html[data-theme="light"] .cell-input:focus,
+    html[data-theme="light"] .cell-date:focus,
+    html[data-theme="light"] .disabled-reason-input:focus,
+    html[data-theme="light"] .mapping-input:focus {
+        background: #ffffff !important;
+        border-color: var(--border-bright) !important;
+    }
+
+    html[data-theme="light"] .badge-blue,
+    html[data-theme="light"] .action-link.primary,
+    html[data-theme="light"] .mapping-chip {
+        background: var(--accent-dim) !important;
+        border-color: rgba(21, 95, 206, 0.36) !important;
+        color: var(--accent) !important;
+    }
+
+    html[data-theme="light"] .table-wrap::-webkit-scrollbar-track {
+        background: var(--surface-2) !important;
+    }
+
+    html[data-theme="light"] .table-wrap::-webkit-scrollbar-thumb {
+        background: #b8c8da !important;
+    }
+
+    html[data-theme="light"] .page-shell .panel,
+    html[data-theme="light"] .page-shell .summary-card {
+        background: #ffffff !important;
+        border-color: var(--border) !important;
+        color: var(--text) !important;
+    }
+
+    html[data-theme="light"] .page-shell .tabs,
+    html[data-theme="light"] .page-shell .form-actions {
+        background: #f6f9fd !important;
+        border-color: var(--border) !important;
+    }
+
+    html[data-theme="light"] .page-shell .tab-button {
+        background: #ffffff !important;
+        border-color: var(--border) !important;
+        color: var(--text-muted) !important;
+        opacity: 1 !important;
+    }
+
+    html[data-theme="light"] .page-shell .tab-button:hover {
+        background: var(--surface-2) !important;
+        color: var(--text-strong) !important;
+        border-color: var(--border-bright) !important;
+    }
+
+    html[data-theme="light"] .page-shell .tab-button.active {
+        background: var(--accent) !important;
+        border-color: var(--accent) !important;
+        color: #ffffff !important;
+    }
+
+    html[data-theme="light"] .page-shell .header-actions .btn,
+    html[data-theme="light"] .page-shell .form-actions .btn {
+        background: var(--surface-2) !important;
+        border-color: var(--border) !important;
+        color: var(--text-strong) !important;
+        box-shadow: none !important;
+        opacity: 1 !important;
+    }
+
+    html[data-theme="light"] .page-shell .header-actions .btn:hover,
+    html[data-theme="light"] .page-shell .form-actions .btn:hover {
+        background: var(--surface-3) !important;
+        border-color: var(--border-bright) !important;
+        color: var(--text-strong) !important;
+    }
+
+    html[data-theme="light"] .page-shell .header-actions .btn-primary,
+    html[data-theme="light"] .page-shell .form-actions .btn-primary {
+        background: var(--accent) !important;
+        border-color: var(--accent) !important;
+        color: #ffffff !important;
+    }
+
+    html[data-theme="light"] .page-shell .header-actions .btn-primary:hover,
+    html[data-theme="light"] .page-shell .form-actions .btn-primary:hover {
+        background: #0f54bd !important;
+        border-color: #0f54bd !important;
+        color: #ffffff !important;
+    }
+
+    html[data-theme="light"] .page-shell .readonly-box,
+    html[data-theme="light"] .page-shell .switch-row,
+    html[data-theme="light"] .page-shell .summary-item {
+        background: var(--surface-2) !important;
+        border-color: var(--border) !important;
+        color: var(--text) !important;
+    }
+
+    html[data-theme="light"] .page-shell .d3fend-readonly {
+        background: #e8f1ff !important;
+        border-color: rgba(21, 95, 206, 0.34) !important;
+        color: #143f7f !important;
+    }
+
+    html[data-theme="light"] .page-shell .errors {
+        background: #fff1f2 !important;
+        border-color: rgba(180, 35, 45, 0.38) !important;
+        color: var(--bad) !important;
     }
 
     @media (max-width: 680px) {

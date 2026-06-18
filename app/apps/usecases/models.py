@@ -312,8 +312,8 @@ class MitreAttackSyncSettings(SingleActiveSettingsMixin):
     updated_at = models.DateTimeField(auto_now=True)
 
     class Meta:
-        verbose_name = "Configuracion sync MITRE"
-        verbose_name_plural = "Configuraciones sync MITRE"
+        verbose_name = "Sincronizacion de frameworks"
+        verbose_name_plural = "Sincronizaciones de frameworks"
         constraints = [
             models.UniqueConstraint(
                 fields=["is_active"],

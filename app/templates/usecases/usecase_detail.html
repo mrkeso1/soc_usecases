@@ -467,6 +467,216 @@
 
 </style>
     {% include "includes/topbar_styles.html" %}
+<style>
+    .container {
+        max-width: 1280px !important;
+        padding: 22px 28px 48px !important;
+    }
+
+    .page-header {
+        gap: 16px !important;
+        align-items: start !important;
+        margin-bottom: 18px !important;
+    }
+
+    .page-eyebrow {
+        font-size: 11px !important;
+        letter-spacing: .12em !important;
+        margin-bottom: 5px !important;
+    }
+
+    .page-title {
+        font-family: 'JetBrains Mono', monospace !important;
+        font-size: 20px !important;
+        line-height: 1.2 !important;
+        letter-spacing: 0 !important;
+        font-weight: 800 !important;
+        text-transform: none !important;
+    }
+
+    .page-subtitle {
+        max-width: 760px !important;
+        font-size: .86rem !important;
+        line-height: 1.45 !important;
+    }
+
+    .case-title-box {
+        max-width: 840px !important;
+        margin-top: 9px !important;
+        padding: 8px 11px !important;
+        border-radius: 10px !important;
+        background: var(--surface-2) !important;
+        border: 1px solid var(--border) !important;
+    }
+
+    .case-title-value {
+        font-family: 'JetBrains Mono', monospace !important;
+        font-size: 12px !important;
+        line-height: 1.35 !important;
+        font-weight: 600 !important;
+        letter-spacing: 0 !important;
+        color: var(--text-strong) !important;
+    }
+
+    .detail-shell {
+        grid-template-columns: minmax(0, 1fr) 300px !important;
+        gap: 16px !important;
+    }
+
+    .card,
+    .side-card {
+        background: var(--surface) !important;
+        border: 1px solid var(--border) !important;
+        border-radius: 14px !important;
+        box-shadow: none !important;
+    }
+
+    .section {
+        padding: 18px !important;
+        border-bottom: 1px solid var(--border) !important;
+    }
+
+    .section-title,
+    .history-title {
+        font-size: 1rem !important;
+        line-height: 1.25 !important;
+        letter-spacing: 0 !important;
+    }
+
+    .section-help {
+        font-size: .84rem !important;
+        line-height: 1.45 !important;
+    }
+
+    .detail-grid {
+        gap: 14px !important;
+    }
+
+    .detail-label,
+    .case-title-label,
+    .status-label {
+        color: var(--text-muted) !important;
+        font-size: 10px !important;
+        letter-spacing: .06em !important;
+        opacity: 1 !important;
+    }
+
+    .detail-value {
+        min-height: 38px !important;
+        padding: 9px 11px !important;
+        border-radius: 8px !important;
+        background: var(--surface-2) !important;
+        border: 1px solid var(--border) !important;
+        color: var(--text-strong) !important;
+        font-size: .88rem !important;
+        line-height: 1.42 !important;
+    }
+
+    .detail-value.mono,
+    .status-value {
+        color: var(--text-strong) !important;
+    }
+
+    .tag {
+        background: var(--accent-dim) !important;
+        border-color: rgba(45,122,255,.35) !important;
+        color: #a8c8ff !important;
+    }
+
+    .btn,
+    .header-actions .btn,
+    .pagination a,
+    .pagination span {
+        font-family: 'JetBrains Mono', monospace !important;
+        font-size: 12px !important;
+        font-weight: 700 !important;
+        min-height: 34px !important;
+        padding: 0 12px !important;
+        border-radius: 8px !important;
+        transform: none !important;
+    }
+
+    html[data-theme="light"] .container .card,
+    html[data-theme="light"] .container .side-card,
+    html[data-theme="light"] .container .table-wrap {
+        background: #ffffff !important;
+        border-color: var(--border) !important;
+        color: var(--text) !important;
+        box-shadow: 0 12px 28px rgba(15,31,51,.08) !important;
+    }
+
+    html[data-theme="light"] .container .case-title-box,
+    html[data-theme="light"] .container .detail-value,
+    html[data-theme="light"] .container .status-line {
+        background: #ffffff !important;
+        border-color: rgba(39,76,119,.30) !important;
+        color: var(--text-strong) !important;
+    }
+
+    html[data-theme="light"] .container .detail-value {
+        box-shadow: inset 0 0 0 1px rgba(39,76,119,.04) !important;
+    }
+
+    html[data-theme="light"] .container .case-title-value,
+    html[data-theme="light"] .container .detail-value,
+    html[data-theme="light"] .container .detail-value.mono,
+    html[data-theme="light"] .container .status-value,
+    html[data-theme="light"] .container .history-table td {
+        color: var(--text-strong) !important;
+        opacity: 1 !important;
+    }
+
+    html[data-theme="light"] .container .section,
+    html[data-theme="light"] .container .status-line,
+    html[data-theme="light"] .container .history-table th,
+    html[data-theme="light"] .container .history-table td {
+        border-color: rgba(39,76,119,.24) !important;
+    }
+
+    html[data-theme="light"] .container .history-table th {
+        background: #eef3f9 !important;
+        color: var(--text-muted) !important;
+    }
+
+    html[data-theme="light"] .container .history-table td {
+        background: #ffffff !important;
+    }
+
+    html[data-theme="light"] .container .history-table tr:hover td {
+        background: #f6f9fd !important;
+    }
+
+    html[data-theme="light"] .container .tag {
+        background: #e8f1ff !important;
+        border-color: rgba(21,95,206,.36) !important;
+        color: #124c9f !important;
+    }
+
+    html[data-theme="light"] .container .badge:not(.good):not(.warn):not(.bad):not(.accent) {
+        background: #eef3f9 !important;
+        border-color: rgba(39,76,119,.30) !important;
+        color: var(--text-strong) !important;
+    }
+
+    html[data-theme="light"] .container .empty-value {
+        color: #496684 !important;
+        opacity: 1 !important;
+    }
+
+    @media (max-width: 980px) {
+        .detail-shell { grid-template-columns: 1fr !important; }
+        .side-card { position: static !important; }
+    }
+
+    @media (max-width: 720px) {
+        .container { padding: 18px 14px 42px !important; }
+        .page-header { grid-template-columns: 1fr !important; }
+        .header-actions { justify-content: flex-start !important; }
+        .detail-item,
+        .detail-item.third { grid-column: 1 / -1 !important; }
+    }
+</style>
+    {% include "includes/usecase_compact_overrides.html" %}
 </head>
 <body>
 {% include "includes/topbar.html" %}

@@ -156,6 +156,8 @@ Funciones principales:
 - Mapeo ATT&CK/D3FEND vía autocomplete, limitado a elementos habilitados.
 - Changelog automático para campos relevantes.
 - Exportación CSV respetando filtros aplicados.
+- Importación Excel desde la UI, con plantilla descargable y actualización opcional por nombre.
+- Exportación Excel respetando filtros aplicados.
 
 Ownership de un caso:
 
@@ -248,8 +250,14 @@ python app/manage.py load_mitre_attack
 # Ejecutar sync MITRE respetando intervalo configurado en DB
 python app/manage.py sync_mitre_attack_scheduled
 
+# Ejecutar sync completo: ATT&CK, D3FEND, mappings y casos
+python app/manage.py sync_security_frameworks_scheduled
+
 # Forzar sync MITRE manual
 python app/manage.py sync_mitre_attack_scheduled --force
+
+# Forzar sync completo manual
+python app/manage.py sync_security_frameworks_scheduled --force
 
 # Cargar datos demo para probar todo el flujo
 python app/manage.py seed_demo_data
@@ -261,8 +269,9 @@ python app/manage.py load_d3fend
 python app/manage.py load_d3fend --skip-mappings
 ```
 
-La frecuencia de `sync_mitre_attack_scheduled` se configura desde Django Admin en `MitreAttackSyncSettings`.
+La frecuencia de `sync_mitre_attack_scheduled` y `sync_security_frameworks_scheduled` se configura desde Django Admin en `MitreAttackSyncSettings`.
 El cron externo puede correr cada hora; el comando decide si corresponde descargar segun `interval_value` e `interval_unit`.
+Para produccion conviene usar `sync_security_frameworks_scheduled`, porque tambien actualiza D3FEND, reconstruye relaciones D3FEND->ATT&CK y recalcula el D3FEND inferido en los casos.
 
 Documentacion nueva:
 
@@ -295,12 +304,38 @@ Comandos utiles para desarrollo:
 docker compose run --rm web python manage.py test
 docker compose run --rm web python manage.py makemigrations --check --dry-run
 docker compose run --rm web python manage.py load_mitre_attack
-docker compose run --rm web python manage.py sync_mitre_attack_scheduled --force
+docker compose run --rm web python manage.py sync_security_frameworks_scheduled --force
 docker compose run --rm web python manage.py seed_demo_data --reset
 docker compose run --rm web python manage.py load_d3fend
 ```
 
+Desde la UI:
+
+- `Inventario > Importar Excel`: carga `.xlsx/.xlsm`.
+- `Inventario > Exportar Excel`: descarga la vista filtrada.
+- `Inventario > Importar Excel > Descargar plantilla`: baja un formato compatible.
+
 > Nota: `docker compose up -d --build` levanta PostgreSQL y Django. La DB queda persistida en el volumen `postgres_data`.
+
+## Docker produccion orientativo
+
+El compose local usa `runserver`. Para produccion usar el archivo Gunicorn:
+
+```bash
+docker compose -f docker-compose.prod.yml up -d --build
+docker compose -f docker-compose.prod.yml exec web python manage.py migrate
+docker compose -f docker-compose.prod.yml exec web python manage.py collectstatic --noinput
+```
+
+Publicar `web:8000` detras de un reverse proxy HTTPS y configurar cookies/HTTPS en `.env`.
+
+## Logs
+
+Docker monta `./logs` en `/logs` dentro del contenedor. Archivos principales:
+
+- `logs/auth.log`: login, logout, fallos de login y LDAP.
+- `logs/mitre_sync.log`: descarga y sincronizacion MITRE/frameworks.
+- `logs/app.log`: warnings/errores HTTP de Django.
 
 ## Checklist de despliegue
 

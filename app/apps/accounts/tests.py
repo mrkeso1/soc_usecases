@@ -1,8 +1,10 @@
 from django.test import SimpleTestCase
 from django.contrib.auth import get_user_model
+from django.contrib.auth.signals import user_logged_in, user_login_failed
 from django.core.exceptions import ValidationError
 from django.test import TestCase
 from django.urls import reverse
+from unittest.mock import patch
 
 from .admin import LDAPSettingsAdminForm
 from .ldap_utils import escape_ldap_dn_value, escape_ldap_filter_value, safe_ldap_error_message
@@ -135,3 +137,22 @@ class LDAPSettingsAdminTests(TestCase):
         target.refresh_from_db()
         self.assertFalse(active.is_enabled)
         self.assertTrue(target.is_enabled)
+
+
+class AuthSignalLoggingTests(TestCase):
+    def test_login_success_is_logged(self):
+        User = get_user_model()
+        user = User.objects.create_user("logger", password="pass")
+
+        with patch("apps.accounts.signals.logger") as mocked_logger:
+            user_logged_in.send(sender=User, request=None, user=user)
+
+        mocked_logger.info.assert_called_once()
+        self.assertIn("login_success", mocked_logger.info.call_args.args[0])
+
+    def test_login_failed_is_logged(self):
+        with patch("apps.accounts.signals.logger") as mocked_logger:
+            user_login_failed.send(sender=type(self), credentials={"username": "bad"}, request=None)
+
+        mocked_logger.warning.assert_called_once()
+        self.assertIn("login_failed", mocked_logger.warning.call_args.args[0])
