@@ -1,944 +1,1229 @@
-<!DOCTYPE html>
-<html lang="es">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Dashboard — SOC Use Cases Manager</title>
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;600;700&family=Syne:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-    <style>
-        :root {
-            --bg:           #060b14;
-            --surface:      #0c1524;
-            --surface-2:    #111d30;
-            --surface-3:    #172540;
-            --border:       rgba(56, 100, 163, 0.22);
-            --border-bright:rgba(56, 100, 163, 0.55);
-            --text:         #b8cce8;
-            --text-strong:  #e8f1ff;
-            --text-muted:   #4e6a8e;
-            --accent:       #2d7aff;
-            --accent-dim:   rgba(45, 122, 255, 0.12);
-            --accent-glow:  rgba(45, 122, 255, 0.35);
-            --good:         #00e5a0;
-            --good-dim:     rgba(0, 229, 160, 0.1);
-            --medium:       #f5a623;
-            --medium-dim:   rgba(245, 166, 35, 0.1);
-            --bad:          #ff4757;
-            --bad-dim:      rgba(255, 71, 87, 0.1);
-            --grid-color:   rgba(45, 122, 255, 0.04);
+{% extends "base.html" %}
+
+{% block title %}Dashboard MITRE - SOC Control Manager{% endblock %}
+
+{% block extra_css %}
+<style>
+    .mitre-filter-grid {
+        display: grid;
+        grid-template-columns: repeat(4, minmax(0, 1fr)) auto;
+        gap: 10px;
+        align-items: end;
+    }
+
+    .mitre-filter-grid .field:has(select[name="timeline"]) {
+        display: none;
+    }
+
+    .radial-grid {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 14px;
+    }
+
+    .radial-card {
+        position: relative;
+        overflow: hidden;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        border: 1px solid var(--border);
+        border-radius: 14px;
+        background: var(--surface);
+        padding: 20px 18px 18px;
+    }
+
+    .radial-card::after {
+        content: "";
+        position: absolute;
+        top: 0;
+        right: 0;
+        left: 0;
+        height: 1px;
+        background: linear-gradient(90deg, transparent, var(--border-bright), transparent);
+    }
+
+    .radial-card-title {
+        margin-bottom: 16px;
+        color: var(--text-muted);
+        font-family: 'JetBrains Mono', ui-monospace, monospace;
+        font-size: .78rem;
+        font-weight: 800;
+        letter-spacing: .06em;
+        text-align: center;
+        text-transform: uppercase;
+    }
+
+    .radial-wrap {
+        position: relative;
+        width: 170px;
+        height: 170px;
+        margin-bottom: 14px;
+    }
+
+    .radial-svg {
+        width: 170px;
+        height: 170px;
+        transform: rotate(-90deg);
+    }
+
+    .radial-track {
+        fill: none;
+        stroke: var(--surface-3);
+        stroke-width: 14;
+    }
+
+    .radial-fill {
+        fill: none;
+        stroke-width: 14;
+        stroke-linecap: round;
+        transition: stroke-dashoffset 1.3s cubic-bezier(0.4, 0, 0.2, 1);
+    }
+
+    .radial-fill.good { stroke: var(--good); filter: drop-shadow(0 0 6px var(--good)); }
+    .radial-fill.medium { stroke: var(--medium); filter: drop-shadow(0 0 6px var(--medium)); }
+    .radial-fill.bad { stroke: var(--bad); filter: drop-shadow(0 0 6px var(--bad)); }
+
+    .radial-center {
+        position: absolute;
+        inset: 0;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+    }
+
+    .radial-pct {
+        font-family: 'JetBrains Mono', ui-monospace, monospace;
+        font-size: 2.15rem;
+        font-weight: 800;
+        line-height: 1;
+    }
+
+    .radial-pct.good { color: var(--good); }
+    .radial-pct.medium { color: var(--medium); }
+    .radial-pct.bad { color: var(--bad); }
+
+    .radial-pct-sym {
+        font-size: 1rem;
+        font-weight: 700;
+        opacity: .72;
+    }
+
+    .radial-sub {
+        margin-top: 4px;
+        color: var(--text-muted);
+        font-family: 'JetBrains Mono', ui-monospace, monospace;
+        font-size: 10px;
+        font-weight: 800;
+    }
+
+    .radial-meta {
+        display: flex;
+        justify-content: center;
+        gap: 18px;
+        width: 100%;
+        margin-bottom: 12px;
+    }
+
+    .radial-meta-item {
+        text-align: center;
+    }
+
+    .radial-meta-label {
+        margin-bottom: 3px;
+        color: var(--text-muted);
+        font-family: 'JetBrains Mono', ui-monospace, monospace;
+        font-size: 10px;
+        font-weight: 800;
+        letter-spacing: .08em;
+        text-transform: uppercase;
+    }
+
+    .radial-meta-value {
+        color: var(--text-strong);
+        font-family: 'JetBrains Mono', ui-monospace, monospace;
+        font-size: 1.1rem;
+        font-weight: 800;
+    }
+
+    .radial-legend {
+        display: grid;
+        gap: 7px;
+        width: 100%;
+        padding-top: 13px;
+        border-top: 1px solid var(--border);
+    }
+
+    .legend-row {
+        display: flex;
+        align-items: center;
+        gap: 9px;
+        color: var(--text-muted);
+        font-size: .81rem;
+    }
+
+    .legend-pip {
+        width: 8px;
+        height: 8px;
+        flex: 0 0 8px;
+        border-radius: 50%;
+    }
+
+    .legend-pip.good { background: var(--good); box-shadow: 0 0 4px var(--good); }
+    .legend-pip.medium { background: var(--medium); box-shadow: 0 0 4px var(--medium); }
+    .legend-pip.bad { background: var(--bad); box-shadow: 0 0 4px var(--bad); }
+
+    .section-header {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        margin: 26px 0 14px;
+    }
+
+    .section-tag {
+        padding: 3px 8px;
+        border: 1px solid rgba(37, 99, 235, .35);
+        border-radius: 6px;
+        background: var(--accent-dim);
+        color: var(--accent);
+        font-family: 'JetBrains Mono', ui-monospace, monospace;
+        font-size: 10px;
+        font-weight: 800;
+        letter-spacing: .06em;
+    }
+
+    .section-line {
+        flex: 1;
+        height: 1px;
+        background: var(--border);
+    }
+
+    .stats-grid {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 14px;
+    }
+
+    .mitre-summary-strip {
+        display: grid;
+        grid-template-columns: repeat(5, minmax(0, 1fr));
+        gap: 10px;
+        margin: 14px 0 20px;
+    }
+
+    .mitre-summary-card {
+        position: relative;
+        overflow: hidden;
+        min-height: 92px;
+        padding: 14px 14px 12px;
+        border: 1px solid var(--border);
+        border-radius: 14px;
+        background: linear-gradient(180deg, color-mix(in srgb, var(--surface-2) 55%, transparent), var(--surface));
+    }
+
+    .mitre-summary-card::before {
+        content: "";
+        position: absolute;
+        inset: 0 auto 0 0;
+        width: 3px;
+        background: var(--accent);
+        opacity: .8;
+    }
+
+    .mitre-summary-card.good::before { background: var(--good); }
+    .mitre-summary-card.medium::before { background: var(--medium); }
+    .mitre-summary-card.bad::before { background: var(--bad); }
+
+    .mitre-summary-label {
+        display: block;
+        margin-bottom: 8px;
+        color: var(--text-muted);
+        font-family: 'JetBrains Mono', ui-monospace, monospace;
+        font-size: .68rem;
+        font-weight: 800;
+        letter-spacing: .06em;
+        text-transform: uppercase;
+    }
+
+    .mitre-summary-value {
+        display: block;
+        color: var(--text-strong);
+        font-family: 'JetBrains Mono', ui-monospace, monospace;
+        font-size: 1.35rem;
+        font-weight: 850;
+        line-height: 1;
+    }
+
+    .mitre-summary-detail {
+        display: block;
+        margin-top: 8px;
+        color: var(--text-muted);
+        font-size: .78rem;
+        font-weight: 600;
+        line-height: 1.35;
+    }
+
+    .risk-overview {
+        display: grid;
+        grid-template-columns: 310px minmax(0, 1fr);
+        gap: 0;
+        margin: 0 0 24px;
+        border: 1px solid var(--border);
+        border-radius: 18px;
+        background:
+            radial-gradient(circle at 8% 12%, color-mix(in srgb, var(--accent) 16%, transparent), transparent 30%),
+            linear-gradient(135deg, color-mix(in srgb, var(--surface-2) 78%, transparent), transparent 58%),
+            var(--surface);
+        overflow: hidden;
+        box-shadow: 0 18px 45px rgba(0, 0, 0, .22);
+    }
+
+    .risk-overview,
+    .risk-overview * {
+        font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif !important;
+        font-synthesis: none;
+        letter-spacing: 0 !important;
+        text-rendering: geometricPrecision;
+    }
+
+    .risk-index-panel {
+        display: flex;
+        flex-direction: column;
+        padding: 22px 22px 18px;
+        border-right: 1px solid var(--border);
+    }
+
+    .risk-panel-title,
+    .risk-summary-title {
+        color: var(--text-strong);
+        font-size: .9rem;
+        font-weight: 760;
+        line-height: 1.2;
+    }
+
+    .risk-panel-title {
+        font-size: .76rem;
+        text-transform: uppercase;
+    }
+
+    .risk-index-value {
+        display: flex;
+        align-items: baseline;
+        gap: 7px;
+        margin: 18px 0 8px;
+        color: var(--medium);
+        font-size: 3.55rem;
+        font-weight: 850;
+        line-height: .95;
+    }
+
+    .risk-index-value small {
+        color: var(--text-muted);
+        font-size: .86rem;
+        font-weight: 700;
+    }
+
+    .risk-level {
+        display: inline-flex;
+        align-items: center;
+        min-height: 24px;
+        padding: 3px 9px;
+        border: 1px solid var(--border);
+        border-radius: 7px;
+        width: max-content;
+        max-width: 100%;
+        color: var(--medium);
+        background: color-mix(in srgb, var(--medium) 10%, transparent);
+        font-size: .76rem;
+        font-weight: 800;
+    }
+
+    .risk-level.good { color: var(--good); background: color-mix(in srgb, var(--good) 10%, transparent); }
+    .risk-level.bad { color: var(--bad); background: color-mix(in srgb, var(--bad) 10%, transparent); }
+
+    .risk-contrib-list {
+        display: grid;
+        gap: 11px;
+        margin-top: auto;
+        padding-top: 22px;
+        border-top: 1px dashed var(--border);
+    }
+
+    .risk-contrib-row {
+        display: grid;
+        grid-template-columns: 10px 1fr auto;
+        gap: 9px;
+        align-items: baseline;
+        color: var(--text-muted);
+        font-size: .78rem;
+        font-weight: 650;
+    }
+
+    .risk-dot {
+        width: 7px;
+        height: 7px;
+        border-radius: 99px;
+        background: var(--accent);
+    }
+
+    .risk-contrib-row strong {
+        color: var(--text-strong);
+        font-weight: 760;
+    }
+
+    .risk-chart-panel {
+        display: grid;
+        min-width: 0;
+    }
+
+    .risk-line-area {
+        padding: 22px 24px 18px;
+    }
+
+    .risk-line-head {
+        display: flex;
+        justify-content: space-between;
+        gap: 12px;
+        align-items: flex-start;
+        margin-bottom: 10px;
+    }
+
+    .risk-line-meta {
+        color: var(--text-muted);
+        font-size: .76rem;
+        font-weight: 650;
+    }
+
+    .risk-line-tools {
+        display: flex;
+        flex-direction: column;
+        align-items: flex-end;
+        gap: 8px;
+    }
+
+    .risk-range-form {
+        display: inline-flex;
+        gap: 6px;
+        padding: 4px;
+        border: 1px solid var(--border);
+        border-radius: 12px;
+        background: color-mix(in srgb, var(--surface-2) 62%, transparent);
+    }
+
+    .risk-range-form button {
+        min-height: 28px;
+        padding: 0 10px;
+        border: 0;
+        border-radius: 8px;
+        color: var(--text-muted);
+        background: transparent;
+        font-size: .72rem;
+        font-weight: 750;
+        cursor: pointer;
+    }
+
+    .risk-range-form button.active {
+        color: var(--text-strong);
+        background: var(--accent);
+    }
+
+    .risk-current-grid {
+        display: grid;
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+        gap: 10px;
+        margin: 14px 0 16px;
+    }
+
+    .risk-current-card {
+        min-width: 0;
+        padding: 12px;
+        border: 1px solid var(--border);
+        border-radius: 12px;
+        background: color-mix(in srgb, var(--surface-2) 62%, transparent);
+    }
+
+    .risk-current-top {
+        display: flex;
+        justify-content: space-between;
+        gap: 10px;
+        align-items: center;
+        margin-bottom: 9px;
+        color: var(--text-muted);
+        font-size: .74rem;
+        font-weight: 760;
+    }
+
+    .risk-current-top span {
+        overflow: hidden;
+        min-width: 0;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+
+    .risk-current-top strong {
+        color: var(--text-strong);
+        flex: 0 0 auto;
+    }
+
+    .risk-current-track {
+        height: 7px;
+        overflow: hidden;
+        border-radius: 999px;
+        background: var(--surface-3);
+    }
+
+    .risk-current-track span {
+        display: block;
+        height: 100%;
+        border-radius: inherit;
+        background: var(--accent);
+    }
+
+    .risk-trend-chart {
+        width: 100%;
+        height: 190px;
+        overflow: visible;
+    }
+
+    .risk-trend-shell {
+        display: grid;
+        grid-template-columns: 34px minmax(0, 1fr);
+        gap: 10px;
+        align-items: stretch;
+        min-height: 198px;
+        margin-top: 12px;
+    }
+
+    .risk-date-strip {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+        margin: 12px 0 -2px 44px;
+        color: var(--text-muted);
+        font-size: .72rem;
+        font-weight: 700;
+    }
+
+    .risk-date-strip strong {
+        color: var(--text-strong);
+        font-weight: 750;
+    }
+
+    .risk-axis {
+        display: grid;
+        grid-template-rows: repeat(4, 1fr);
+        padding: 6px 0 22px;
+        color: var(--text-muted);
+        font-size: .68rem;
+        font-weight: 700;
+        text-align: right;
+    }
+
+    .risk-plot {
+        position: relative;
+        min-width: 0;
+        height: 190px;
+        border: 1px solid var(--border);
+        border-radius: 14px;
+        background:
+            linear-gradient(180deg,
+                color-mix(in srgb, var(--good) 10%, transparent) 0%,
+                color-mix(in srgb, var(--good) 6%, transparent) 28%,
+                color-mix(in srgb, var(--medium) 7%, transparent) 57%,
+                color-mix(in srgb, var(--bad) 8%, transparent) 100%),
+            color-mix(in srgb, var(--surface-2) 42%, transparent);
+        overflow: visible;
+    }
+
+    .risk-plot-column {
+        min-width: 0;
+    }
+
+    .risk-x-axis {
+        position: relative;
+        height: 22px;
+        margin-top: 7px;
+        color: var(--text-muted);
+        font-size: .68rem;
+        font-weight: 700;
+    }
+
+    .risk-x-axis span {
+        position: absolute;
+        top: 0;
+        transform: translateX(-50%);
+        white-space: nowrap;
+    }
+
+    .risk-grid-line {
+        stroke: var(--border);
+        stroke-width: .28;
+    }
+
+    .risk-trend-line {
+        fill: none;
+        stroke: var(--text-strong);
+        stroke-width: 1.15;
+        stroke-linecap: round;
+        stroke-linejoin: round;
+    }
+
+    .risk-day-dot {
+        position: absolute;
+        z-index: 2;
+        width: 14px;
+        height: 14px;
+        border: 0;
+        border-radius: 999px;
+        background: transparent;
+        transform: translate(-50%, -50%);
+    }
+
+    .risk-day-dot::before {
+        content: "";
+        position: absolute;
+        inset: 4px;
+        border-radius: inherit;
+        background: var(--text-strong);
+        box-shadow:
+            0 0 0 2px color-mix(in srgb, var(--surface) 82%, transparent),
+            0 0 0 3px color-mix(in srgb, var(--text-strong) 22%, transparent);
+        transition: inset .16s ease, background .16s ease, box-shadow .16s ease;
+    }
+
+    .risk-day-dot:hover::before {
+        inset: 2px;
+        background: var(--accent);
+        box-shadow:
+            0 0 0 2px color-mix(in srgb, var(--surface) 82%, transparent),
+            0 0 0 5px color-mix(in srgb, var(--accent) 22%, transparent);
+    }
+
+    .risk-day-dot.latest {
+        width: 16px;
+        height: 16px;
+    }
+
+    .risk-day-dot.latest::before {
+        inset: 2px;
+        background: var(--good);
+        box-shadow:
+            0 0 0 2px color-mix(in srgb, var(--surface) 82%, transparent),
+            0 0 0 5px color-mix(in srgb, var(--good) 22%, transparent);
+    }
+
+    .risk-dot-tooltip {
+        position: absolute;
+        left: 50%;
+        bottom: 18px;
+        z-index: 5;
+        min-width: max-content;
+        padding: 6px 8px;
+        border: 1px solid var(--border-bright);
+        border-radius: 8px;
+        color: var(--text-strong);
+        background: color-mix(in srgb, var(--surface) 94%, black);
+        box-shadow: 0 12px 30px rgba(0, 0, 0, .26);
+        font-size: .7rem;
+        font-weight: 750;
+        opacity: 0;
+        pointer-events: none;
+        transform: translateX(-50%) translateY(4px);
+        transition: opacity .14s ease, transform .14s ease;
+        white-space: nowrap;
+    }
+
+    .risk-day-dot:hover .risk-dot-tooltip {
+        opacity: 1;
+        transform: translateX(-50%) translateY(0);
+    }
+
+    .risk-trend-legend {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 12px;
+        margin: 10px 0 0 44px;
+        color: var(--text-muted);
+        font-size: .74rem;
+        font-weight: 650;
+    }
+
+    .risk-trend-legend span {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+    }
+
+    .risk-trend-legend i {
+        width: 8px;
+        height: 8px;
+        border-radius: 99px;
+        background: var(--text-strong);
+    }
+
+    .risk-empty {
+        display: grid;
+        min-height: 110px;
+        place-items: center;
+        color: var(--text-muted);
+        font-size: .82rem;
+        border: 1px dashed var(--border);
+        border-radius: 12px;
+    }
+
+    .dashboard-report-page .section-title,
+    .dashboard-report-page .panel-title,
+    .dashboard-report-page .stats-grid .list-item-main,
+    .dashboard-report-page .stats-grid .list-item-sub,
+    .dashboard-report-page .summary-row,
+    .dashboard-report-page .summary-row-value,
+    .dashboard-report-page .empty-note {
+        font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif !important;
+        font-synthesis: none;
+        letter-spacing: 0 !important;
+        text-rendering: geometricPrecision;
+    }
+
+    .dashboard-report-page .section-title {
+        font-size: 1.1rem !important;
+        font-weight: 750 !important;
+        line-height: 1.22 !important;
+    }
+
+    .panel-head {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        margin: -2px -2px 8px;
+        padding-bottom: 10px;
+        border-bottom: 1px solid var(--border);
+    }
+
+    .panel-title {
+        color: var(--text-muted);
+        font-size: .82rem;
+        font-weight: 750;
+        letter-spacing: 0;
+        text-transform: uppercase;
+    }
+
+    .panel-body {
+        display: grid;
+        gap: 8px;
+    }
+
+    .list-item {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+        min-height: 58px;
+        padding: 9px 0;
+        border-bottom: 1px solid var(--border);
+        color: inherit;
+        text-decoration: none;
+    }
+
+    .list-item > div {
+        min-width: 0;
+    }
+
+    .list-item-static {
+        align-items: flex-start;
+        justify-content: flex-start;
+    }
+
+    .list-item:last-child {
+        border-bottom: 0;
+    }
+
+    .list-item-main {
+        color: var(--text-strong);
+        font-size: .86rem;
+        font-weight: 650;
+        line-height: 1.3;
+        overflow-wrap: anywhere;
+    }
+
+    .list-item-sub {
+        margin-top: 2px;
+        color: var(--text-muted);
+        font-size: .76rem;
+        font-weight: 500;
+        line-height: 1.35;
+    }
+
+    .count-badge {
+        flex: 0 0 auto;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        min-width: 30px;
+        padding: 3px 8px;
+        border: 1px solid rgba(37, 99, 235, .35);
+        border-radius: 999px;
+        background: var(--accent-dim);
+        color: var(--accent);
+        font-family: 'JetBrains Mono', ui-monospace, monospace;
+        font-size: .72rem;
+        font-weight: 800;
+    }
+
+    .summary-rows {
+        gap: 0;
+    }
+
+    .summary-row {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+        padding: 10px 0;
+        border-bottom: 1px solid var(--border);
+    }
+
+    .summary-row:last-child {
+        border-bottom: 0;
+    }
+
+    .summary-row-value {
+        color: var(--text-strong);
+        font-weight: 700;
+    }
+
+    @media (max-width: 1100px) {
+        .mitre-filter-grid,
+        .radial-grid,
+        .stats-grid,
+        .mitre-summary-strip,
+        .risk-overview {
+            grid-template-columns: 1fr;
         }
 
-        * { box-sizing: border-box; margin: 0; padding: 0; }
-
-        body {
-            font-family: 'Syne', sans-serif;
-            background: var(--bg);
-            color: var(--text);
-            min-height: 100vh;
-            overflow-x: hidden;
-        }
-
-        /* Grid background texture */
-        body::before {
-            content: '';
-            position: fixed;
-            inset: 0;
-            background-image:
-                linear-gradient(var(--grid-color) 1px, transparent 1px),
-                linear-gradient(90deg, var(--grid-color) 1px, transparent 1px);
-            background-size: 48px 48px;
-            pointer-events: none;
-            z-index: 0;
-        }
-
-        /* ── Topbar ── */
-        .topbar {
-            position: sticky;
-            top: 0;
-            z-index: 100;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            padding: 0 28px;
-            height: 56px;
-            background: rgba(6, 11, 20, 0.92);
-            backdrop-filter: blur(12px);
+        .risk-index-panel {
+            border-right: 0;
             border-bottom: 1px solid var(--border);
         }
 
-        .brand {
-            display: flex;
-            align-items: center;
-            gap: 10px;
-            font-family: 'JetBrains Mono', monospace;
-            font-size: 13px;
-            font-weight: 600;
-            color: var(--text-strong);
-            letter-spacing: 0.02em;
-        }
-
-        .brand-icon {
-            width: 28px;
-            height: 28px;
-            background: var(--accent);
-            border-radius: 6px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-        }
-
-        .brand-icon svg { width: 16px; height: 16px; fill: white; }
-
-        .topbar-nav {
-            display: flex;
-            align-items: center;
-            gap: 4px;
-        }
-
-        .topbar-nav a {
-            font-family: 'JetBrains Mono', monospace;
-            font-size: 12px;
-            font-weight: 500;
-            color: var(--text-muted);
-            text-decoration: none;
-            padding: 6px 12px;
-            border-radius: 6px;
-            transition: color 0.15s, background 0.15s;
-            letter-spacing: 0.03em;
-        }
-
-        .topbar-nav a:hover,
-        .topbar-nav a.active {
-            color: var(--text-strong);
-            background: var(--surface-3);
-        }
-
-        .topbar-nav a.active {
-            color: var(--accent);
-            background: var(--accent-dim);
-        }
-
-        .topbar-divider {
-            width: 1px;
-            height: 18px;
-            background: var(--border);
-            margin: 0 6px;
-        }
-
-        /* ── Layout ── */
-        .container {
-            position: relative;
-            z-index: 1;
-            max-width: 1600px;
-            margin: 0 auto;
-            padding: 32px 28px 48px;
-        }
-
-        /* ── Page header ── */
-        .page-header {
-            display: flex;
-            justify-content: space-between;
-            align-items: flex-end;
-            margin-bottom: 28px;
-        }
-
-        .page-title-block { }
-
-        .page-eyebrow {
-            font-family: 'JetBrains Mono', monospace;
-            font-size: 11px;
-            font-weight: 500;
-            color: var(--accent);
-            letter-spacing: 0.12em;
-            text-transform: uppercase;
-            margin-bottom: 6px;
-            opacity: 0.85;
-        }
-
-        .page-title {
-            font-size: 2.1rem;
-            font-weight: 800;
-            color: var(--text-strong);
-            letter-spacing: -0.03em;
-            line-height: 1.1;
-        }
-
-        .page-subtitle {
-            margin-top: 6px;
-            font-size: 0.9rem;
-            color: var(--text-muted);
-            font-weight: 400;
-            letter-spacing: 0.01em;
-        }
-
-        /* ── Filter panel ── */
-        .filter-panel {
-            background: var(--surface);
-            border: 1px solid var(--border);
-            border-radius: 14px;
-            padding: 16px 18px;
-            margin-bottom: 32px;
-        }
-
-        .filter-form {
-            display: grid;
-            grid-template-columns: repeat(5, minmax(0, 1fr)) auto;
-            gap: 10px;
-            align-items: end;
-        }
-
-        .filter-group label {
-            display: block;
-            font-family: 'JetBrains Mono', monospace;
-            font-size: 10px;
-            font-weight: 600;
-            color: var(--text-muted);
-            text-transform: uppercase;
-            letter-spacing: 0.1em;
-            margin-bottom: 6px;
-        }
-
-        .filter-group select,
-        .filter-group input {
-            width: 100%;
-            background: var(--surface-2);
-            color: var(--text-strong);
-            border: 1px solid var(--border);
-            border-radius: 8px;
-            padding: 9px 12px;
-            font-family: 'Syne', sans-serif;
-            font-size: 0.87rem;
-            outline: none;
-            transition: border-color 0.15s;
-            appearance: none;
-            -webkit-appearance: none;
-            cursor: pointer;
-        }
-
-        .filter-group select:focus,
-        .filter-group input:focus {
-            border-color: var(--border-bright);
-            box-shadow: 0 0 0 3px var(--accent-dim);
-        }
-
-        .filter-actions {
-            display: flex;
-            gap: 8px;
-            align-items: flex-end;
-        }
-
-        .btn-primary {
-            display: inline-flex;
-            align-items: center;
-            gap: 6px;
-            height: 38px;
-            padding: 0 18px;
-            border-radius: 8px;
-            font-family: 'Syne', sans-serif;
-            font-size: 0.88rem;
-            font-weight: 700;
-            border: none;
-            cursor: pointer;
-            background: var(--accent);
-            color: white;
-            transition: opacity 0.15s, transform 0.1s;
-        }
-
-        .btn-primary:hover { opacity: 0.88; transform: translateY(-1px); }
-
-        .btn-secondary {
-            display: inline-flex;
-            align-items: center;
-            gap: 6px;
-            height: 38px;
-            padding: 0 14px;
-            border-radius: 8px;
-            font-family: 'Syne', sans-serif;
-            font-size: 0.88rem;
-            font-weight: 600;
-            border: 1px solid var(--border);
-            cursor: pointer;
-            background: var(--surface-2);
-            color: var(--text);
-            text-decoration: none;
-            transition: border-color 0.15s, background 0.15s;
-        }
-
-        .btn-secondary:hover {
-            border-color: var(--border-bright);
-            background: var(--surface-3);
-        }
-
-        /* ── Section header ── */
-        .section-header {
-            display: flex;
-            align-items: center;
-            gap: 12px;
-            margin: 36px 0 16px;
-        }
-
-        .section-title {
-            font-size: 1.05rem;
-            font-weight: 700;
-            color: var(--text-strong);
-            letter-spacing: -0.01em;
-        }
-
-        .section-line {
-            flex: 1;
-            height: 1px;
-            background: var(--border);
-        }
-
-        .section-tag {
-            font-family: 'JetBrains Mono', monospace;
-            font-size: 10px;
-            font-weight: 600;
-            color: var(--accent);
-            background: var(--accent-dim);
-            border: 1px solid rgba(45, 122, 255, 0.25);
-            padding: 3px 8px;
-            border-radius: 4px;
-            letter-spacing: 0.06em;
-        }
-
-        /* ── Radial cards ── */
-        .radial-grid {
-            display: grid;
+        .risk-current-grid {
             grid-template-columns: repeat(2, minmax(0, 1fr));
-            gap: 16px;
+        }
+    }
+
+    @media (max-width: 680px) {
+        .risk-current-grid,
+        .risk-bars {
+            grid-template-columns: 1fr;
         }
 
-        .radial-card {
-            background: var(--surface);
-            border: 1px solid var(--border);
-            border-radius: 18px;
-            padding: 28px 24px 22px;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            position: relative;
-            overflow: hidden;
-            transition: border-color 0.2s;
+        .risk-bars-inner {
+            justify-content: flex-start;
         }
-
-        .radial-card::after {
-            content: '';
-            position: absolute;
-            top: 0; left: 0; right: 0;
-            height: 1px;
-            background: linear-gradient(90deg, transparent, var(--border-bright), transparent);
-        }
-
-        .radial-card:hover { border-color: var(--border-bright); }
-
-        .radial-card-title {
-            font-size: 0.82rem;
-            font-weight: 700;
-            color: var(--text-muted);
-            text-align: center;
-            letter-spacing: 0.06em;
-            text-transform: uppercase;
-            margin-bottom: 22px;
-            font-family: 'JetBrains Mono', monospace;
-        }
-
-        .radial-wrap {
-            position: relative;
-            width: 190px;
-            height: 190px;
-            margin-bottom: 20px;
-        }
-
-        .radial-svg {
-            width: 190px;
-            height: 190px;
-            transform: rotate(-90deg);
-        }
-
-        .radial-track {
-            fill: none;
-            stroke: var(--surface-3);
-            stroke-width: 14;
-        }
-
-        .radial-fill {
-            fill: none;
-            stroke-width: 14;
-            stroke-linecap: round;
-            transition: stroke-dashoffset 1.2s cubic-bezier(0.4, 0, 0.2, 1);
-        }
-
-        .radial-fill.good   { stroke: var(--good); filter: drop-shadow(0 0 6px var(--good)); }
-        .radial-fill.medium { stroke: var(--medium); filter: drop-shadow(0 0 6px var(--medium)); }
-        .radial-fill.bad    { stroke: var(--bad); filter: drop-shadow(0 0 6px var(--bad)); }
-
-        .radial-center {
-            position: absolute;
-            inset: 0;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            justify-content: center;
-        }
-
-        .radial-pct {
-            font-family: 'JetBrains Mono', monospace;
-            font-size: 2.6rem;
-            font-weight: 700;
-            letter-spacing: -0.04em;
-            line-height: 1;
-        }
-
-        .radial-pct.good   { color: var(--good); }
-        .radial-pct.medium { color: var(--medium); }
-        .radial-pct.bad    { color: var(--bad); }
-
-        .radial-pct-sym {
-            font-size: 1.2rem;
-            font-weight: 500;
-            opacity: 0.7;
-        }
-
-        .radial-sub {
-            font-family: 'JetBrains Mono', monospace;
-            font-size: 11px;
-            color: var(--text-muted);
-            margin-top: 4px;
-        }
-
-        .radial-meta {
-            display: flex;
-            gap: 24px;
-            width: 100%;
-            justify-content: center;
-            margin-bottom: 18px;
-        }
-
-        .radial-meta-item {
-            text-align: center;
-        }
-
-        .radial-meta-label {
-            font-family: 'JetBrains Mono', monospace;
-            font-size: 10px;
-            color: var(--text-muted);
-            text-transform: uppercase;
-            letter-spacing: 0.08em;
-            margin-bottom: 3px;
-        }
-
-        .radial-meta-value {
-            font-family: 'JetBrains Mono', monospace;
-            font-size: 1.25rem;
-            font-weight: 700;
-            color: var(--text-strong);
-        }
-
-        .radial-legend {
-            width: 100%;
-            border-top: 1px solid var(--border);
-            padding-top: 14px;
-            display: flex;
-            flex-direction: column;
-            gap: 7px;
-        }
-
-        .legend-row {
-            display: flex;
-            align-items: center;
-            gap: 10px;
-            font-size: 0.81rem;
-            color: var(--text-muted);
-        }
-
-        .legend-pip {
-            width: 8px;
-            height: 8px;
-            border-radius: 50%;
-            flex-shrink: 0;
-        }
-
-        .legend-pip.good   { background: var(--good); box-shadow: 0 0 4px var(--good); }
-        .legend-pip.medium { background: var(--medium); box-shadow: 0 0 4px var(--medium); }
-        .legend-pip.bad    { background: var(--bad); box-shadow: 0 0 4px var(--bad); }
-
-        /* ── Stats panels ── */
-        .stats-grid {
-            display: grid;
-            grid-template-columns: repeat(2, minmax(0, 1fr));
-            gap: 16px;
-            margin-top: 4px;
-        }
-
-        .panel {
-            background: var(--surface);
-            border: 1px solid var(--border);
-            border-radius: 18px;
-            overflow: hidden;
-            transition: border-color 0.2s;
-        }
-
-        .panel:hover { border-color: var(--border-bright); }
-
-        .panel-head {
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            padding: 16px 18px 12px;
-            border-bottom: 1px solid var(--border);
-        }
-
-        .panel-title {
-            font-size: 0.82rem;
-            font-weight: 700;
-            color: var(--text-muted);
-            letter-spacing: 0.06em;
-            text-transform: uppercase;
-            font-family: 'JetBrains Mono', monospace;
-        }
-
-        .panel-body { padding: 6px 0 4px; }
-
-        .list-item {
-            display: flex;
-            align-items: flex-start;
-            justify-content: space-between;
-            padding: 10px 18px;
-            border-bottom: 1px solid rgba(56, 100, 163, 0.1);
-            gap: 12px;
-            transition: background 0.12s;
-            text-decoration: none;
-            color: inherit;
-        }
-
-        a.list-item:hover { background: var(--surface-2); }
-
-        .list-item:last-child { border-bottom: none; }
-
-        .list-item-main {
-            font-size: 0.88rem;
-            font-weight: 600;
-            color: var(--text-strong);
-            line-height: 1.35;
-        }
-
-        .list-item-sub {
-            font-family: 'JetBrains Mono', monospace;
-            font-size: 0.75rem;
-            color: var(--text-muted);
-            margin-top: 2px;
-        }
-
-        .count-badge {
-            flex-shrink: 0;
-            display: inline-flex;
-            align-items: center;
-            justify-content: center;
-            min-width: 26px;
-            padding: 2px 8px;
-            border-radius: 999px;
-            background: var(--accent-dim);
-            border: 1px solid rgba(45, 122, 255, 0.3);
-            color: var(--accent);
-            font-family: 'JetBrains Mono', monospace;
-            font-size: 0.72rem;
-            font-weight: 700;
-            margin-top: 2px;
-        }
-
-        .empty-note {
-            padding: 20px 18px;
-            font-size: 0.85rem;
-            color: var(--text-muted);
-            font-family: 'JetBrains Mono', monospace;
-        }
-
-        .scope-note {
-            margin: -18px 0 28px;
-            padding: 11px 16px;
-            border-radius: 10px;
-            background: var(--accent-dim);
-            border: 1px solid rgba(45, 122, 255, 0.26);
-            color: #c5d9ff;
-            font-family: 'JetBrains Mono', monospace;
-            font-size: 0.78rem;
-            line-height: 1.45;
-        }
-
-        /* ── Summary panel ── */
-        .summary-rows { }
-
-        .summary-row {
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            padding: 11px 18px;
-            border-bottom: 1px solid rgba(56, 100, 163, 0.1);
-        }
-
-        .summary-row:last-child { border-bottom: none; }
-
-        .summary-row-label {
-            font-size: 0.88rem;
-            color: var(--text);
-        }
-
-        .summary-row-value {
-            font-family: 'JetBrains Mono', monospace;
-            font-size: 0.88rem;
-            font-weight: 700;
-            color: var(--text-strong);
-        }
-
-        /* ── Animations ── */
-        @keyframes fadeUp {
-            from { opacity: 0; transform: translateY(16px); }
-            to   { opacity: 1; transform: translateY(0); }
-        }
-
-        .radial-card, .panel {
-            animation: fadeUp 0.5s ease both;
-        }
-
-        .radial-grid .radial-card:nth-child(1) { animation-delay: 0.05s; }
-        .radial-grid .radial-card:nth-child(2) { animation-delay: 0.10s; }
-        .stats-grid .panel:nth-child(1) { animation-delay: 0.08s; }
-        .stats-grid .panel:nth-child(2) { animation-delay: 0.13s; }
-        .stats-grid .panel:nth-child(3) { animation-delay: 0.18s; }
-        .stats-grid .panel:nth-child(4) { animation-delay: 0.23s; }
-        .stats-grid .panel:nth-child(5) { animation-delay: 0.28s; }
-        .stats-grid .panel:nth-child(6) { animation-delay: 0.33s; }
-
-        /* ── Responsive ── */
-        @media (max-width: 1100px) {
-            .filter-form { grid-template-columns: repeat(3, minmax(0, 1fr)); }
-            .radial-grid, .stats-grid { grid-template-columns: 1fr; }
-        }
-
-        @media (max-width: 680px) {
-            .container { padding: 20px 16px 40px; }
-            .topbar { padding: 0 16px; }
-            .filter-form { grid-template-columns: 1fr; }
-            .page-title { font-size: 1.65rem; }
-        }
-    
-
-        /* Normalización visual alineada a Ciclo de Vida */
-        .page-header { margin-bottom: 18px !important; gap: 14px !important; }
-        .page-title { font-size: 1.9rem !important; line-height: 1.12 !important; margin: 4px 0 !important; letter-spacing: -0.02em !important; }
-        .page-subtitle { font-size: .9rem !important; line-height: 1.45 !important; margin-top: 4px !important; }
-        .filter-panel { padding: 14px !important; margin-bottom: 22px !important; border-radius: 14px !important; }
-        .filter-group select, .filter-group input { font-size: .87rem !important; padding: 9px 11px !important; }
-        .btn-primary, .btn-secondary { min-height: 36px !important; height: 36px !important; padding: 0 13px !important; font-size: .84rem !important; border-radius: 8px !important; }
-        .section-header { margin: 26px 0 14px !important; }
-        .section-title { font-size: 1.05rem !important; }
-        .radial-card { border-radius: 14px !important; padding: 20px 18px 18px !important; }
-        .radial-card-title { font-size: .78rem !important; margin-bottom: 16px !important; }
-        .radial-wrap, .radial-svg { width: 170px !important; height: 170px !important; }
-        .radial-pct { font-size: 2.15rem !important; }
-        .radial-pct-sym { font-size: 1rem !important; }
-        .radial-sub { font-size: 10px !important; }
-        .radial-meta { gap: 18px !important; margin-bottom: 12px !important; }
-        .radial-meta-value { font-size: 1.1rem !important; }
-        .panel { border-radius: 14px !important; }
-        .panel-head { padding: 12px 14px !important; }
-        .panel-body { padding: 12px 14px !important; }
-        .panel-title { font-size: .78rem !important; }
-        @media (max-width: 720px) {
-            .page-title { font-size: 1.55rem !important; }
-            .radial-wrap, .radial-svg { width: 150px !important; height: 150px !important; }
-            .radial-pct { font-size: 1.9rem !important; }
-        }
+    }
 
 </style>
-    {% include "includes/topbar_styles.html" %}
-</head>
-<body>
+{% endblock %}
 
-{% include "includes/topbar.html" %}
-
-<div class="container">
-    <div class="page-header">
-        <div class="page-title-block">
-            <div class="page-eyebrow">// COBERTURA &amp; MÉTRICAS</div>
-            <h1 class="page-title">Dashboard</h1>
-            <p class="page-subtitle">Vista ejecutiva de cobertura ATT&amp;CK y D3FEND. Solo se computan casos de uso en Producción.</p>
-        </div>
-    </div>
-
-    <!-- Filter panel -->
-    <div class="filter-panel">
-        <form method="get" class="filter-form">
-            <div class="filter-group">
-                <label>Dispositivo</label>
-                <select name="device">
-                    <option value="">Todos</option>
-                    {% for item in devices %}
-                        <option value="{{ item }}" {% if selected_device == item %}selected{% endif %}>{{ item }}</option>
-                    {% endfor %}
-                </select>
+{% block content %}
+<main class="container dashboard-report-page">
+    <section class="page-shell wide">
+        <header class="page-header">
+            <div>
+                <div class="page-eyebrow">// COBERTURA &amp; METRICAS</div>
+                <h1 class="page-title">Dashboard MITRE</h1>
+                <p class="page-subtitle">Vista de cobertura ATT&amp;CK y D3FEND. Por defecto se computan casos de uso en Produccion y habilitados.</p>
             </div>
-            <div class="filter-group">
-                <label>Severidad</label>
-                <select name="severity">
-                    <option value="">Toda</option>
-                    {% for value, label in severity_choices %}
-                        <option value="{{ value }}" {% if selected_severity == value %}selected{% endif %}>{{ label }}</option>
-                    {% endfor %}
-                </select>
+            <div class="header-actions">
+                <a href="{% url 'dashboard' %}" class="btn">Ejecutivo</a>
             </div>
-            <div class="filter-group">
-                <label>Habilitado</label>
-                <select name="enabled">
-                    <option value="">Ambos</option>
-                    <option value="yes" {% if selected_enabled == "yes" %}selected{% endif %}>Sí</option>
-                    <option value="no"  {% if selected_enabled == "no"  %}selected{% endif %}>No</option>
-                </select>
-            </div>
-            <div class="filter-actions">
-                <button type="submit" class="btn-primary">Filtrar</button>
-                <a href="{% url 'dashboard' %}" class="btn-secondary">Limpiar</a>
-                <a href="{% url 'dashboard_pdf_export' %}{% if request.GET.urlencode %}?{{ request.GET.urlencode }}{% endif %}" class="btn-secondary">Exportar PDF</a>
-            </div>
-        </form>
-    </div>
+        </header>
 
-    <div class="scope-note">// Alcance de cobertura: {{ coverage_scope_label }}. Los casos en Test, Desarrollo, Propuesta o Baja no suman cobertura ni aparecen en los filtros de inventario.</div>
-
-    <!-- ATT&CK -->
-    <div class="section-header">
-        <span class="section-tag">ATT&CK</span>
-        <span class="section-title">Cobertura MITRE ATT&amp;CK</span>
-        <span class="section-line"></span>
-    </div>
-    <div class="radial-grid">
-        {% for metric in attack_radials %}
-        <div class="radial-card">
-            <div class="radial-card-title">{{ metric.title }}</div>
-            <div class="radial-wrap">
-                <svg class="radial-svg" viewBox="0 0 190 190">
-                    <circle class="radial-track" cx="95" cy="95" r="80"/>
-                    <circle
-                        class="radial-fill {{ metric.color_class }}"
-                        cx="95" cy="95" r="80"
-                        stroke-dasharray="502.65"
-                        stroke-dashoffset="{{ metric.dashoffset }}"
-                        data-target="{{ metric.dashoffset }}"
-                        style="stroke-dashoffset: 502.65;"
-                    />
-                </svg>
-                <div class="radial-center">
-                    <div class="radial-pct {{ metric.color_class }}">{{ metric.percent_label }}<span class="radial-pct-sym">%</span></div>
-                    <div class="radial-sub">COBERTURA</div>
+        <section class="filter-panel">
+            <form method="get" class="mitre-filter-grid">
+                <div class="field">
+                    <label>Dispositivo</label>
+                    <select name="device">
+                        <option value="">Todos</option>
+                        {% for item in devices %}
+                            <option value="{{ item }}" {% if selected_device == item %}selected{% endif %}>{{ item }}</option>
+                        {% endfor %}
+                    </select>
                 </div>
-            </div>
-            <div class="radial-meta">
-                <div class="radial-meta-item">
-                    <div class="radial-meta-label">{{ metric.covered_label }}</div>
-                    <div class="radial-meta-value">{{ metric.covered }}</div>
+                <div class="field">
+                    <label>Fuente</label>
+                    <select name="source">
+                        <option value="">Todas</option>
+                        {% for item in sources %}
+                            <option value="{{ item.pk }}" {% if selected_source == item.pk|stringformat:"s" %}selected{% endif %}>{{ item.display_name }}</option>
+                        {% endfor %}
+                    </select>
                 </div>
-                <div class="radial-meta-item">
-                    <div class="radial-meta-label">Total</div>
-                    <div class="radial-meta-value">{{ metric.total }}</div>
+                <div class="field">
+                    <label>Severidad</label>
+                    <select name="severity">
+                        <option value="">Toda</option>
+                        {% for value, label in severity_choices %}
+                            <option value="{{ value }}" {% if selected_severity == value %}selected{% endif %}>{{ label }}</option>
+                        {% endfor %}
+                    </select>
                 </div>
-            </div>
-            <div class="radial-legend">
-                <div class="legend-row"><span class="legend-pip good"></span>Cubierto &gt; 80%</div>
-                <div class="legend-row"><span class="legend-pip medium"></span>Parcial 40% – 80%</div>
-                <div class="legend-row"><span class="legend-pip bad"></span>Bajo cobertura &lt; 40%</div>
-            </div>
-        </div>
-        {% endfor %}
-    </div>
+                <div class="field">
+                    <label>Habilitado</label>
+                    <select name="enabled">
+                        <option value="yes" {% if selected_enabled == "yes" %}selected{% endif %}>Si</option>
+                        <option value="all" {% if selected_enabled == "all" %}selected{% endif %}>Ambos</option>
+                        <option value="no" {% if selected_enabled == "no" %}selected{% endif %}>No</option>
+                    </select>
+                </div>
+                <div class="field">
+                    <label>Periodo índice</label>
+                    <select name="timeline">
+                        {% for item in timeline_options %}
+                            <option value="{{ item.value }}" {% if selected_timeline == item.value %}selected{% endif %}>{{ item.label }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="header-actions">
+                    <button type="submit" class="btn-primary">Filtrar</button>
+                    <a href="{% url 'dashboard_mitre' %}" class="btn">Limpiar</a>
+                    <a href="{% url 'dashboard_pdf_export' %}{% if request.GET.urlencode %}?{{ request.GET.urlencode }}{% endif %}" class="btn">Exportar PDF</a>
+                </div>
+            </form>
+        </section>
 
-    <!-- D3FEND -->
-    <div class="section-header">
-        <span class="section-tag">D3FEND</span>
-        <span class="section-title">Cobertura D3FEND</span>
-        <span class="section-line"></span>
-    </div>
-    <div class="radial-grid">
-        {% for metric in d3fend_radials %}
-        <div class="radial-card">
-            <div class="radial-card-title">{{ metric.title }}</div>
-            <div class="radial-wrap">
-                <svg class="radial-svg" viewBox="0 0 190 190">
-                    <circle class="radial-track" cx="95" cy="95" r="80"/>
-                    <circle
-                        class="radial-fill {{ metric.color_class }}"
-                        cx="95" cy="95" r="80"
-                        stroke-dasharray="502.65"
-                        stroke-dashoffset="{{ metric.dashoffset }}"
-                        data-target="{{ metric.dashoffset }}"
-                        style="stroke-dashoffset: 502.65;"
-                    />
-                </svg>
-                <div class="radial-center">
-                    <div class="radial-pct {{ metric.color_class }}">{{ metric.percent_label }}<span class="radial-pct-sym">%</span></div>
-                    <div class="radial-sub">COBERTURA</div>
-                </div>
-            </div>
-            <div class="radial-meta">
-                <div class="radial-meta-item">
-                    <div class="radial-meta-label">{{ metric.covered_label }}</div>
-                    <div class="radial-meta-value">{{ metric.covered }}</div>
-                </div>
-                <div class="radial-meta-item">
-                    <div class="radial-meta-label">Total</div>
-                    <div class="radial-meta-value">{{ metric.total }}</div>
-                </div>
-            </div>
-            <div class="radial-legend">
-                <div class="legend-row"><span class="legend-pip good"></span>Cubierto &gt; 80%</div>
-                <div class="legend-row"><span class="legend-pip medium"></span>Parcial 40% – 80%</div>
-                <div class="legend-row"><span class="legend-pip bad"></span>Bajo cobertura &lt; 40%</div>
-            </div>
-        </div>
-        {% endfor %}
-    </div>
+        <div class="scope-note">// Alcance de cobertura: {{ coverage_scope_label }}. Los casos en Test, Desarrollo, Propuesta o Baja no suman cobertura ni aparecen en los filtros de inventario.</div>
 
-    <!-- Stats panels -->
-    <div class="section-header" style="margin-top:36px;">
-        <span class="section-tag">ANÁLISIS</span>
-        <span class="section-title">Desglose detallado</span>
-        <span class="section-line"></span>
-    </div>
-    <div class="stats-grid">
+        <section class="mitre-summary-strip" aria-label="Resumen productivo">
+            {% for card in mitre_summary_cards %}
+                <article class="mitre-summary-card {{ card.level }}">
+                    <span class="mitre-summary-label">{{ card.label }}</span>
+                    <strong class="mitre-summary-value">{{ card.value }}</strong>
+                    <span class="mitre-summary-detail">{{ card.detail }}</span>
+                </article>
+            {% endfor %}
+        </section>
 
-        <div class="panel">
-            <div class="panel-head"><span class="panel-title">Cobertura por táctica ATT&amp;CK</span></div>
-            <div class="panel-body">
-                {% if tactic_coverage_rows %}
-                    {% for row in tactic_coverage_rows %}
-                        {% if row.production_cases > 0 %}
-                        <a class="list-item" href="{% url 'usecase_list' %}?mitre_tactic={{ row.name|urlencode }}">
-                            <div>
-                                <div class="list-item-main">{{ row.name }}</div>
-                                <div class="list-item-sub">{{ row.covered }} / {{ row.total }} técnicas · {{ row.production_cases }} caso(s) productivo(s)</div>
-                            </div>
-                            <span class="count-badge">{{ row.percent_label }}%</span>
-                        </a>
-                        {% else %}
-                        <div class="list-item">
-                            <div>
-                                <div class="list-item-main">{{ row.name }}</div>
-                                <div class="list-item-sub">{{ row.covered }} / {{ row.total }} técnicas · sin casos productivos</div>
-                            </div>
-                            <span class="count-badge">{{ row.percent_label }}%</span>
+        <section class="risk-overview" aria-label="Estado de cobertura MITRE y D3FEND">
+            <aside class="risk-index-panel">
+                <div class="risk-panel-title">Índice de cobertura MITRE</div>
+                <div class="risk-index-value">{{ mitre_risk_overview.score_label }}<small>/100</small></div>
+                <span class="risk-level {{ mitre_risk_overview.level_class }}">{{ mitre_risk_overview.level }}</span>
+                <div class="risk-contrib-list">
+                    {% for item in mitre_risk_overview.categories %}
+                        <div class="risk-contrib-row">
+                            <span class="risk-dot" style="background: {{ item.color }};"></span>
+                            <span>{{ item.name }}</span>
+                            <strong>{{ item.level }}</strong>
                         </div>
-                        {% endif %}
                     {% endfor %}
-                {% else %}
-                    <div class="empty-note">// Sin tácticas ATT&amp;CK cargadas</div>
-                {% endif %}
-            </div>
-        </div>
-
-        <div class="panel">
-            <div class="panel-head"><span class="panel-title">Tácticas ATT&amp;CK sin cobertura productiva</span></div>
-            <div class="panel-body">
-                {% if uncovered_tactics %}
-                    {% for tactic in uncovered_tactics %}
-                    <div class="list-item" style="display:block;">
-                        <div class="list-item-main">{{ tactic }}</div>
-                        <div class="list-item-sub">No existe ningún caso en Producción que cubra esta táctica</div>
-                    </div>
-                    {% endfor %}
-                {% else %}
-                    <div class="empty-note">// Sin tácticas pendientes</div>
-                {% endif %}
-            </div>
-        </div>
-
-        <div class="panel">
-            <div class="panel-head"><span class="panel-title">Técnicas ATT&amp;CK sin cobertura productiva</span></div>
-            <div class="panel-body">
-                {% if uncovered_attacks %}
-                    {% for item in uncovered_attacks %}
-                    <div class="list-item" style="display:block;">
-                        <div class="list-item-main">{{ item.external_id }} — {{ item.name }}</div>
-                        {% if item.tactic %}<div class="list-item-sub">{{ item.tactic }}</div>{% endif %}
-                    </div>
-                    {% endfor %}
-                    {% if uncovered_attack_techniques > 30 %}
-                    <div class="empty-note">// Mostrando 30 de {{ uncovered_attack_techniques }} técnicas pendientes</div>
-                    {% endif %}
-                {% else %}
-                    <div class="empty-note">// Sin técnicas pendientes</div>
-                {% endif %}
-            </div>
-        </div>
-
-
-
-        <div class="panel">
-            <div class="panel-head"><span class="panel-title">Técnicas D3FEND sin cobertura ATT&amp;CK productiva</span></div>
-            <div class="panel-body">
-                {% if uncovered_d3fends %}
-                    {% for item in uncovered_d3fends %}
-                    <div class="list-item" style="display:block;">
+                </div>
+            </aside>
+            <div class="risk-chart-panel">
+                <div class="risk-line-area">
+                    <div class="risk-line-head">
                         <div>
-                            <div class="list-item-main">{{ item.code }} — {{ item.name }}</div>
-                            <div class="list-item-sub">{{ item.covered_related_attacks|default:0 }} / {{ item.total_related_attacks|default:0 }} ATT&amp;CK relacionadas cubiertas{% if item.category %} · {{ item.category }}{% endif %}</div>
+                            <span class="risk-summary-title">Evolución diaria de cobertura</span>
+                            <span class="timeline-subtitle">Score 1-100 con ATT&amp;CK y D3FEND Detect.</span>
+                        </div>
+                        <div class="risk-line-tools">
+                            <span class="risk-line-meta">
+                                {% if mitre_risk_overview.count > 1 %}
+                                    {% if mitre_risk_overview.delta > 0 %}+{% endif %}{{ mitre_risk_overview.delta }} vs inicio
+                                {% else %}
+                                    Primer snapshot
+                                {% endif %}
+                            </span>
+                            <form method="get" class="risk-range-form" aria-label="Filtrar periodo del grafico">
+                                <input type="hidden" name="device" value="{{ selected_device }}">
+                                <input type="hidden" name="source" value="{{ selected_source }}">
+                                <input type="hidden" name="severity" value="{{ selected_severity }}">
+                                <input type="hidden" name="enabled" value="{{ selected_enabled }}">
+                                {% for item in timeline_options %}
+                                    <button type="submit" name="timeline" value="{{ item.value }}" class="{% if selected_timeline == item.value %}active{% endif %}">{{ item.label }}</button>
+                                {% endfor %}
+                            </form>
                         </div>
                     </div>
-                    {% endfor %}
-                {% else %}
-                    <div class="empty-note">// Sin técnicas pendientes</div>
-                {% endif %}
+                    <div class="risk-current-grid">
+                        {% for item in mitre_risk_overview.categories %}
+                            <article class="risk-current-card">
+                                <div class="risk-current-top">
+                                    <span>{{ item.name }}</span>
+                                    <strong>{{ item.score_label }}%</strong>
+                                </div>
+                                <div class="risk-current-track">
+                                    <span style="width: {{ item.score_width }}%; background: {{ item.color }};"></span>
+                                </div>
+                            </article>
+                        {% endfor %}
+                    </div>
+                    {% if mitre_risk_overview.points %}
+                        <div class="risk-date-strip">
+                            <span>Periodo visible</span>
+                            <strong>{{ mitre_risk_overview.range_label }}</strong>
+                        </div>
+                        <div class="risk-trend-shell">
+                            <div class="risk-axis" aria-hidden="true">
+                                <span>100</span>
+                                <span>70</span>
+                                <span>30</span>
+                                <span>0</span>
+                            </div>
+                            <div class="risk-plot-column">
+                                <div class="risk-plot">
+                                    <svg class="risk-trend-chart" viewBox="0 0 104 50" preserveAspectRatio="none" role="img" aria-label="Linea historica de cobertura">
+                                        <line class="risk-grid-line" x1="8" y1="6" x2="100" y2="6"></line>
+                                        <line class="risk-grid-line" x1="8" y1="16.8" x2="100" y2="16.8"></line>
+                                        <line class="risk-grid-line" x1="8" y1="31.2" x2="100" y2="31.2"></line>
+                                        <line class="risk-grid-line" x1="8" y1="42" x2="100" y2="42"></line>
+                                        <polyline class="risk-trend-line" points="{{ mitre_risk_overview.points }}"></polyline>
+                                    </svg>
+                                    {% for point in mitre_risk_overview.chart_points %}
+                                        <span class="risk-day-dot{% if forloop.last %} latest{% endif %}" style="left: {{ point.left }}%; top: {{ point.top }}%;" title="{{ point.title }} - Score {{ point.score_label }}/100">
+                                            <span class="risk-dot-tooltip">{{ point.title }} - {{ point.score_label }}/100</span>
+                                        </span>
+                                    {% endfor %}
+                                </div>
+                                <div class="risk-x-axis" aria-hidden="true">
+                                    {% for tick in mitre_risk_overview.x_axis_labels %}
+                                        <span style="left: {{ tick.left }}%;">{{ tick.label }}</span>
+                                    {% endfor %}
+                                </div>
+                            </div>
+                        </div>
+                        <div class="risk-trend-legend">
+                            <span><i></i>Score diario MITRE</span>
+                            <span>{{ mitre_risk_overview.count }} snapshot{% if mitre_risk_overview.count != 1 %}s{% endif %}</span>
+                        </div>
+                    {% elif mitre_risk_overview.count == 1 %}
+                        <div class="risk-single-snapshot">
+                            <div class="risk-single-copy">
+                                <span>Primer snapshot capturado. La tendencia diaria se arma con las próximas capturas.</span>
+                                <strong>{{ mitre_risk_overview.score_label }}/100</strong>
+                            </div>
+                            <div class="risk-single-track">
+                                <span style="width: {{ mitre_risk_overview.score_width }}%;"></span>
+                            </div>
+                        </div>
+                    {% else %}
+                        <div class="risk-empty">Sin snapshots todavía. Ejecutá la captura diaria para empezar el histórico.</div>
+                    {% endif %}
+                </div>
             </div>
-        </div>
+        </section>
 
-        <div class="panel">
-            <div class="panel-head"><span class="panel-title">Resumen productivo</span></div>
-            <div class="panel-body summary-rows">
-                <div class="summary-row">
-                    <span class="summary-row-label">Casos productivos analizados</span>
-                    <span class="summary-row-value">{{ total_cases }}</span>
-                </div>
-                <div class="summary-row">
-                    <span class="summary-row-label">Técnicas ATT&amp;CK cubiertas por Producción</span>
-                    <span class="summary-row-value">{{ covered_attack_techniques }} / {{ all_attack_techniques }}</span>
-                </div>
-                <div class="summary-row">
-                    <span class="summary-row-label">Técnicas ATT&amp;CK sin cobertura productiva</span>
-                    <span class="summary-row-value">{{ uncovered_attack_techniques }}</span>
-                </div>
-                <div class="summary-row">
-                    <span class="summary-row-label">Tácticas ATT&amp;CK cubiertas por Producción</span>
-                    <span class="summary-row-value">{{ covered_tactics }} / {{ total_tactics }}</span>
-                </div>
-                <div class="summary-row">
-                    <span class="summary-row-label">D3FEND equivalente cubierto por ATT&amp;CK</span>
-                    <span class="summary-row-value">{{ covered_d3fend_techniques }} / {{ all_d3fend_techniques }}</span>
-                </div>
-                <div class="summary-row">
-                    <span class="summary-row-label">D3FEND al 100% / parcial</span>
-                    <span class="summary-row-value">{{ fully_covered_d3fend_techniques }} / {{ partially_covered_d3fend_techniques }}</span>
-                </div>
-            </div>
+        <div class="section-header">
+            <span class="section-tag">ATT&amp;CK</span>
+            <h2 class="section-title">Cobertura MITRE ATT&amp;CK</h2>
+            <span class="section-line"></span>
         </div>
+        <section class="radial-grid">
+            {% for metric in attack_radials %}
+                <article class="radial-card">
+                    <div class="radial-card-title">{{ metric.title }}</div>
+                    <div class="radial-wrap">
+                        <svg class="radial-svg" viewBox="0 0 190 190">
+                            <circle class="radial-track" cx="95" cy="95" r="80"/>
+                            <circle class="radial-fill {{ metric.color_class }}" cx="95" cy="95" r="80" stroke-dasharray="502.65" stroke-dashoffset="{{ metric.dashoffset }}" data-target="{{ metric.dashoffset }}" style="stroke-dashoffset: 502.65;"/>
+                        </svg>
+                        <div class="radial-center">
+                            <div class="radial-pct {{ metric.color_class }}">{{ metric.percent_label }}<span class="radial-pct-sym">%</span></div>
+                            <div class="radial-sub">COBERTURA</div>
+                        </div>
+                    </div>
+                    <div class="radial-meta">
+                        <div class="radial-meta-item">
+                            <div class="radial-meta-label">{{ metric.covered_label }}</div>
+                            <div class="radial-meta-value">{{ metric.covered }}</div>
+                        </div>
+                        <div class="radial-meta-item">
+                            <div class="radial-meta-label">Total</div>
+                            <div class="radial-meta-value">{{ metric.total }}</div>
+                        </div>
+                    </div>
+                    <div class="radial-legend">
+                        <div class="legend-row"><span class="legend-pip good"></span>Cubierto &gt; 80%</div>
+                        <div class="legend-row"><span class="legend-pip medium"></span>Parcial 40% - 80%</div>
+                        <div class="legend-row"><span class="legend-pip bad"></span>Baja cobertura &lt; 40%</div>
+                    </div>
+                </article>
+            {% endfor %}
+        </section>
 
-    </div>
-</div>
+        <div class="section-header">
+            <span class="section-tag">D3FEND</span>
+            <h2 class="section-title">Cobertura D3FEND</h2>
+            <span class="section-line"></span>
+        </div>
+        <section class="radial-grid">
+            {% for metric in d3fend_radials %}
+                <article class="radial-card">
+                    <div class="radial-card-title">{{ metric.title }}</div>
+                    <div class="radial-wrap">
+                        <svg class="radial-svg" viewBox="0 0 190 190">
+                            <circle class="radial-track" cx="95" cy="95" r="80"/>
+                            <circle class="radial-fill {{ metric.color_class }}" cx="95" cy="95" r="80" stroke-dasharray="502.65" stroke-dashoffset="{{ metric.dashoffset }}" data-target="{{ metric.dashoffset }}" style="stroke-dashoffset: 502.65;"/>
+                        </svg>
+                        <div class="radial-center">
+                            <div class="radial-pct {{ metric.color_class }}">{{ metric.percent_label }}<span class="radial-pct-sym">%</span></div>
+                            <div class="radial-sub">COBERTURA</div>
+                        </div>
+                    </div>
+                    <div class="radial-meta">
+                        <div class="radial-meta-item">
+                            <div class="radial-meta-label">{{ metric.covered_label }}</div>
+                            <div class="radial-meta-value">{{ metric.covered }}</div>
+                        </div>
+                        <div class="radial-meta-item">
+                            <div class="radial-meta-label">Total</div>
+                            <div class="radial-meta-value">{{ metric.total }}</div>
+                        </div>
+                    </div>
+                    <div class="radial-legend">
+                        <div class="legend-row"><span class="legend-pip good"></span>Cubierto &gt; 80%</div>
+                        <div class="legend-row"><span class="legend-pip medium"></span>Parcial 40% - 80%</div>
+                        <div class="legend-row"><span class="legend-pip bad"></span>Baja cobertura &lt; 40%</div>
+                    </div>
+                </article>
+            {% endfor %}
+        </section>
+
+        <div class="section-header">
+            <span class="section-tag">ANALISIS</span>
+            <h2 class="section-title">Desglose detallado</h2>
+            <span class="section-line"></span>
+        </div>
+        <section class="stats-grid">
+            <article class="panel">
+                <div class="panel-head"><span class="panel-title">Cobertura por tactica ATT&amp;CK</span></div>
+                <div class="panel-body">
+                    {% if tactic_coverage_rows %}
+                        {% for row in tactic_coverage_rows %}
+                            {% if row.production_cases > 0 %}
+                                <a class="list-item" href="{% url 'usecase_list' %}?mitre_tactic={{ row.name|urlencode }}">
+                                    <div>
+                                        <div class="list-item-main">{{ row.name }}</div>
+                                        <div class="list-item-sub">{{ row.covered }} / {{ row.total }} tecnicas - {{ row.production_cases }} caso(s) productivo(s)</div>
+                                    </div>
+                                    <span class="count-badge">{{ row.percent_label }}%</span>
+                                </a>
+                            {% else %}
+                                <div class="list-item">
+                                    <div>
+                                        <div class="list-item-main">{{ row.name }}</div>
+                                        <div class="list-item-sub">{{ row.covered }} / {{ row.total }} tecnicas - sin casos productivos</div>
+                                    </div>
+                                    <span class="count-badge">{{ row.percent_label }}%</span>
+                                </div>
+                            {% endif %}
+                        {% endfor %}
+                    {% else %}
+                        <div class="empty-note">// Sin tacticas ATT&amp;CK cargadas</div>
+                    {% endif %}
+                </div>
+            </article>
+
+            <article class="panel">
+                <div class="panel-head"><span class="panel-title">Cobertura D3FEND Detect</span></div>
+                <div class="panel-body">
+                    {% if d3fend_detect_coverage_rows %}
+                        {% for row in d3fend_detect_coverage_rows %}
+                            {% if row.production_cases > 0 %}
+                                <a class="list-item" href="{% url 'usecase_list' %}?d3fend_id={{ row.id }}">
+                                    <div>
+                                        <div class="list-item-main">{{ row.code }} - {{ row.name }}</div>
+                                        <div class="list-item-sub">{{ row.covered }} / {{ row.total }} ATT&amp;CK relacionadas - {{ row.production_cases }} caso(s) productivo(s)</div>
+                                    </div>
+                                    <span class="count-badge">{{ row.percent_label }}%</span>
+                                </a>
+                            {% else %}
+                                <div class="list-item">
+                                    <div>
+                                        <div class="list-item-main">{{ row.code }} - {{ row.name }}</div>
+                                        <div class="list-item-sub">{{ row.covered }} / {{ row.total }} ATT&amp;CK relacionadas - sin casos productivos</div>
+                                    </div>
+                                    <span class="count-badge">{{ row.percent_label }}%</span>
+                                </div>
+                            {% endif %}
+                        {% endfor %}
+                    {% else %}
+                        <div class="empty-note">// Sin tecnicas D3FEND Detect cargadas</div>
+                    {% endif %}
+                </div>
+            </article>
+
+            <article class="panel">
+                <div class="panel-head"><span class="panel-title">Tacticas ATT&amp;CK sin cobertura productiva</span></div>
+                <div class="panel-body">
+                    {% if uncovered_tactics %}
+                        {% for tactic in uncovered_tactics %}
+                            <div class="list-item list-item-static">
+                                <div>
+                                    <div class="list-item-main">{{ tactic }}</div>
+                                    <div class="list-item-sub">No existe ningun caso en Produccion que cubra esta tactica</div>
+                                </div>
+                            </div>
+                        {% endfor %}
+                    {% else %}
+                        <div class="empty-note">// Sin tacticas pendientes</div>
+                    {% endif %}
+                </div>
+            </article>
+
+            <article class="panel">
+                <div class="panel-head"><span class="panel-title">Tecnicas ATT&amp;CK sin cobertura productiva</span></div>
+                <div class="panel-body">
+                    {% if uncovered_attacks %}
+                        {% for item in uncovered_attacks %}
+                            <div class="list-item list-item-static">
+                                <div>
+                                    <div class="list-item-main">{{ item.external_id }} - {{ item.name }}</div>
+                                    {% if item.tactic %}<div class="list-item-sub">{{ item.tactic }}</div>{% endif %}
+                                </div>
+                            </div>
+                        {% endfor %}
+                        {% if uncovered_attack_techniques > 30 %}
+                            <div class="empty-note">// Mostrando 30 de {{ uncovered_attack_techniques }} tecnicas pendientes</div>
+                        {% endif %}
+                    {% else %}
+                        <div class="empty-note">// Sin tecnicas pendientes</div>
+                    {% endif %}
+                </div>
+            </article>
+
+            <article class="panel">
+                <div class="panel-head"><span class="panel-title">Tecnicas D3FEND sin cobertura ATT&amp;CK productiva</span></div>
+                <div class="panel-body">
+                    {% if uncovered_d3fends %}
+                        {% for item in uncovered_d3fends %}
+                            <div class="list-item list-item-static">
+                                <div>
+                                    <div class="list-item-main">{{ item.code }} - {{ item.name }}</div>
+                                    <div class="list-item-sub">{{ item.covered_related_attacks|default:0 }} / {{ item.total_related_attacks|default:0 }} ATT&amp;CK relacionadas cubiertas{% if item.category %} - {{ item.category }}{% endif %}</div>
+                                </div>
+                            </div>
+                        {% endfor %}
+                    {% else %}
+                        <div class="empty-note">// Sin tecnicas pendientes</div>
+                    {% endif %}
+                </div>
+            </article>
+        </section>
+    </section>
+</main>
 
 <script>
-/* Animate radial rings on load */
-document.addEventListener('DOMContentLoaded', () => {
-    document.querySelectorAll('.radial-fill').forEach(el => {
-        const target = parseFloat(el.dataset.target);
-        // Short delay so CSS paint is done
-        requestAnimationFrame(() => {
-            setTimeout(() => {
-                el.style.transition = 'stroke-dashoffset 1.3s cubic-bezier(0.4, 0, 0.2, 1)';
+document.addEventListener('DOMContentLoaded', function () {
+    document.querySelectorAll('.radial-fill').forEach(function (el) {
+        var target = parseFloat(el.dataset.target);
+        requestAnimationFrame(function () {
+            setTimeout(function () {
                 el.style.strokeDashoffset = target;
             }, 120);
         });
     });
 });
 </script>
-</body>
-</html>
+{% endblock %}

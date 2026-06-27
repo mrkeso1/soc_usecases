@@ -13,8 +13,17 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Prepare env
+        run: cp .env.example .env
+
       - name: Build services
         run: docker compose build web
+
+      - name: Start database
+        run: docker compose up -d db
+
+      - name: Django check
+        run: docker compose run --rm web python manage.py check
 
       - name: Run tests
         run: docker compose run --rm web python manage.py test

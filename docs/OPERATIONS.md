@@ -1,189 +1,228 @@
 # Operacion
 
-## Comandos frecuentes
+## Validacion
 
 ```bash
-docker compose run --rm web python manage.py migrate
-docker compose run --rm web python manage.py seed_groups
-docker compose run --rm web python manage.py test
-docker compose run --rm web python manage.py makemigrations --check --dry-run
+docker compose exec web python manage.py check
+docker compose exec web python manage.py test --keepdb
+docker compose exec web python manage.py makemigrations --check --dry-run
 ```
 
-## Datos base
+Estado validado: 99 tests OK, sin migraciones pendientes.
 
-1. Ejecutar migraciones.
-2. Ejecutar `seed_groups`.
-3. Crear superusuario.
-4. Cargar ATT&CK:
+## Primer Arranque Local
 
 ```bash
-docker compose run --rm web python manage.py load_mitre_attack
+cp .env.example .env
+docker compose up -d --build
+docker compose exec web python manage.py migrate
+docker compose exec web python manage.py seed_groups
+docker compose exec web python manage.py createsuperuser
 ```
 
-5. Cargar D3FEND:
+Datos demo:
 
 ```bash
-docker compose run --rm web python manage.py load_d3fend
+docker compose exec web python manage.py seed_demo_data
 ```
 
-## Datos demo
-
-Para levantar un entorno de prueba completo despues de clonar:
+Reset demo:
 
 ```bash
-docker compose run --rm web python manage.py seed_demo_data
+docker compose exec web python manage.py seed_demo_data --reset
 ```
 
-El comando crea usuarios, casos, ATT&CK, D3FEND, revisiones lifecycle, overrides de cobertura y configuraciones demo.
+Usuarios demo:
 
-Usuarios:
-
-| Usuario | Rol | Password default |
+| Usuario | Rol | Password |
 | --- | --- | --- |
 | `demo_admin` | Admin | `Demo12345!` |
 | `demo_analyst` | Analyst | `Demo12345!` |
 | `demo_owner` | Analyst/control owner | `Demo12345!` |
 | `demo_readonly` | ReadOnly | `Demo12345!` |
 
-Para regenerar solo datos demo:
+## Importacion y Exportacion
 
-```bash
-docker compose run --rm web python manage.py seed_demo_data --reset
-```
+Desde UI:
 
-## Importacion y exportacion Excel
-
-Desde la UI:
-
-- `Inventario > Importar Excel`: carga archivos `.xlsx` o `.xlsm`.
-- `Inventario > Importar Excel > Descargar plantilla`: descarga columnas compatibles.
-- `Inventario > Exportar Excel`: descarga la vista filtrada.
+- `/usecases/import/excel/`: importa `.xlsx`.
+- `/usecases/import/template/`: descarga plantilla.
+- `/usecases/export/xlsx/`: exporta la vista filtrada.
+- `/usecases/export/csv/`: exporta CSV.
 
 Desde consola:
 
 ```bash
-docker compose run --rm web python manage.py import_usecases archivo.xlsx --update
+docker compose exec web python manage.py import_usecases /app/ruta/archivo.xlsx --update
 ```
 
-La importacion usa `NOMBRE NETWITNESS` como clave de actualizacion cuando se marca `--update` o `Actualizar existentes por nombre` en la UI.
-La columna D3FEND se ignora porque D3FEND se infiere automaticamente desde MITRE ATT&CK.
+Reglas:
 
-## Sincronizacion programada de frameworks
+- `.xlsm` no se acepta.
+- `NOMBRE NETWITNESS` es la clave de actualizacion.
+- `DISPOSITIVO` se conserva como legacy.
+- `FUENTES` crea/vincula `EventSource`.
+- D3FEND se infiere desde ATT&CK, no se importa manualmente.
 
-La programacion se guarda en Django Admin:
+## Fuentes de Eventos
+
+Rutas:
+
+- `/sources/`
+- `/sources/new/`
+- `/sources/admin/catalog/`
+
+En catalogos se administran:
+
+- categorias;
+- subcategorias;
+- tipos de fuente;
+- metodos de envio.
+
+Cuando se carga una fuente, la subcategoria debe pertenecer a la categoria seleccionada.
+
+## Backups Tecnicos
+
+Rutas:
+
+- `/sigma/backups/`
+- `/sigma/backups/new/`
+- `/sigma/backups/from-usecase/<id>/`
+
+Desde el detalle de un caso aparece `Generar desde regla` si el caso tiene regla completa o condiciones. Esa accion:
+
+1. toma `UseCase.full_rule_text`;
+2. si no existe, arma una logica con `UseCaseRuleCondition`;
+3. crea una nueva version `UseCaseTechnicalBackup`;
+4. calcula checksum SHA-256;
+5. marca la nueva version como vigente.
+
+Tambien se puede abrir `Nuevo backup` desde el caso; el formulario se prellena con la regla del inventario.
+
+## Sincronizacion MITRE/D3FEND
+
+Configurar agenda en Django Admin:
 
 ```text
-Usecases > Sincronizaciones de frameworks
+Admin Django > Sincronizaciones de frameworks
 ```
 
-Crear una configuracion activa, por ejemplo:
+Campos importantes:
 
-- `interval_value`: `24`
-- `interval_unit`: `hours`
+- `is_active`
+- `interval_value`
+- `interval_unit`
+- `last_status`
+- `last_message`
+- `last_success_at`
 
-Luego configurar el cron externo para invocar el comando completo de forma frecuente. Ejemplo cada hora:
-
-```cron
-0 * * * * cd /ruta/soc_usecases && docker compose run --rm web python manage.py sync_security_frameworks_scheduled
-```
-
-El comando no descarga nada si no vencio el intervalo guardado en DB.
-Cuando corre, ejecuta:
-
-1. MITRE ATT&CK Enterprise.
-2. D3FEND.
-3. Mappings D3FEND->ATT&CK.
-4. Normalizacion de codigos D3FEND.
-5. Recalculo de D3FEND inferido en casos de uso.
-
-Para probar manualmente:
+El servicio Docker `mitre_scheduler` ejecuta:
 
 ```bash
-docker compose run --rm web python manage.py sync_security_frameworks_scheduled --force
+python manage.py run_mitre_scheduler
 ```
 
-El comando anterior reemplaza al cron viejo `sync_mitre_attack_scheduled` para ambientes donde se necesita mantener ATT&CK y D3FEND alineados. El comando viejo sigue disponible si solo se quiere actualizar ATT&CK.
+Ese proceso despierta cada `MITRE_SYNC_POLL_SECONDS` y llama al comando completo cuando corresponde por DB.
 
-El boton manual dentro de la configuracion se llama `Ejecutar sync completo ATT&CK + D3FEND` y dispara la misma cadena completa.
+Forzar sync manual:
 
-### Linux cron
+```bash
+docker compose exec web python manage.py sync_security_frameworks_scheduled --force
+```
 
-Si no hay un contenedor `web` siempre corriendo, usar `run`:
+Cadena completa:
+
+1. ATT&CK Enterprise.
+2. D3FEND.
+3. Mappings D3FEND -> ATT&CK.
+4. Normalizacion de codigos D3FEND.
+5. Recalculo de D3FEND inferido en casos.
+
+`sync_mitre_attack_scheduled` queda disponible solo para actualizar ATT&CK, pero produccion debe usar `sync_security_frameworks_scheduled`.
+
+## Snapshot Diario MITRE
+
+```bash
+docker compose exec web python manage.py capture_mitre_coverage_snapshot
+```
+
+Ejemplo cron Linux:
 
 ```cron
-0 * * * * cd /opt/soc_usecases && /usr/bin/docker compose run --rm web python manage.py sync_security_frameworks_scheduled >> /var/log/soc-usecases-frameworks.log 2>&1
+5 0 * * * cd /opt/soc_usecases && /usr/bin/docker compose exec -T web python manage.py capture_mitre_coverage_snapshot >> /var/log/soc-usecases-coverage.log 2>&1
 ```
 
-Si el servicio `web` ya esta corriendo de forma permanente, usar `exec` evita crear un contenedor nuevo:
+## Reportes
 
-```cron
-0 * * * * cd /opt/soc_usecases && /usr/bin/docker compose exec -T web python manage.py sync_security_frameworks_scheduled >> /var/log/soc-usecases-frameworks.log 2>&1
-```
+Rutas:
 
-### Windows Task Scheduler
+- `/reports/`
+- `/reports/template/`
+- `/reports/<tipo>/preview/`
+- `/reports/<tipo>/preview/pdf/`
+- `/reports/<tipo>/download/`
 
-Crear una tarea programada con:
+Tipos:
 
-- Program/script: `powershell.exe`
-- Add arguments:
+- `executive`
+- `mitre`
+- `inventory`
+- `lifecycle`
+- `controls`
 
-```powershell
--NoProfile -ExecutionPolicy Bypass -Command "cd C:\ruta\soc_usecases; docker compose run --rm web python manage.py sync_security_frameworks_scheduled"
-```
-
-Para un servicio ya levantado:
-
-```powershell
--NoProfile -ExecutionPolicy Bypass -Command "cd C:\ruta\soc_usecases; docker compose exec -T web python manage.py sync_security_frameworks_scheduled"
-```
+Las plantillas controlan logo, colores, footer, labels y secciones.
 
 ## LDAP
 
-- Crear una configuracion en `LDAPSettings`.
-- Usar `Probar conexion` antes de activarla.
-- Usar `Activar` para dejarla como unica activa.
-- Revisar `LDAPAuthLog` ante errores.
-- Revisar `logs/auth.log` para eventos de login, logout, login fallido y pruebas LDAP.
+1. Crear `LDAPSettings` en Django Admin.
+2. Validar `server_uri`, filtro o DN template.
+3. Probar conexion.
+4. Activar una sola configuracion.
+5. Revisar `LDAPAuthLog` y `logs/auth.log`.
 
-## Logs operativos
+Usuarios LDAP autoaprovisionados quedan activos pero sin grupo operativo hasta que un admin asigne permisos.
 
-Docker monta la carpeta del host `./logs` dentro del contenedor en `/logs`.
+## Logs
 
-Archivos principales:
+Docker monta `./logs` en `/logs`.
 
 | Archivo | Contenido |
 | --- | --- |
-| `logs/auth.log` | Login exitoso, logout, login fallido y eventos LDAP. |
-| `logs/mitre_sync.log` | Descarga, omisiones, errores y resultados de sincronizacion MITRE/frameworks. |
-| `logs/app.log` | Warnings/errores HTTP de Django. |
+| `logs/auth.log` | Login, logout, fallos y LDAP. |
+| `logs/mitre_sync.log` | Sync ATT&CK/D3FEND. |
+| `logs/app.log` | Warnings y errores HTTP. |
 
-Los archivos rotan automaticamente al llegar a 5 MB y conservan 5 backups.
-
-Para verlos en Linux:
-
-```bash
-tail -f logs/auth.log
-tail -f logs/mitre_sync.log
-```
-
-En Windows PowerShell:
+PowerShell:
 
 ```powershell
 Get-Content .\logs\auth.log -Wait
 Get-Content .\logs\mitre_sync.log -Wait
+Get-Content .\logs\app.log -Wait
 ```
 
-## PDF
-
-- Configurar titulo, subtitulo, footer y logo en `DashboardReportSettings`.
-- Probar `/dashboard/export/pdf/`.
-- Mantener persistente `MEDIA_ROOT` si se suben logos.
-
-## CI
-
-El workflow `.github/workflows/django.yml` ejecuta:
+Docker:
 
 ```bash
-docker compose run --rm web python manage.py test
-docker compose run --rm web python manage.py makemigrations --check --dry-run
+docker compose logs -f web
+docker compose logs -f mitre_scheduler
 ```
+
+## Produccion
+
+```bash
+docker compose -f docker-compose.prod.yml up -d --build
+docker compose -f docker-compose.prod.yml exec web python manage.py migrate
+docker compose -f docker-compose.prod.yml exec web python manage.py collectstatic --noinput
+```
+
+Usar reverse proxy HTTPS y configurar cookies seguras.
+
+## Troubleshooting Rapido
+
+| Sintoma | Revisar |
+| --- | --- |
+| No actualiza MITRE/D3FEND | `logs/mitre_sync.log`, `MitreAttackSyncSettings`, salida HTTPS 443. |
+| Dashboard no refleja inventario | Que el caso este productivo/habilitado y tenga ATT&CK/fuentes vinculadas segun metrica. |
+| PDF preview rechaza conexion | Que `web` este arriba y la URL inline apunte al mismo host/puerto. |
+| Backup tecnico vacio | Cargar regla completa o condiciones en el caso. |
+| Usuario LDAP entra sin permisos | Asignar grupo en Access Control o Django Admin. |

@@ -2,7 +2,9 @@ from dataclasses import dataclass, field
 
 from django.db import transaction
 
-from .models import MitreAttack, UseCase, UseCaseChangeLog
+from apps.mitre.models import MitreAttack
+
+from .models import UseCase, UseCaseChangeLog
 from .permissions import can_manage_usecases, resolve_user_roles
 
 

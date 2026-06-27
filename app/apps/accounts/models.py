@@ -1,7 +1,41 @@
+import base64
+import hashlib
+
+from cryptography.fernet import Fernet, InvalidToken
+from django.conf import settings
 from django.contrib.auth.models import AbstractUser
 from django.core.exceptions import ValidationError
 from django.db import models
 from urllib.parse import urlparse
+
+
+LDAP_SECRET_PREFIX = "fernet$"
+
+
+def _ldap_fernet():
+    raw_key = getattr(settings, "LDAP_SECRET_KEY", "") or settings.SECRET_KEY
+    digest = hashlib.sha256(str(raw_key).encode("utf-8")).digest()
+    return Fernet(base64.urlsafe_b64encode(digest))
+
+
+def encrypt_ldap_secret(value):
+    value = value or ""
+    if not value or value.startswith(LDAP_SECRET_PREFIX):
+        return value
+    return LDAP_SECRET_PREFIX + _ldap_fernet().encrypt(value.encode("utf-8")).decode("ascii")
+
+
+def decrypt_ldap_secret(value):
+    value = value or ""
+    if not value:
+        return ""
+    if not value.startswith(LDAP_SECRET_PREFIX):
+        return value
+    token = value[len(LDAP_SECRET_PREFIX):]
+    try:
+        return _ldap_fernet().decrypt(token.encode("ascii")).decode("utf-8")
+    except (InvalidToken, ValueError):
+        return ""
 
 
 class User(AbstractUser):
@@ -34,7 +68,7 @@ class LDAPSettings(models.Model):
     server_uri = models.CharField(max_length=255, help_text="Ej: ldap://ldap.midominio.local:389")
     use_ssl = models.BooleanField(default=False)
     bind_dn = models.CharField(max_length=255, blank=True)
-    bind_password = models.CharField(max_length=255, blank=True)
+    bind_password = models.CharField(max_length=1024, blank=True)
     user_search_base = models.CharField(max_length=255, blank=True)
     user_search_filter = models.CharField(
         max_length=255,
@@ -78,7 +112,7 @@ class LDAPSettings(models.Model):
             if not self.user_dn_template:
                 if not self.bind_dn:
                     errors["bind_dn"] = "Requerido si no usas user_dn_template."
-                if not self.bind_password:
+                if not self.get_bind_password():
                     errors["bind_password"] = "Requerido si no usas user_dn_template."
                 if not self.user_search_base:
                     errors["user_search_base"] = "Requerido si no usas user_dn_template."
@@ -92,6 +126,14 @@ class LDAPSettings(models.Model):
 
         if errors:
             raise ValidationError(errors)
+
+    def get_bind_password(self):
+        return decrypt_ldap_secret(self.bind_password)
+
+    def save(self, *args, **kwargs):
+        if self.bind_password:
+            self.bind_password = encrypt_ldap_secret(self.bind_password)
+        super().save(*args, **kwargs)
 
 
 class LDAPAuthLog(models.Model):

@@ -1,50 +1,126 @@
-<nav class="topbar">
+<nav class="topbar" data-shell-nav>
     <div class="brand">
-        <div class="brand-icon">
-            <svg viewBox="0 0 16 16"><path d="M2 2h5v5H2zM9 2h5v5H9zM2 9h5v5H2zM9 9h5v5H9z"/></svg>
-        </div>
-        SOC Use Cases Manager
+        <a class="brand-main" href="{% url 'dashboard' %}" aria-label="Ir al dashboard">
+            <span class="brand-icon" aria-hidden="true">
+                <svg viewBox="0 0 24 24" focusable="false">
+                    <path d="M4 5.5A1.5 1.5 0 0 1 5.5 4h4A1.5 1.5 0 0 1 11 5.5v4A1.5 1.5 0 0 1 9.5 11h-4A1.5 1.5 0 0 1 4 9.5v-4Zm9 0A1.5 1.5 0 0 1 14.5 4h4A1.5 1.5 0 0 1 20 5.5v4a1.5 1.5 0 0 1-1.5 1.5h-4A1.5 1.5 0 0 1 13 9.5v-4Zm-9 9A1.5 1.5 0 0 1 5.5 13h4a1.5 1.5 0 0 1 1.5 1.5v4A1.5 1.5 0 0 1 9.5 20h-4A1.5 1.5 0 0 1 4 18.5v-4Zm9 0a1.5 1.5 0 0 1 1.5-1.5h4a1.5 1.5 0 0 1 1.5 1.5v4a1.5 1.5 0 0 1-1.5 1.5h-4a1.5 1.5 0 0 1-1.5-1.5v-4Z"/>
+                </svg>
+            </span>
+            <span class="brand-copy">
+                <strong>SOC Control Manager</strong>
+                <small>Security Operations</small>
+            </span>
+        </a>
+        <button type="button" class="shell-menu-button" data-shell-menu aria-label="Abrir navegacion">
+            <span></span><span></span><span></span>
+        </button>
     </div>
+
+
+
     <div class="topbar-nav">
         {% with url_name=request.resolver_match.url_name %}
-            <a href="{% url 'dashboard' %}" class="{% if url_name == 'dashboard' %}active{% endif %}">Dashboard</a>
-            {% if not is_role_readonly %}
+            <p class="nav-label">General</p>
+            <a href="{% url 'dashboard' %}" class="{% if url_name == 'dashboard' or url_name == 'dashboard_mitre' %}active{% endif %}">
+                <span class="nav-icon" aria-hidden="true">D</span><span>Dashboard</span>
+            </a>
+                    {% if is_role_admin or is_role_analyst or perms.reports.view_reportdownload %}
+                        <a href="{% url 'report_index' %}" class="{% if url_name == 'report_index' or url_name == 'report_download' %}active{% endif %}">
+                            <span class="nav-icon" aria-hidden="true">P</span><span>Reportes</span>
+                        </a>
+                    {% endif %}
+                    {% if not is_role_readonly %}
                 {% if is_role_admin or is_role_analyst or perms.usecases.view_usecase %}
-                    <a href="{% url 'usecase_list' %}" class="{% if url_name == 'usecase_list' or url_name == 'usecase_detail' or url_name == 'usecase_edit' or url_name == 'usecase_create' %}active{% endif %}">Inventario</a>
-                    <a href="{% url 'lifecycle_management' %}" class="{% if url_name == 'lifecycle_management' %}active{% endif %}">Ciclo de Vida</a>
-                    <a href="{% url 'attack_matrix' %}" class="{% if url_name == 'attack_matrix' %}active{% endif %}">Matriz ATT&CK</a>
-                    <a href="{% url 'd3fend_matrix' %}" class="{% if url_name == 'd3fend_matrix' %}active{% endif %}">Matriz D3FEND</a>
-                    {% if is_role_admin or is_role_analyst %}<a href="{% url 'coverage_admin' %}" class="{% if url_name == 'coverage_admin' %}active{% endif %}">Admin Cobertura</a>{% endif %}
+                    <p class="nav-label">Inventario</p>
+                    <a href="{% url 'usecase_list' %}" class="{% if url_name == 'usecase_list' or url_name == 'usecase_detail' or url_name == 'usecase_edit' or url_name == 'usecase_create' %}active{% endif %}">
+                        <span class="nav-icon" aria-hidden="true">I</span><span>Inventario</span>
+                    </a>
+                    <a href="{% url 'lifecycle_management' %}" class="{% if url_name == 'lifecycle_management' %}active{% endif %}">
+                        <span class="nav-icon" aria-hidden="true">C</span><span>Ciclo de Vida</span>
+                    </a>
+                    <a href="{% url 'source_list' %}" class="{% if url_name == 'source_list' or url_name == 'source_detail' or url_name == 'source_create' or url_name == 'source_edit' or url_name == 'usecase_source_create' %}active{% endif %}">
+                        <span class="nav-icon" aria-hidden="true">S</span><span>Fuentes</span>
+                    </a>
+                    <a href="{% url 'control_list' %}" class="{% if url_name == 'control_list' or url_name == 'control_detail' or url_name == 'control_create' or url_name == 'control_edit' or url_name == 'control_history' %}active{% endif %}">
+                        <span class="nav-icon" aria-hidden="true">G</span><span>Controles</span>
+                    </a>
+                    <p class="nav-label">Frameworks</p>
+                    <a href="{% url 'attack_matrix' %}" class="{% if url_name == 'attack_matrix' or url_name == 'd3fend_matrix' %}active{% endif %}">
+                        <span class="nav-icon" aria-hidden="true">M</span><span>MITRE</span>
+                    </a>
+                    <p class="nav-label">Herramientas</p>
+                    <a href="{% url 'sigma_epl_to_sigma' %}" class="{% if url_name == 'sigma_epl_to_sigma' or url_name == 'sigma_converter' %}active{% endif %}">
+                        <span class="nav-icon" aria-hidden="true">Σ</span><span>Sigma Tools</span>
+                    </a>
+                    {% if is_role_admin or request.user.is_superuser %}
+                        <a href="{% url 'admin_console' %}" class="{% if url_name == 'admin_console' or url_name == 'access_control_home' or url_name == 'access_role_create' or url_name == 'access_role_edit' or url_name == 'coverage_admin' or url_name == 'audit_list' or url_name == 'audit_detail' or url_name == 'source_admin_catalog' or url_name == 'source_category_create' or url_name == 'source_category_edit' or url_name == 'source_type_create' or url_name == 'source_type_edit' or url_name == 'report_template_settings' %}active{% endif %}">
+                            <span class="nav-icon" aria-hidden="true">O</span><span>Administracion</span>
+                        </a>
+                    {% endif %}
                 {% endif %}
             {% endif %}
         {% endwith %}
-        <div class="topbar-divider"></div>
-        <button type="button" class="theme-toggle-button" data-theme-toggle aria-label="Cambiar tema">Tema</button>
-        {% if not is_role_readonly %}{% if is_role_admin or request.user.is_staff %}<a href="/admin/">Admin</a>{% endif %}{% endif %}
+    </div>
+
+    <div class="topbar-footer">
+        <button type="button" class="theme-toggle-button" data-theme-toggle aria-label="Cambiar tema">
+            <span data-theme-label>Tema</span>
+        </button>
         <form method="post" action="{% url 'logout' %}" class="topbar-logout-form">
             {% csrf_token %}
             <button type="submit" class="topbar-logout-button">Salir</button>
         </form>
     </div>
 </nav>
+<div class="mobile-shell-bar">
+    <button type="button" class="mobile-shell-menu" data-shell-menu aria-label="Abrir navegacion">
+        <span></span><span></span><span></span>
+    </button>
+    <a href="{% url 'dashboard' %}">SOC Control Manager</a>
+    <button type="button" class="mobile-theme-button" data-theme-toggle aria-label="Cambiar tema">Tema</button>
+</div>
+<div class="shell-scrim" data-shell-scrim></div>
 <script>
     (function () {
-        const button = document.querySelector('[data-theme-toggle]');
-        if (!button) return;
+        const root = document.documentElement;
+        const nav = document.querySelector('[data-shell-nav]');
+        const scrim = document.querySelector('[data-shell-scrim]');
+        const menuButtons = document.querySelectorAll('[data-shell-menu]');
+        const themeButtons = document.querySelectorAll('[data-theme-toggle]');
 
-        function syncLabel() {
-            const current = document.documentElement.dataset.theme || 'dark';
-            button.textContent = current === 'light' ? 'Oscuro' : 'Claro';
-            button.setAttribute('aria-label', current === 'light' ? 'Cambiar a tema oscuro' : 'Cambiar a tema claro');
+        function syncThemeLabels() {
+            const current = root.dataset.theme || 'dark';
+            themeButtons.forEach(function (button) {
+                button.textContent = current === 'light' ? 'Oscuro' : 'Claro';
+                button.setAttribute('aria-label', current === 'light' ? 'Cambiar a tema oscuro' : 'Cambiar a tema claro');
+            });
         }
 
-        button.addEventListener('click', function () {
-            const current = document.documentElement.dataset.theme || 'dark';
-            const next = current === 'light' ? 'dark' : 'light';
-            document.documentElement.dataset.theme = next;
-            localStorage.setItem('soc-theme', next);
-            syncLabel();
+        function closeNav() {
+            document.body.classList.remove('shell-nav-open');
+        }
+
+        menuButtons.forEach(function (button) {
+            button.addEventListener('click', function () {
+                document.body.classList.toggle('shell-nav-open');
+            });
         });
-        syncLabel();
+
+        scrim && scrim.addEventListener('click', closeNav);
+        nav && nav.querySelectorAll('a').forEach(function (link) {
+            link.addEventListener('click', closeNav);
+        });
+
+        themeButtons.forEach(function (button) {
+            button.addEventListener('click', function () {
+                const current = root.dataset.theme || 'dark';
+                const next = current === 'light' ? 'dark' : 'light';
+                root.dataset.theme = next;
+                localStorage.setItem('soc-theme', next);
+                syncThemeLabels();
+            });
+        });
+
+        syncThemeLabels();
     })();
 </script>

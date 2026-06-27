@@ -1,65 +1,125 @@
-# Funciones del sistema
+# Mapa Funcional
 
-Este mapa sirve como punto de partida para entender que hace cada parte del proyecto.
+## Cuentas y Acceso
 
-## Cuentas y acceso
+- `accounts.User`: usuario custom con datos LDAP y area.
+- `LDAPSettings`: configuracion activa/inactiva, modo LDAP, URI, filtros, DN y bind.
+- `LDAPAuthLog`: trazabilidad de pruebas LDAP y autenticaciones.
+- `seed_groups`: normaliza grupos `Admin`, `Analyst` y `ReadOnly`.
+- `access_control`: consola funcional para asignar permisos sin entrar al Django Admin.
 
-- `apps.accounts.models.User`: usuario custom con `display_name`, `ldap_dn` y `area`.
-- `LDAPSettings`: configuracion LDAP activa/inactiva, modo de login y parametros de busqueda.
-- `LDAPAuthLog`: auditoria de pruebas LDAP y autenticaciones.
-- `signals.py`: registra login, logout y login fallido en `logs/auth.log`.
-- `roles.py`: reglas de rol `Admin`, `Analyst` y `ReadOnly`.
-- `seed_groups`: normaliza grupos y permisos base.
+## Inventario
 
-## Catalogos
+- `UseCase`: inventario maestro.
+- `UseCaseRuleCondition`: condiciones de regla con tipo `Incluir` o `Excluir`, campo, operador, valor y orden.
+- `full_rule_text`: regla completa pegada desde SIEM/EPL/Sigma/consulta original.
+- `functional_description`: descripcion funcional para analistas y auditoria.
+- `UseCaseChangeLog`: diffs relevantes al editar un caso.
+- `bulk_updates.py`: actualizacion masiva con permisos por ownership.
+- Importacion Excel `.xlsx`, exportacion Excel y CSV.
 
-- `MitreAttack`: tecnicas ATT&CK con ID externo, nombre, tactica y estado habilitado.
-- `D3Fend`: controles D3FEND con codigo, categoria, descripcion y relacion con ATT&CK.
-- `CoverageOverride`: capa manual para marcar cobertura por herramienta externa o excluir elementos que no aplican.
+## Fuentes de Eventos
 
-## Sincronizacion MITRE
+- `EventSource`: fuente normalizada con proteccion, tipo, categoria/subcategoria, metodo de envio, puerto, protocolo, host y cuenta de servicio.
+- `SourceCategory`: categoria y subcategoria administrables.
+- `SourceType`: tipos usados en el selector de alta.
+- `SourceDeliveryMethod`: metodos de envio/ingesta.
+- `UseCaseSource`: vinculo many-to-many controlado entre caso y fuente.
 
-- `mitre_sync.fetch_mitre_attack_enterprise`: descarga el dataset Enterprise ATT&CK.
-- `mitre_sync.load_mitre_attack_data`: transforma STIX en registros `MitreAttack`.
-- `mitre_sync.run_scheduled_mitre_attack_sync`: valida intervalo DB, ejecuta la carga y actualiza auditoria.
-- `logs/mitre_sync.log`: auditoria de descarga, skip, exito y error.
-- `load_mitre_attack`: comando manual historico, siempre descarga y actualiza.
-- `sync_mitre_attack_scheduled`: comando pensado para cron; respeta `MitreAttackSyncSettings`.
-- `sync_security_frameworks_scheduled`: cron completo; sincroniza ATT&CK, D3FEND, mappings D3FEND->ATT&CK y D3FEND inferido en casos.
-- Admin de `MitreAttackSyncSettings`: muestra estado visual, proxima ejecucion y accion "Ejecutar ahora".
+Regla de importacion:
 
-## Casos de uso
+- `DISPOSITIVO` queda como campo legacy del inventario.
+- `FUENTES` alimenta `EventSource` y vinculos.
+- Si una fuente en Excel no existe, se crea como activa y tipo `Otro`.
+- Si `FUENTES` viene vacio, no se usa `DISPOSITIVO` como reemplazo.
 
-- `UseCase`: inventario operativo, estado, severidad, owner, lifecycle, ATT&CK y D3FEND.
-- `UseCase.sync_d3fends_from_attacks`: infiere D3FEND desde ATT&CK relacionado.
-- `UseCaseChangeLog`: registra diffs relevantes cuando se edita un caso.
-- `bulk_updates.py`: aplica cambios masivos con validacion y permisos por ownership.
-- `seed_demo_data`: crea un set idempotente de usuarios, casos, ATT&CK, D3FEND, lifecycle y overrides para pruebas.
-- `import_usecases_excel`: vista para cargar Excel desde la UI usando el importador existente.
-- `export_usecases_xlsx`: exporta la vista filtrada en formato Excel.
+## MITRE ATT&CK y D3FEND
 
-## Dashboard y cobertura
+- `MitreAttack`: tecnicas ATT&CK habilitables.
+- `D3Fend`: tecnicas/controles D3FEND habilitables.
+- `CoverageOverride`: cobertura manual por herramienta o exclusion/no aplica.
+- `MitreAttackSyncSettings`: agenda y resultado de sincronizacion completa.
+- `sync_security_frameworks_scheduled`: sync completo ATT&CK + D3FEND + mappings + recalculo de casos.
+- `run_mitre_scheduler`: loop usado por el servicio Docker `mitre_scheduler`.
 
-- `dashboard.py`: calcula KPIs de cobertura para UI y PDF.
-- `attack_matrix.py`: matriz ATT&CK por tactica/tecnica.
-- `d3fend_matrix.py`: matriz D3FEND con cobertura inferida.
-- `coverage_admin.py`: arma filas, filtros y contadores del administrador de cobertura.
-- `coverage_overrides.py`: resuelve estados manuales, busqueda normalizada y actualizacion de overrides.
+La pagina D3FEND DAO (`https://d3fend.mitre.org/dao/`) se usa como contexto conceptual. El sync automatico usa fuentes machine-readable oficiales y no scrapea `/dao/`.
 
-## Lifecycle
+## Dashboard
 
-- `LifecycleSettings`: intervalo activo para proxima revision.
-- `LifecycleReview`: evidencia historica de controles finalizados.
-- `lifecycle.py`: construye vista de gestion, finalizacion y reasignacion de responsables.
+- `/dashboard/`: resumen ejecutivo.
+- `/dashboard/mitre/`: cobertura MITRE/D3FEND.
+- `dashboard.dashboard`: builders de metricas.
+- `MitreCoverageSnapshot`: indice diario para timeline de cobertura.
+- `capture_mitre_coverage_snapshot`: captura el estado diario.
+
+El score MITRE pondera:
+
+- ATT&CK tecnicas habilitadas cubiertas.
+- ATT&CK tacticas habilitadas cubiertas al 100%.
+- D3FEND Detect equivalente.
+- D3FEND Detect cubierto al 100%.
+
+## Ciclo de Vida
+
+- `/lifecycle/`: bandeja y revision.
+- `/lifecycle/periods/`: administracion de fechas de periodos.
+- `LifecycleCycle`: ciclo anual.
+- `LifecyclePeriod`: periodos configurables dentro del ciclo.
+- `LifecyclePeriodMember`: casos incluidos por periodo.
+- `LifecycleReview`: evidencia de revision.
+
+La revision registra logica funcional, fuentes activas, Event IDs vigentes, campos existentes, necesidad de ajuste, optimizacion o baja, alertas, falsos positivos e incidentes.
 
 ## Reportes
 
-- `DashboardReportSettings`: branding del PDF.
-- `reports.py`: genera PDF con ReportLab usando el mismo contexto del dashboard.
-- `export_usecases_csv`: exporta inventario productivo filtrado.
+- `/reports/`: centro de reportes.
+- `/reports/template/`: configuracion de plantillas.
+- Preview real en `/reports/<tipo>/preview/`.
+- PDF inline en `/reports/<tipo>/preview/pdf/`.
+- Descarga en `/reports/<tipo>/download/`.
+- `ReportTemplateConfig`: logo, colores, footer, labels, secciones y visibilidad.
+- `ReportDownload`: trazabilidad de descargas.
 
-## Vistas HTTP
+Tipos:
 
-- `views.py` mantiene las funciones request/response.
-- La logica de negocio mas pesada se fue moviendo a modulos dedicados para que las vistas deleguen.
-- Los permisos se centralizan en `permissions.py`.
+- Ejecutivo.
+- MITRE/D3FEND.
+- Inventario.
+- Ciclo de vida.
+- Controles.
+
+## Sigma Tools y Backups
+
+- `/sigma/epl-to-sigma/`: conversion EPL a Sigma.
+- `/sigma/converter/`: conversion Sigma a destino SIEM.
+- `/sigma/backups/`: backups tecnicos versionados.
+- `UseCaseTechnicalBackup`: version, tipo, logica, Sigma, checksum, vigente y notas.
+
+El backup tecnico puede generarse desde:
+
+1. Conversion Sigma Tools.
+2. Formulario manual.
+3. Regla cargada en inventario (`full_rule_text`).
+4. Condiciones de regla si no hay regla completa.
+
+## Auditoria
+
+- `AuditRequestMiddleware`: registra POST/PUT/PATCH/DELETE exitosos.
+- `auditlog.service.audit`: eventos explicitos de negocio.
+- `/audit/`: vista central con filtros.
+- Export CSV/XLSX desde auditoria.
+
+Los historiales locales viejos redirigen o deben quedar ocultos a favor de auditoria central.
+
+## Controles
+
+- Inventario de controles.
+- Versionado de controles.
+- Historial centralizable por auditoria.
+- Reporte de controles desde `reports`.
+
+## Integraciones
+
+- `apps.integrations.inventory.sync_inventory_records`: normaliza records externos y hace upsert sobre `UseCase`.
+- `import_external_inventory`: comando para JSON/CSV.
+- No crea inventario paralelo.

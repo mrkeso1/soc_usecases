@@ -83,7 +83,7 @@ class AdminConfiguredLDAPBackend(BaseBackend):
             return None
 
         User = get_user_model()
-        user, _ = User.objects.get_or_create(username=username)
+        user, created = User.objects.get_or_create(username=username)
         user.ldap_dn = user_dn
         user.first_name = attrs.get(config.first_name_attr, user.first_name)
         user.last_name = attrs.get(config.last_name_attr, user.last_name)
@@ -96,7 +96,10 @@ class AdminConfiguredLDAPBackend(BaseBackend):
             username=username,
             config=config,
             success=True,
-            message="Autenticacion LDAP exitosa.",
+            message=(
+                "Autenticacion LDAP exitosa. Usuario autoaprovisionado pendiente de asignacion de rol."
+                if created else "Autenticacion LDAP exitosa."
+            ),
         )
         return user
 
@@ -111,12 +114,13 @@ class AdminConfiguredLDAPBackend(BaseBackend):
         if config.user_dn_template:
             return config.user_dn_template.format(username=escape_ldap_dn_value(username))
 
-        if not (config.bind_dn and config.bind_password and config.user_search_base):
+        bind_password = config.get_bind_password()
+        if not (config.bind_dn and bind_password and config.user_search_base):
             return None
 
         server = Server(config.server_uri, use_ssl=config.use_ssl, get_info=ALL)
         try:
-            with Connection(server, user=config.bind_dn, password=config.bind_password, auto_bind=True) as service_conn:
+            with Connection(server, user=config.bind_dn, password=bind_password, auto_bind=True) as service_conn:
                 search_filter = config.user_search_filter.format(username=escape_ldap_filter_value(username))
                 service_conn.search(
                     search_base=config.user_search_base,

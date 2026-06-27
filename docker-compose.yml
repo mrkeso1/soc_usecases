@@ -1,4 +1,6 @@
 services:
+  # docker-compose.yml es solo para desarrollo local.
+  # En entornos compartidos usa docker-compose.prod.yml y un reverse proxy.
   db:
     image: postgres:16
     container_name: soc_db
@@ -9,8 +11,8 @@ services:
       POSTGRES_DB: ${POSTGRES_DB}
       POSTGRES_USER: ${POSTGRES_USER}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
-    ports:
-      - "5433:5432"
+    expose:
+      - "5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
 
@@ -35,6 +37,24 @@ services:
       - 8.8.8.8
       - 1.1.1.1
     command: python manage.py runserver 0.0.0.0:8000
+
+  mitre_scheduler:
+    build:
+      context: .
+      dockerfile: docker/django/Dockerfile
+    container_name: soc_mitre_scheduler
+    restart: unless-stopped
+    env_file:
+      - .env
+    volumes:
+      - ./app:/app
+      - ./logs:/logs
+    environment:
+      LOG_DIR: ${LOG_DIR:-/logs}
+      MITRE_SYNC_POLL_SECONDS: ${MITRE_SYNC_POLL_SECONDS:-3600}
+    depends_on:
+      - db
+    command: python manage.py run_mitre_scheduler
 
 volumes:
   postgres_data:

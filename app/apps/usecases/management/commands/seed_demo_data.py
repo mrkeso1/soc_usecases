@@ -8,14 +8,11 @@ from django.core.management.base import BaseCommand
 
 from apps.accounts.models import LDAPSettings
 from apps.accounts.roles import ADMIN_GROUP, ANALYST_GROUP, READONLY_GROUP
+from apps.dashboard.models import DashboardReportSettings
+from apps.lifecycle.models import LifecycleReview, LifecycleSettings
+from apps.mitre.models import CoverageOverride, D3Fend, MitreAttack, MitreAttackSyncSettings
+from apps.sources.models import EventSource, UseCaseSource
 from apps.usecases.models import (
-    CoverageOverride,
-    D3Fend,
-    DashboardReportSettings,
-    LifecycleReview,
-    LifecycleSettings,
-    MitreAttack,
-    MitreAttackSyncSettings,
     UseCase,
 )
 
@@ -41,7 +38,9 @@ class Command(BaseCommand):
         self._seed_settings()
         attacks = self._seed_attacks()
         d3fends = self._seed_d3fends(attacks)
+        sources = self._seed_sources(users)
         usecases = self._seed_usecases(users, attacks)
+        self._seed_usecase_sources(usecases, sources, users)
         self._seed_reviews(usecases, users)
         self._seed_overrides(users)
 
@@ -51,6 +50,8 @@ class Command(BaseCommand):
 
     def _reset_demo_data(self):
         UseCase.objects.filter(name__startswith=DEMO_PREFIX).delete()
+        UseCaseSource.objects.filter(source__code__startswith="DEMO-").delete()
+        EventSource.objects.filter(code__startswith="DEMO-").delete()
         CoverageOverride.objects.filter(reason__icontains="[demo]").delete()
         LDAPSettings.objects.filter(name__startswith="Demo").delete()
         DashboardReportSettings.objects.filter(name__startswith="Demo").delete()
@@ -136,6 +137,39 @@ class Command(BaseCommand):
             d3fends[code] = d3fend
         return d3fends
 
+    def _seed_sources(self, users):
+        analyst = users["demo_analyst"]
+        specs = [
+            ("DEMO-EDR", "Demo EDR", EventSource.TYPE_EDR, "Endpoint", "DemoSec", "Endpoint Sensor", "10.10.1.20", 443, "HTTPS"),
+            ("DEMO-SIEM", "Demo SIEM", EventSource.TYPE_SIEM, "SIEM", "DemoSec", "Log Analytics", "10.10.2.10", 6514, "Syslog TLS"),
+            ("DEMO-NDR", "Demo NDR", EventSource.TYPE_NETWORK, "Network", "DemoSec", "Network Sensor", "10.10.3.30", 443, "HTTPS"),
+            ("DEMO-EMAIL", "Demo Email Security", EventSource.TYPE_OTHER, "Email", "DemoMail", "Mail Gateway", "10.10.4.25", 443, "HTTPS"),
+            ("DEMO-CLOUD", "Demo Cloud Identity", EventSource.TYPE_CLOUD, "Cloud", "DemoCloud", "Identity Logs", "", None, "API HTTPS"),
+        ]
+        sources = {}
+        for code, name, source_type, category, vendor, product, host, port, protocol in specs:
+            source, _ = EventSource.objects.update_or_create(
+                code=code,
+                defaults={
+                    "name": name,
+                    "source_type": source_type,
+                    "category": category,
+                    "vendor": vendor,
+                    "product": product,
+                    "environment": "Demo",
+                    "host": host,
+                    "port": port,
+                    "protocol": protocol,
+                    "status": EventSource.STATUS_ACTIVE,
+                    "owner": analyst.username,
+                    "description": "[demo] Fuente generada por seed_demo_data.",
+                    "created_by": analyst,
+                    "updated_by": analyst,
+                },
+            )
+            sources[code] = source
+        return sources
+
     def _seed_usecases(self, users, attacks):
         today = date.today()
         owner = users["demo_owner"]
@@ -186,6 +220,34 @@ class Command(BaseCommand):
             usecase.sync_d3fends_from_attacks()
             usecases[name] = usecase
         return usecases
+
+    def _seed_usecase_sources(self, usecases, sources, users):
+        analyst = users["demo_analyst"]
+        mapping = {
+            "PowerShell suspicious execution": ["DEMO-EDR", "DEMO-SIEM"],
+            "Valid accounts impossible travel": ["DEMO-SIEM", "DEMO-CLOUD"],
+            "Brute force escalation": ["DEMO-SIEM"],
+            "Exfiltration uncommon channel": ["DEMO-NDR", "DEMO-SIEM"],
+            "Phishing attachment execution": ["DEMO-EMAIL", "DEMO-EDR"],
+            "Ransomware encryption burst": ["DEMO-EDR"],
+            "Credential dumping attempt": ["DEMO-EDR", "DEMO-SIEM"],
+            "Draft cloud identity monitoring": ["DEMO-CLOUD"],
+        }
+        for usecase_name, source_codes in mapping.items():
+            usecase = usecases[usecase_name]
+            selected_sources = [sources[code] for code in source_codes]
+            usecase.source_links.exclude(source__in=selected_sources).delete()
+            for source in selected_sources:
+                UseCaseSource.objects.get_or_create(
+                    use_case=usecase,
+                    source=source,
+                    defaults={
+                        "role": UseCaseSource.ROLE_PRIMARY,
+                        "is_required": True,
+                        "notes": "[demo] Vinculo generado por seed_demo_data.",
+                        "created_by": analyst,
+                    },
+                )
 
     def _seed_reviews(self, usecases, users):
         owner = users["demo_owner"]

@@ -8,7 +8,8 @@ from unittest.mock import patch
 
 from .admin import LDAPSettingsAdminForm
 from .ldap_utils import escape_ldap_dn_value, escape_ldap_filter_value, safe_ldap_error_message
-from .models import LDAPSettings
+from .backends import AdminConfiguredLDAPBackend
+from .models import LDAPSettings, LDAP_SECRET_PREFIX
 
 
 class LDAPUtilsTests(SimpleTestCase):
@@ -111,7 +112,21 @@ class LDAPSettingsAdminTests(TestCase):
         )
 
         self.assertTrue(form.is_valid(), form.errors)
-        self.assertEqual(form.cleaned_data["bind_password"], "secret-value")
+        self.assertEqual(form.cleaned_data["bind_password"], settings.bind_password)
+        self.assertEqual(settings.get_bind_password(), "secret-value")
+
+    def test_bind_password_is_encrypted_at_rest(self):
+        settings = LDAPSettings.objects.create(
+            name="Encrypted LDAP",
+            server_uri="ldap://ldap.example.test:389",
+            auth_mode=LDAPSettings.AUTH_MODE_LOCAL_ONLY,
+            bind_password="secret-value",
+        )
+
+        settings.refresh_from_db()
+        self.assertTrue(settings.bind_password.startswith(LDAP_SECRET_PREFIX))
+        self.assertNotIn("secret-value", settings.bind_password)
+        self.assertEqual(settings.get_bind_password(), "secret-value")
 
     def test_activate_admin_action_disables_previous_config(self):
         User = get_user_model()
@@ -137,6 +152,38 @@ class LDAPSettingsAdminTests(TestCase):
         target.refresh_from_db()
         self.assertFalse(active.is_enabled)
         self.assertTrue(target.is_enabled)
+
+
+class LDAPAutoProvisioningTests(TestCase):
+    def test_successful_ldap_login_creates_user_without_default_role_and_logs_pending_review(self):
+        LDAPSettings.objects.create(
+            name="LDAP auth",
+            is_enabled=True,
+            server_uri="ldap://ldap.example.test:389",
+            auth_mode=LDAPSettings.AUTH_MODE_LDAP_WITH_FALLBACK,
+            user_dn_template="uid={username},ou=users,dc=example,dc=test",
+        )
+        backend = AdminConfiguredLDAPBackend()
+
+        class FakeConnection:
+            def __enter__(self):
+                return self
+
+            def __exit__(self, exc_type, exc, tb):
+                return False
+
+        with (
+            patch("apps.accounts.backends.Server"),
+            patch("apps.accounts.backends.Connection", return_value=FakeConnection()),
+            patch.object(AdminConfiguredLDAPBackend, "_read_user_attributes", return_value={}),
+            patch("apps.accounts.backends._log_ldap_event") as mocked_log,
+        ):
+            user = backend.authenticate(request=None, username="new.ldap.user", password="pass")
+
+        self.assertIsNotNone(user)
+        self.assertEqual(user.groups.count(), 0)
+        self.assertTrue(user.is_active)
+        self.assertIn("pendiente de asignacion de rol", mocked_log.call_args.kwargs["message"])
 
 
 class AuthSignalLoggingTests(TestCase):

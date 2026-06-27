@@ -1,142 +1,708 @@
 {% extends "base.html" %}
 
-{% block title %}Ciclo de Vida — SOC Use Cases Manager{% endblock %}
+{% block title %}Ciclo de Vida - SOC Use Cases Manager{% endblock %}
 
 {% block extra_css %}
 <style>
-    .page-eyebrow {
+    .period-grid {
+        display: grid;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: 12px;
+        margin: 14px 0 18px;
+    }
+    .period-card {
+        border: 1px solid var(--border);
+        border-radius: 14px;
+        background: var(--surface);
+        padding: 13px 14px;
+    }
+    .period-heading {
+        display: flex;
+        justify-content: space-between;
+        gap: 12px;
+        align-items: flex-start;
+        margin-bottom: 12px;
+    }
+    .period-heading strong {
+        display: block;
+        color: var(--text-strong);
+        font-family: 'JetBrains Mono', ui-monospace, monospace;
+        font-size: 15px;
+        font-weight: 800;
+        letter-spacing: 0;
+        line-height: 1.2;
+    }
+    .period-heading small,
+    .period-chips {
+        color: var(--text-muted);
         font-family: 'JetBrains Mono', monospace;
         font-size: 11px;
+    }
+    .period-card progress,
+    .review-progress progress {
+        width: 100%;
+        height: 8px;
+        overflow: hidden;
+        border: 0;
+        border-radius: 999px;
+        background: var(--surface-3);
+    }
+    .period-card progress::-webkit-progress-bar,
+    .review-progress progress::-webkit-progress-bar { background: var(--surface-3); }
+    .period-card progress::-webkit-progress-value,
+    .review-progress progress::-webkit-progress-value { background: var(--accent); border-radius: 999px; }
+    .period-chips {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+        margin-top: 10px;
+    }
+    .annual-control-grid {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) minmax(280px, 420px);
+        gap: 12px;
+        margin: 14px 0 16px;
+    }
+    .report-status-list {
+        display: grid;
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+        gap: 8px;
+    }
+    .report-status-item {
+        display: grid;
+        gap: 8px;
+        padding: 10px;
+        border: 1px solid var(--border);
+        border-radius: 12px;
+        background: var(--surface-2);
+    }
+    .report-status-item strong {
+        color: var(--text-strong);
+        font-size: .86rem;
+        line-height: 1.2;
+    }
+    .period-actions {
+        display: flex;
+        justify-content: flex-end;
+        margin-top: 10px;
+    }
+    .review-queue-heading {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) 280px;
+        gap: 16px;
+        align-items: start;
+        margin-bottom: 14px;
+    }
+    .review-progress {
+        display: grid;
+        gap: 8px;
+    }
+    .review-filters {
+        display: grid;
+        grid-template-columns: minmax(260px, 1fr) auto;
+        gap: 10px;
+        align-items: center;
+        margin-bottom: 14px;
+    }
+    .segmented-control {
+        display: inline-flex;
+        gap: 4px;
+        padding: 4px;
+        border: 1px solid var(--border);
+        border-radius: 10px;
+        background: var(--surface);
+    }
+    .segmented-control label {
+        margin: 0;
+    }
+    .segmented-control input {
+        position: absolute;
+        opacity: 0;
+        pointer-events: none;
+    }
+    .segmented-control span {
+        display: inline-flex;
+        align-items: center;
+        min-height: 30px;
+        padding: 6px 10px;
+        border-radius: 8px;
+        color: var(--text-muted);
+        font-family: 'JetBrains Mono', monospace;
+        font-size: 12px;
+        font-weight: 800;
+        cursor: pointer;
+    }
+    .segmented-control input:checked + span {
+        background: var(--accent-dim);
         color: var(--accent);
-        letter-spacing: .12em;
+    }
+    .lifecycle-table { min-width: 1120px; }
+    .case-name {
+        color: var(--text-strong);
+        font-family: 'JetBrains Mono', ui-monospace, monospace;
+        font-size: 13px;
+        font-weight: 800;
+        overflow-wrap: anywhere;
+        word-break: break-word;
+        line-height: 1.34;
+        letter-spacing: 0;
+        max-width: 620px;
+    }
+    .review-form { display: grid; gap: 12px; }
+    .review-form-row { display: grid; grid-template-columns: 96px minmax(0, 1fr); gap: 8px; }
+    .review-check-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 5px; }
+    .review-check-grid label {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        margin: 0;
+        color: var(--text);
+        font-size: 12px;
+        text-transform: none;
+        letter-spacing: 0;
+        font-family: 'Syne', sans-serif;
+        font-weight: 700;
+    }
+    .review-flags label { color: var(--text-muted); }
+    .owner-form { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 6px; align-items: center; }
+    .review-detail {
+        display: grid;
+        gap: 6px;
+        color: var(--text-muted);
+        font-size: 12px;
+    }
+    .review-detail strong { color: var(--text-strong); }
+    .review-action-stack {
+        display: grid;
+        gap: 8px;
+        align-items: start;
+    }
+    .review-check-summary {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 6px;
+    }
+    .review-check-summary .badge {
+        color: var(--text-muted);
+    }
+    .review-modal {
+        position: fixed;
+        inset: 0;
+        z-index: 90;
+        display: none;
+        align-items: center;
+        justify-content: center;
+        padding: 22px;
+    }
+    .review-modal.is-open {
+        display: flex;
+    }
+    .review-modal-backdrop {
+        position: absolute;
+        inset: 0;
+        background: rgba(3, 7, 18, .72);
+        backdrop-filter: blur(10px);
+    }
+    .review-modal-panel {
+        position: relative;
+        z-index: 1;
+        width: min(760px, 100%);
+        max-height: min(88vh, 820px);
+        overflow: auto;
+        border: 1px solid var(--border-bright);
+        border-radius: 14px;
+        background: var(--surface);
+        box-shadow: 0 24px 90px rgba(0, 0, 0, .42);
+    }
+    .review-modal-header,
+    .review-modal-footer {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+        padding: 16px 18px;
+        border-bottom: 1px solid var(--border);
+    }
+    .review-modal-footer {
+        border-top: 1px solid var(--border);
+        border-bottom: 0;
+        justify-content: flex-end;
+    }
+    .review-modal-title {
+        display: grid;
+        gap: 4px;
+        min-width: 0;
+    }
+    .review-modal-title strong {
+        color: var(--text-strong);
+        font-family: 'JetBrains Mono', ui-monospace, monospace;
+        font-size: .9rem;
+        line-height: 1.3;
+        overflow-wrap: anywhere;
+    }
+    .review-modal-title span {
+        color: var(--text-muted);
+        font-size: .8rem;
+    }
+    .review-modal-body {
+        display: grid;
+        gap: 14px;
+        padding: 18px;
+    }
+    .review-modal-grid {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 12px;
+    }
+    .review-modal-section {
+        display: grid;
+        gap: 8px;
+        padding: 12px;
+        border: 1px solid var(--border);
+        border-radius: 12px;
+        background: var(--surface-2);
+    }
+    .review-modal-section-title {
+        color: var(--text-strong);
+        font-family: 'JetBrains Mono', ui-monospace, monospace;
+        font-size: .72rem;
+        font-weight: 800;
+        letter-spacing: .06em;
         text-transform: uppercase;
     }
-
-    .page-title {
-        font-size: 1.9rem;
-        color: var(--text-strong);
-        margin: 4px 0;
+    .review-modal .review-check-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+    .review-modal textarea {
+        min-height: 120px;
+    }
+    @media (max-width: 980px) {
+        .period-grid,
+        .annual-control-grid,
+        .report-status-list,
+        .review-queue-heading,
+        .review-filters,
+        .review-modal-grid { grid-template-columns: 1fr; }
     }
 
-    .page-subtitle { margin-top: 4px; color: var(--text-muted); }
-
-    .summary-strip { display:flex; gap:10px; flex-wrap:wrap; margin:18px 0; }
-    .summary-chip { background:var(--surface); border:1px solid var(--border); border-radius:10px; padding:9px 14px; }
-    .chip-value { font-family:'JetBrains Mono', monospace; font-size:1.2rem; color:var(--text-strong); }
-
-    .toolbar-row { display:flex; gap:8px; align-items:center; margin-bottom:14px; }
-    .btn-tab { padding:8px 12px; border:1px solid var(--border); border-radius:7px; background:var(--surface); color:var(--text-muted); text-decoration:none; }
-    .btn-tab.active { background:var(--accent-dim); border-color:var(--accent); color:var(--accent); }
-
-    .owner-summary { margin-bottom: 12px; color: var(--text-muted); }
-    .owner-summary strong { color: var(--text-strong); }
-
-    .table-wrap { background:var(--surface); border:1px solid var(--border); border-radius:14px; overflow:auto; }
-    table { width:100%; min-width:1180px; border-collapse:collapse; table-layout:fixed; }
-    th, td { padding:12px 14px; border-bottom:1px solid var(--border); font-size:.88rem; text-align:left; vertical-align:middle; }
-    th { font-family:'JetBrains Mono', monospace; color:var(--text-muted); text-transform:uppercase; font-size:.72rem; letter-spacing:.06em; white-space:normal; line-height:1.25; }
-    td.case-name { color:var(--text-strong); font-weight:600; overflow-wrap:anywhere; word-break:break-word; }
-
-    .badge { padding:4px 8px; border-radius:999px; font-size:.78rem; }
-    .danger { background:rgba(255,71,87,.15); color:#ff8f98; }
-    .warn { background:rgba(245,166,35,.15); color:#ffd37a; }
-    .neutral { background:rgba(148,163,184,.15); color:#cbd5e1; }
-    .okb { background:rgba(0,229,160,.15); color:#7cf7cf; }
-
-    .btn-save { background:var(--good); color:#001a10; border:0; padding:7px 10px; border-radius:7px; font-weight:700; cursor:pointer; }
-    .owner-form { display:flex; gap:6px; align-items:center; }
-    .owner-select { width:100%; min-width:170px; background:var(--surface-2); color:var(--text-strong); border:1px solid var(--border); border-radius:7px; padding:7px; }
-    .btn-mini { background:var(--surface-3); color:var(--text); border:1px solid var(--border); padding:7px 9px; border-radius:7px; cursor:pointer; }
-    .action-form { display:flex; gap:6px; align-items:center; }
-    .muted { color:var(--text-muted); font-size:.82rem; }
+    .lifecycle-page h1.page-title {
+        font-size: clamp(1.45rem, 1vw + 1rem, 1.8rem) !important;
+        font-weight: 760 !important;
+        line-height: 1.1 !important;
+        letter-spacing: 0 !important;
+        max-width: 760px !important;
+    }
+    .lifecycle-page h2.page-title {
+        color: var(--text-strong);
+        font-size: 1.25rem !important;
+        font-weight: 760 !important;
+        line-height: 1.18 !important;
+        letter-spacing: 0 !important;
+    }
+    .lifecycle-page .page-subtitle {
+        max-width: 760px;
+        font-size: .88rem;
+        color: var(--text-muted);
+    }
+    .lifecycle-page .panel {
+        padding: 14px;
+    }
+    .lifecycle-page .kpi-card {
+        min-height: 72px;
+        padding: 11px 13px;
+    }
+    .lifecycle-page .kpi-value {
+        font-size: 1.05rem;
+    }
+    .lifecycle-page .data-table th {
+        font-size: 10px;
+        line-height: 1.25;
+    }
+    .lifecycle-page .data-table td {
+        font-size: .86rem;
+    }
+    .lifecycle-page .lifecycle-table th:nth-child(1),
+    .lifecycle-page .lifecycle-table td:nth-child(1) {
+        width: 58px;
+    }
+    .lifecycle-page .lifecycle-table th:nth-child(2),
+    .lifecycle-page .lifecycle-table td:nth-child(2) {
+        width: 520px;
+    }
+    .lifecycle-page .lifecycle-table th:nth-child(3),
+    .lifecycle-page .lifecycle-table td:nth-child(3) {
+        width: 150px;
+    }
+    .lifecycle-page .lifecycle-table th:nth-child(4),
+    .lifecycle-page .lifecycle-table td:nth-child(4) {
+        width: 92px;
+    }
+    .lifecycle-page .lifecycle-table th:nth-child(5),
+    .lifecycle-page .lifecycle-table td:nth-child(5) {
+        width: 210px;
+    }
+    .lifecycle-page .lifecycle-table th:nth-child(6),
+    .lifecycle-page .lifecycle-table td:nth-child(6) {
+        width: 130px;
+    }
+    .lifecycle-page .lifecycle-table th:nth-child(7),
+    .lifecycle-page .lifecycle-table td:nth-child(7) {
+        width: 250px;
+    }
+    .lifecycle-page .badge {
+        font-size: 10px;
+    }
+    .period-chips {
+        gap: 10px;
+        font-size: 10px;
+    }
+    .period-card progress,
+    .review-progress progress {
+        height: 7px;
+    }
 </style>
 {% endblock %}
 
 {% block content %}
-<div class="container">
-    <div class="page-eyebrow">// CICLO DE VIDA</div>
-    <h1 class="page-title">Gestión de revisiones</h1>
-    <p class="page-subtitle">{{ lifecycle_scope_label }} · Ventana actual: {{ cycle_start|date:"d/m/Y" }} → {{ cycle_end|date:"d/m/Y" }}</p>
+<main class="container lifecycle-page">
+    <section class="page-shell wide">
+        <header class="page-header">
+            <div>
+                <div class="page-eyebrow">// INVENTARIO / CICLO DE VIDA</div>
+                <h1 class="page-title">Ciclo de Vida de Casos de Uso</h1>
+                <p class="page-subtitle">Revisión cuatrimestral de alertamiento, validación técnica, fuentes y mejora continua.</p>
+            </div>
+            {% if can_manage_lifecycle %}
+                <div class="header-actions">
+                    <a class="btn" href="{% url 'lifecycle_periods_admin' %}">Administrar periodos</a>
+                </div>
+            {% endif %}
+        </header>
 
-    <div class="summary-strip">
-        <div class="summary-chip">Total <div class="chip-value">{{ summary_total }}</div></div>
-        <div class="summary-chip">Completados <div class="chip-value">{{ summary_completed }}</div></div>
-        <div class="summary-chip">Pendientes <div class="chip-value">{{ summary_pending }}</div></div>
-        <div class="summary-chip">Días ciclo <div class="chip-value">{{ summary_days_left }}</div></div>
-    </div>
+        {% if messages %}
+            <div class="messages">
+                {% for message in messages %}<div class="message">{{ message }}</div>{% endfor %}
+            </div>
+        {% endif %}
 
-    <div class="toolbar-row">
-        <a class="btn-tab {% if not only_pending %}active{% endif %}" href="?">Todos</a>
-        <a class="btn-tab {% if only_pending %}active{% endif %}" href="?only_pending=1">Solo pendientes</a>
-    </div>
+        <section class="panel">
+            <div class="page-header" style="margin-bottom:12px;">
+                <div>
+                    <h2 class="page-title" style="font-size:1.08rem;">Informes de Ciclo de Vida</h2>
+                    <p class="page-subtitle">Estado formal de los cierres cuatrimestrales del anio {{ state.year }}.</p>
+                </div>
+                <div class="header-actions">
+                    <span class="badge accent">Período activo: {{ active_state.label }}</span>
+                    <span class="badge {% if state.annual_ready %}good{% else %}warn{% endif %}">{% if state.annual_ready %}Anual listo{% else %}Anual pendiente{% endif %}</span>
+                </div>
+            </div>
 
-    {% if owner_pending_summary %}
-        <p class="owner-summary">Top pendientes por responsable de control: {% for owner, count in owner_pending_summary %}<strong>{{ owner }}</strong> ({{ count }}){% if not forloop.last %}, {% endif %}{% endfor %}</p>
-    {% endif %}
-
-    <div class="table-wrap">
-        <table>
-            <colgroup>
-                <col style="width: 28%;">
-                <col style="width: 12%;">
-                <col style="width: 12%;">
-                <col style="width: 13%;">
-                <col style="width: 20%;">
-                <col style="width: 8%;">
-                <col style="width: 7%;">
-            </colgroup>
-            <thead>
-                <tr>
-                    <th>Nombre de caso de uso</th>
-                    <th>Último control</th>
-                    <th>Próximo control</th>
-                    <th>Semáforo</th>
-                    <th>Responsable control</th>
-                    <th>Estado</th>
-                    <th>Acción</th>
-                </tr>
-            </thead>
-            <tbody>
-                {% for row in rows %}
-                <tr>
-                    <td class="case-name">{{ row.usecase.name }}</td>
-                    <td>{% if row.last_check %}{{ row.last_check|date:"d/m/Y" }}{% else %}—{% endif %}</td>
-                    <td>{% if row.next_check %}{{ row.next_check|date:"d/m/Y" }}{% else %}—{% endif %}</td>
-                    <td><span class="badge {{ row.review_level }} {% if row.review_level == 'ok' %}okb{% endif %}">{{ row.review_badge }}</span></td>
-                    <td>
-                        {% if row.can_assign_owner %}
-                            <form class="owner-form" method="post" action="{% url 'lifecycle_assign_owner' row.usecase.pk %}">
+            <div class="period-grid">
+                {% for period in state.periods %}
+                    <article class="period-card">
+                        <div class="period-heading">
+                            <div>
+                                <strong>{{ period.label }}</strong>
+                                <small>{{ period.start|date:"d/m/Y" }} al {{ period.end|date:"d/m/Y" }}</small>
+                            </div>
+                            <span class="badge {% if period.state == 'Completo' %}good{% elif period.state == 'Vencido' %}bad{% elif period.state == 'Habilitado' %}accent{% else %}warn{% endif %}">{{ period.state }}</span>
+                        </div>
+                        <progress value="{{ period.progress }}" max="100"></progress>
+                        <div class="period-chips">
+                            <span>{{ period.reviewed_use_cases }}/{{ period.total_use_cases }} revisados</span>
+                            <span>{{ period.pending_use_cases }} pendientes</span>
+                            <span>{{ period.total_reviews }} registros</span>
+                        </div>
+                        {% if can_manage_lifecycle %}
+                            <form class="period-actions" method="post" action="{% url 'lifecycle_reset_period' period.period %}" onsubmit="return confirm('Resetear este periodo y los posteriores?');">
                                 {% csrf_token %}
-                                <select class="owner-select" name="lifecycle_control_owner">
-                                    <option value="">Sin responsable</option>
-                                    {% for user in lifecycle_users %}
-                                        <option value="{{ user.pk }}" {% if row.owner and row.owner.pk == user.pk %}selected{% endif %}>{{ user.get_full_name|default:user.username }}</option>
-                                    {% endfor %}
-                                </select>
-                                <button class="btn-mini" type="submit">Guardar</button>
+                                <button class="btn" type="submit">Reset periodo</button>
                             </form>
-                        {% else %}
-                            {% if row.owner %}{{ row.owner.get_full_name|default:row.owner.username }}{% else %}<span class="muted">Sin responsable</span>{% endif %}
                         {% endif %}
-                    </td>
-                    <td>{{ row.task_status }}</td>
-                    <td>
-                        {% if row.is_pending and row.can_finish %}
-                            <form class="action-form" method="post" action="{% url 'lifecycle_mark_done' row.usecase.pk %}">
-                                {% csrf_token %}
-                                <input type="hidden" name="lifecycle_control_owner" value="{% if row.owner %}{{ row.owner.pk }}{% endif %}">
-                                <button class="btn-save" type="submit">Finalizar</button>
-                            </form>
-                        {% elif row.is_pending %}
-                            <span class="muted">Sin permiso</span>
-                        {% else %}
-                            ✓
-                        {% endif %}
-                    </td>
-                </tr>
+                    </article>
                 {% endfor %}
-            </tbody>
-        </table>
-    </div>
-</div>
+            </div>
+
+            <div class="annual-control-grid">
+                <section class="panel" style="padding:12px;">
+                    <div class="page-header" style="margin-bottom:10px;">
+                        <div>
+                            <h2 class="page-title" style="font-size:1rem;">Reportes obligatorios</h2>
+                            <p class="page-subtitle">Para cerrar el ciclo anual tienen que quedar descargados los tres cuatrimestrales y el anual.</p>
+                        </div>
+                    </div>
+                    <div class="report-status-list">
+                        {% for report in report_statuses %}
+                            <div class="report-status-item">
+                                <strong>{{ report.label }}</strong>
+                                <span class="badge {% if report.done %}good{% elif report.available %}warn{% else %}neutral{% endif %}">
+                                    {% if report.done %}Descargado{% elif report.available %}Disponible{% else %}Pendiente{% endif %}
+                                </span>
+                                {% if report.done %}
+                                    <small class="muted">{{ report.exported_at|slice:":16" }}</small>
+                                {% elif report.available and can_export_lifecycle_reports %}
+                                    <a class="btn-primary" href="{% url 'report_download' 'lifecycle' %}?lifecycle_report_key={{ report.key }}">Descargar</a>
+                                {% else %}
+                                    <small class="muted">Se habilita al completar controles.</small>
+                                {% endif %}
+                            </div>
+                        {% endfor %}
+                    </div>
+                </section>
+
+                <section class="panel" style="padding:12px;">
+                    <h2 class="page-title" style="font-size:1rem;">Cierre anual</h2>
+                    <p class="page-subtitle">Ciclo {{ state.year }}: {{ state.cycle.get_status_display }}. Proximo ciclo objetivo: {{ state.next_cycle_year }}.</p>
+                    {% if can_manage_lifecycle %}
+                        {% if state.can_start_new_cycle %}
+                            <form method="post" action="{% url 'lifecycle_start_cycle' %}">
+                                {% csrf_token %}
+                                <button class="btn-primary" type="submit">Cerrar e iniciar ciclo nuevo</button>
+                            </form>
+                        {% else %}
+                            <span class="badge {% if state.reports_ready %}good{% else %}warn{% endif %}">
+                                {% if state.reports_ready %}Reportes OK{% else %}Faltan reportes{% endif %}
+                            </span>
+                            <p class="muted" style="margin-top:8px;">El inicio de ciclo nuevo se habilita cuando el ciclo anual esta completo, los reportes obligatorios estan descargados y ya comenzo el siguiente anio.</p>
+                        {% endif %}
+                    {% endif %}
+                </section>
+            </div>
+        </section>
+
+        <section class="kpi-grid">
+            <div class="kpi-card"><div class="kpi-label">Casos del periodo</div><div class="kpi-value">{{ active_state.total_use_cases }}</div></div>
+            <div class="kpi-card"><div class="kpi-label">Revisados</div><div class="kpi-value">{{ active_state.reviewed_use_cases }}</div></div>
+            <div class="kpi-card"><div class="kpi-label">Pendientes</div><div class="kpi-value">{{ active_state.pending_use_cases }}</div></div>
+            <div class="kpi-card"><div class="kpi-label">Avance</div><div class="kpi-value">{{ active_state.progress }}%</div></div>
+        </section>
+
+        {% if owner_pending_summary %}
+            <p class="muted" style="margin-bottom:12px;">
+                Top pendientes por responsable:
+                {% for owner, count in owner_pending_summary %}
+                    <strong style="color:var(--text-strong);">{{ owner }}</strong> ({{ count }}){% if not forloop.last %}, {% endif %}
+                {% endfor %}
+            </p>
+        {% endif %}
+
+        <section class="panel">
+            <div class="review-queue-heading">
+                <div>
+                    <h2 class="page-title" style="font-size:1.08rem;">Bandeja de revisión</h2>
+                    <p class="page-subtitle">Cuatrimestre a revisar: {{ active_state.label }} {{ state.year }}.</p>
+                </div>
+                <div class="review-progress">
+                    <div>
+                        <span class="badge accent">{{ active_state.state }}</span>
+                        <span class="badge">{{ active_state.reviewed_use_cases }}/{{ active_state.total_use_cases }} revisados</span>
+                    </div>
+                    <small class="muted">Avance del cuatrimestre <strong style="color:var(--text-strong);">{{ active_state.progress }}%</strong></small>
+                    <progress value="{{ active_state.progress }}" max="100"></progress>
+                </div>
+            </div>
+
+            <form id="lifecycle-filters" class="review-filters" method="get">
+                <input name="q" value="{{ q }}" placeholder="Buscar por nombre, fuente, dispositivo o severidad">
+                <div class="segmented-control">
+                    <label><input type="radio" name="bucket" value="all" {% if bucket == "all" %}checked{% endif %} onchange="this.form.submit()"><span>Todos</span></label>
+                    <label><input type="radio" name="bucket" value="pending" {% if bucket == "pending" %}checked{% endif %} onchange="this.form.submit()"><span>Pendientes</span></label>
+                    <label><input type="radio" name="bucket" value="reviewed" {% if bucket == "reviewed" %}checked{% endif %} onchange="this.form.submit()"><span>Revisados</span></label>
+                </div>
+            </form>
+
+            <section class="table-panel">
+                <table class="data-table lifecycle-table">
+                    <thead>
+                        <tr>
+                            <th>ID</th>
+                            <th>Caso de Uso</th>
+                            <th>Fuente</th>
+                            <th>Severidad</th>
+                            <th>Responsable</th>
+                            <th>Estado revisión</th>
+                            <th>Detalle / Accion</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for row in rows %}
+                        <tr>
+                            <td>#{{ row.usecase.pk }}</td>
+                            <td>
+                                <div class="case-name entity-name">{{ row.usecase.name }}</div>
+                                <div class="muted">Proximo: {% if row.next_check %}{{ row.next_check|date:"d/m/Y" }}{% else %}-{% endif %} · {{ row.review_badge }}</div>
+                            </td>
+                            <td>{{ row.source_label }}</td>
+                            <td><span class="badge {% if row.usecase.severity == 'Critical' %}bad{% elif row.usecase.severity == 'High' %}warn{% else %}accent{% endif %}">{{ row.usecase.severity|default:"-" }}</span></td>
+                            <td>
+                                {% if row.can_assign_owner %}
+                                    <form class="owner-form" method="post" action="{% url 'lifecycle_assign_owner' row.usecase.pk %}">
+                                        {% csrf_token %}
+                                        <select name="lifecycle_control_owner">
+                                            <option value="">Sin responsable</option>
+                                            {% for user in lifecycle_users %}
+                                                <option value="{{ user.pk }}" {% if row.owner and row.owner.pk == user.pk %}selected{% endif %}>{{ user.get_full_name|default:user.username }}</option>
+                                            {% endfor %}
+                                        </select>
+                                        <button class="btn" type="submit">Guardar</button>
+                                    </form>
+                                {% else %}
+                                    {% if row.owner %}{{ row.owner.get_full_name|default:row.owner.username }}{% else %}<span class="muted">Sin responsable</span>{% endif %}
+                                {% endif %}
+                            </td>
+                            <td><span class="badge {% if row.is_reviewed %}good{% else %}warn{% endif %}">{{ row.task_status }}</span></td>
+                            <td>
+                                {% if row.is_reviewed and row.period_review %}
+                                    <div class="review-detail">
+                                        <div><strong>{{ row.period_review.result }}</strong> · {{ row.period_review.checked_at|date:"d/m/Y" }}</div>
+                                        <div>Alertas: {{ row.period_review.trigger_count }} · Lógica: {% if row.period_review.logic_valid %}OK{% else %}Revisar{% endif %} · Fuentes: {% if row.period_review.sources_active %}OK{% else %}Revisar{% endif %}</div>
+                                        {% if row.period_review.notes %}<div>{{ row.period_review.notes|truncatechars:160 }}</div>{% endif %}
+                                    </div>
+                                {% elif row.can_finish %}
+                                    <div class="review-action-stack">
+                                        <button class="btn-primary" type="button" data-review-open="review-modal-{{ row.usecase.pk }}">Registrar revisión</button>
+                                        <div class="review-check-summary" aria-label="Controles requeridos">
+                                            {% for check in row.control_checks %}
+                                                <span class="badge {% if check.ok %}good{% else %}warn{% endif %}">{{ check.label }}</span>
+                                            {% endfor %}
+                                        </div>
+                                    </div>
+
+                                    <div class="review-modal" id="review-modal-{{ row.usecase.pk }}" aria-hidden="true">
+                                        <div class="review-modal-backdrop" data-review-close></div>
+                                        <form class="review-modal-panel review-form" method="post" action="{% url 'lifecycle_mark_done' row.usecase.pk %}" role="dialog" aria-modal="true" aria-labelledby="review-title-{{ row.usecase.pk }}">
+                                            {% csrf_token %}
+                                            <input type="hidden" name="review_type" value="{{ active_review_type }}">
+                                            <input type="hidden" name="lifecycle_control_owner" value="{% if row.owner %}{{ row.owner.pk }}{% endif %}">
+
+                                            <div class="review-modal-header">
+                                                <div class="review-modal-title">
+                                                    <span>// {{ active_review_type }}</span>
+                                                    <strong id="review-title-{{ row.usecase.pk }}">{{ row.usecase.name }}</strong>
+                                                </div>
+                                                <button class="btn" type="button" data-review-close>Cerrar</button>
+                                            </div>
+
+                                            <div class="review-modal-body">
+                                                <div class="review-modal-grid">
+                                                    <div class="field">
+                                                        <label class="field-label">Cantidad de alertas</label>
+                                                        <input type="number" name="trigger_count" min="0" value="0" required>
+                                                    </div>
+                                                    <div class="field">
+                                                        <label class="field-label">Resultado</label>
+                                                        <select name="validation_result" required>
+                                                            <option value="">Seleccionar resultado</option>
+                                                            {% for value, label in validation_result_choices %}
+                                                                <option value="{{ value }}">{{ label }}</option>
+                                                            {% endfor %}
+                                                        </select>
+                                                    </div>
+                                                </div>
+
+                                                <section class="review-modal-section">
+                                                    <div class="review-modal-section-title">Checklist técnico</div>
+                                                    <div class="review-check-grid">
+                                                        <label><input type="checkbox" name="logic_valid" checked> Lógica funcional</label>
+                                                        <label><input type="checkbox" name="sources_active" checked> Fuentes activas</label>
+                                                        <label><input type="checkbox" name="event_ids_valid" checked> Event IDs vigentes</label>
+                                                        <label><input type="checkbox" name="fields_exist" checked> Campos existentes</label>
+                                                    </div>
+                                                </section>
+
+                                                <section class="review-modal-section">
+                                                    <div class="review-modal-section-title">Hallazgos</div>
+                                                    <div class="review-check-grid review-flags">
+                                                        <label><input type="checkbox" name="requires_tuning"> Requiere ajuste</label>
+                                                        <label><input type="checkbox" name="requires_optimization"> Optimizacion</label>
+                                                        <label><input type="checkbox" name="requires_retirement"> Baja</label>
+                                                    </div>
+                                                </section>
+
+                                                <section class="review-modal-section">
+                                                    <div class="review-modal-section-title">Prerequisitos del caso</div>
+                                                    <div class="review-check-summary">
+                                                        {% for check in row.control_checks %}
+                                                            <span class="badge {% if check.ok %}good{% else %}warn{% endif %}" title="{{ check.detail }}">{{ check.label }}</span>
+                                                        {% endfor %}
+                                                    </div>
+                                                </section>
+
+                                                <div class="field">
+                                                    <label class="field-label">Comentarios y evidencia</label>
+                                                    <textarea name="notes" required placeholder="Detalle de la revisión, evidencia y observaciones"></textarea>
+                                                </div>
+                                            </div>
+
+                                            <div class="review-modal-footer">
+                                                <button class="btn" type="button" data-review-close>Cancelar</button>
+                                                <button class="btn-primary" type="submit">Guardar revisión</button>
+                                            </div>
+                                        </form>
+                                    </div>
+                                {% else %}
+                                    <span class="muted">Sin permiso</span>
+                                {% endif %}
+                            </td>
+                        </tr>
+                        {% empty %}
+                        <tr><td colspan="7" class="muted">No hay casos para los filtros seleccionados.</td></tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </section>
+
+            {% if queue.paginator.num_pages > 1 %}
+                <nav class="pagination">
+                    {% if queue.has_previous %}<a class="btn" href="?page={{ queue.previous_page_number }}&q={{ q|urlencode }}&bucket={{ bucket }}">Anterior</a>{% endif %}
+                    <span class="btn">Pagina {{ queue.number }} / {{ queue.paginator.num_pages }}</span>
+                    {% if queue.has_next %}<a class="btn" href="?page={{ queue.next_page_number }}&q={{ q|urlencode }}&bucket={{ bucket }}">Siguiente</a>{% endif %}
+                </nav>
+            {% endif %}
+        </section>
+    </section>
+</main>
+<script>
+    (function () {
+        const openButtons = document.querySelectorAll('[data-review-open]');
+        const closeButtons = document.querySelectorAll('[data-review-close]');
+
+        function openModal(id) {
+            const modal = document.getElementById(id);
+            if (!modal) return;
+            modal.classList.add('is-open');
+            modal.setAttribute('aria-hidden', 'false');
+            document.body.style.overflow = 'hidden';
+            const firstField = modal.querySelector('input:not([type="hidden"]), select, textarea, button');
+            if (firstField) firstField.focus();
+        }
+
+        function closeModal(modal) {
+            if (!modal) return;
+            modal.classList.remove('is-open');
+            modal.setAttribute('aria-hidden', 'true');
+            if (!document.querySelector('.review-modal.is-open')) {
+                document.body.style.overflow = '';
+            }
+        }
+
+        openButtons.forEach(function (button) {
+            button.addEventListener('click', function () {
+                openModal(button.getAttribute('data-review-open'));
+            });
+        });
+
+        closeButtons.forEach(function (button) {
+            button.addEventListener('click', function () {
+                closeModal(button.closest('.review-modal'));
+            });
+        });
+
+        document.addEventListener('keydown', function (event) {
+            if (event.key === 'Escape') {
+                closeModal(document.querySelector('.review-modal.is-open'));
+            }
+        });
+    })();
+</script>
 {% endblock %}

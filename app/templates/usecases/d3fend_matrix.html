@@ -1,86 +1,77 @@
 {% extends "base.html" %}
 
-{% block title %}Matriz D3FEND — SOC Use Cases Manager{% endblock %}
+{% block title %}Matriz D3FEND - SOC Use Cases Manager{% endblock %}
 
 {% block extra_css %}
 <style>
     .page-header { display:flex; justify-content:space-between; align-items:flex-end; gap:18px; margin-bottom:22px; }
     .page-actions { display:flex; gap:8px; flex-wrap:wrap; justify-content:flex-end; }
     .page-eyebrow { font-family:'JetBrains Mono', monospace; font-size:11px; color:var(--accent); letter-spacing:.12em; text-transform:uppercase; }
-    .page-title { font-size:1.9rem; color:var(--text-strong); margin:4px 0; }
-    .page-subtitle { color:var(--text-muted); max-width:840px; line-height:1.5; }
+    .page-title { font-size:clamp(1.45rem, 2.2vw, 2rem); color:var(--text-strong); margin:4px 0; line-height:1.08; }
+    .page-subtitle { color:var(--text-muted); max-width:900px; line-height:1.5; }
+
     .summary-strip { display:grid; grid-template-columns:repeat(7, minmax(140px, 1fr)); gap:10px; margin:18px 0 20px; }
-    .summary-card { background:var(--surface); border:1px solid var(--border); border-radius:14px; padding:14px; }
+    .summary-card { background:var(--surface); border:1px solid var(--border); border-radius:14px; padding:14px; min-width:0; }
     .summary-label { font-family:'JetBrains Mono', monospace; color:var(--text-muted); font-size:10px; text-transform:uppercase; letter-spacing:.08em; }
-    .summary-value { margin-top:8px; color:var(--text-strong); font-family:'JetBrains Mono', monospace; font-size:1.45rem; font-weight:700; }
+    .summary-value { margin-top:8px; color:var(--text-strong); font-family:'JetBrains Mono', monospace; font-size:1.2rem; font-weight:800; white-space:nowrap; }
     .summary-value.good { color:var(--good); }
+    .summary-value.medium { color:var(--medium); }
+    .summary-value.bad { color:var(--bad); }
+    .summary-note { margin-top:4px; font-size:.78rem; color:var(--text-muted); }
+
     .filters { display:grid; grid-template-columns:repeat(4, minmax(150px, 1fr)); gap:10px; background:var(--surface); border:1px solid var(--border); border-radius:14px; padding:14px; margin-bottom:18px; }
     .field label { display:block; font-family:'JetBrains Mono', monospace; color:var(--text-muted); font-size:10px; text-transform:uppercase; letter-spacing:.08em; margin-bottom:6px; }
-    .field select { width:100%; background:var(--surface-2); color:var(--text-strong); border:1px solid var(--border); border-radius:8px; padding:10px; }
+    .field select { width:100%; background:var(--surface-2); color:var(--text-strong); border:1px solid var(--border); border-radius:8px; padding:10px; outline:none; }
+    .field select:focus { border-color:var(--border-bright); }
     .filter-actions { display:flex; gap:8px; align-items:end; }
-    .btn-primary, .btn-secondary { border:1px solid var(--border); border-radius:8px; padding:10px 13px; text-decoration:none; font-family:'JetBrains Mono', monospace; font-size:12px; cursor:pointer; }
+    .btn-primary, .btn-secondary { display:inline-flex; align-items:center; justify-content:center; gap:6px; border:1px solid var(--border); border-radius:8px; padding:10px 13px; text-decoration:none; font-family:'JetBrains Mono', monospace; font-size:12px; cursor:pointer; min-height:40px; white-space:nowrap; }
     .btn-primary { background:var(--accent); color:white; border-color:var(--accent); }
     .btn-secondary { background:var(--surface-2); color:var(--text); }
+
+    .legend { display:flex; flex-wrap:wrap; gap:8px; margin:0 0 12px; color:var(--text-muted); font-size:.82rem; }
+    .legend strong { color:var(--text-strong); }
+
     .matrix-wrap { background:var(--surface); border:1px solid var(--border); border-radius:16px; overflow:auto; }
-    table { width:100%; min-width:1180px; border-collapse:collapse; }
-    th, td { padding:14px; border-bottom:1px solid var(--border); text-align:left; vertical-align:top; }
-    th { font-family:'JetBrains Mono', monospace; color:var(--text-muted); font-size:11px; text-transform:uppercase; letter-spacing:.08em; background:rgba(17,29,48,.8); position:sticky; top:0; z-index:1; }
-    .d3-code { display:inline-flex; align-items:center; gap:8px; font-family:'JetBrains Mono', monospace; color:var(--accent); font-weight:700; }
-    .d3-name { margin-top:5px; color:var(--text-strong); font-weight:700; }
-    .d3-category { margin-top:5px; color:var(--text-muted); font-size:.84rem; }
-    .status-chip { display:inline-flex; border-radius:999px; padding:3px 7px; font-size:10px; font-family:'JetBrains Mono', monospace; border:1px solid var(--border); color:var(--text-muted); }
-    .status-chip.enabled { color:var(--good); border-color:rgba(0,229,160,.35); background:rgba(0,229,160,.08); }
+    .matrix-table { width:100%; min-width:1180px; border-collapse:collapse; }
+    .matrix-table th, .matrix-table td { padding:14px; border-bottom:1px solid var(--border); text-align:left; vertical-align:top; }
+    .matrix-table th { font-family:'JetBrains Mono', monospace; color:var(--text-muted); font-size:11px; text-transform:uppercase; letter-spacing:.08em; background:rgba(17,29,48,.8); position:sticky; top:0; z-index:1; }
+    .matrix-table tr:last-child td { border-bottom:0; }
+
+    .entity-code { display:inline-flex; align-items:center; gap:8px; font-family:'JetBrains Mono', monospace; color:var(--accent); font-weight:800; letter-spacing:.02em; }
+    .entity-name { margin-top:5px; color:var(--text-strong); font-weight:750; line-height:1.28; overflow-wrap:anywhere; }
+    .entity-meta { margin-top:5px; color:var(--text-muted); font-size:.84rem; line-height:1.35; }
+
+    .status-chip { display:inline-flex; border-radius:999px; padding:3px 7px; font-size:10px; font-family:'JetBrains Mono', monospace; border:1px solid var(--border); color:var(--text-muted); background:rgba(17,29,48,.65); white-space:nowrap; }
+    .status-chip.good, .status-chip.enabled { color:var(--good); border-color:rgba(0,229,160,.35); background:rgba(0,229,160,.08); }
+    .status-chip.medium { color:var(--medium); border-color:rgba(245,166,35,.35); background:rgba(245,166,35,.08); }
+    .status-chip.bad { color:#ff9aa3; border-color:rgba(255,71,87,.35); background:rgba(255,71,87,.08); }
     .status-chip.fulfilled { color:#9ec5ff; border-color:rgba(45,122,255,.42); background:rgba(45,122,255,.12); }
+
     .coverage-cell { min-width:210px; }
     .coverage-head { display:flex; justify-content:space-between; align-items:center; gap:10px; margin-bottom:8px; font-family:'JetBrains Mono', monospace; }
-    .coverage-percent { color:var(--text-strong); font-weight:700; }
+    .coverage-percent { color:var(--text-strong); font-weight:800; }
     .coverage-count { color:var(--text-muted); font-size:12px; }
     .bar { height:9px; background:rgba(78,106,142,.22); border-radius:999px; overflow:hidden; }
     .bar-fill { height:100%; border-radius:999px; }
     .bar-fill.good { background:var(--good); }
     .bar-fill.medium { background:var(--medium); }
     .bar-fill.low, .bar-fill.empty { background:var(--bad); }
-    .attack-grid { display:flex; flex-wrap:wrap; gap:7px; }
-    .attack-chip { max-width:260px; border:1px solid var(--border); border-radius:999px; padding:6px 9px; font-size:.78rem; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; color:var(--text-muted); background:rgba(17,29,48,.65); }
-    .attack-chip.covered { color:#7cf7cf; border-color:rgba(0,229,160,.35); background:rgba(0,229,160,.08); }
-    .attack-chip.missing { color:#ff9aa3; border-color:rgba(255,71,87,.35); background:rgba(255,71,87,.08); }
+
+    .chip-grid { display:flex; flex-wrap:wrap; gap:7px; }
+    .matrix-chip { max-width:280px; border:1px solid var(--border); border-radius:999px; padding:6px 9px; font-size:.78rem; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; color:var(--text-muted); background:rgba(17,29,48,.65); }
+    .matrix-chip.covered { color:#7cf7cf; border-color:rgba(0,229,160,.35); background:rgba(0,229,160,.08); }
+    .matrix-chip.fulfilled { color:#9ec5ff; border-color:rgba(45,122,255,.42); background:rgba(45,122,255,.12); }
+    .matrix-chip.missing { color:#ff9aa3; border-color:rgba(255,71,87,.35); background:rgba(255,71,87,.08); }
     .empty-state { padding:28px; color:var(--text-muted); text-align:center; }
-    @media (max-width: 1100px) { .summary-strip, .filters { grid-template-columns:repeat(2, 1fr); } .page-header { display:block; } }
 
-
-    /* Normalización visual alineada a Ciclo de Vida */
-    .page-header { margin-bottom: 18px !important; gap: 14px !important; }
-    .page-eyebrow, .eyebrow { font-size: 11px !important; letter-spacing: .12em !important; }
-    .page-title { font-size: 1.9rem !important; line-height: 1.12 !important; margin: 4px 0 !important; letter-spacing: -0.02em !important; }
-    .page-subtitle { font-size: .9rem !important; line-height: 1.45 !important; margin-top: 4px !important; }
-    .section-title, .history-title, .summary-title { font-size: 1.05rem !important; line-height: 1.25 !important; }
-    .section-help { font-size: .88rem !important; line-height: 1.45 !important; margin-bottom: 14px !important; }
-    .summary-strip { gap: 10px !important; margin: 18px 0 !important; }
-    .summary-card, .summary-chip, .panel, .card, .side-card { border-radius: 14px !important; }
-    .summary-card, .summary-chip { padding: 10px 14px !important; }
-    .summary-value, .chip-value { font-size: 1.2rem !important; line-height: 1.05 !important; margin-top: 6px !important; }
-    .summary-label, .chip-label, .field label, .detail-label, .readonly-label { font-size: 10px !important; letter-spacing: .07em !important; }
-    .btn, .btn-primary, .btn-secondary, .btn-ghost, .mini-btn, .save-btn, .action-link, .tab-button, .tab-link { font-size: 12px !important; border-radius: 8px !important; }
-    .btn, .btn-primary, .btn-secondary, .btn-ghost { min-height: 36px !important; padding: 8px 12px !important; }
-    .badge, .status-chip, .mapping-chip, .technique-chip, .attack-chip { font-size: .78rem !important; }
-    th, td { font-size: .88rem !important; }
-    th { font-size: .72rem !important; letter-spacing: .06em !important; }
-    @media (max-width: 720px) {
-        .page-title { font-size: 1.55rem !important; }
-        .page-header { margin-bottom: 14px !important; }
+    @media (max-width: 1100px) {
+        .summary-strip, .filters { grid-template-columns:repeat(2, 1fr); }
+        .page-header { display:block; }
+        .page-actions { justify-content:flex-start; margin-top:12px; }
     }
-
-    .summary-card { min-height: auto !important; }
-    .filters { padding: 12px !important; margin-bottom: 14px !important; border-radius: 14px !important; }
-    .field select, .field input, .field textarea { font-size: .88rem !important; padding: 9px 11px !important; border-radius: 8px !important; }
-    .tactic-card, .coverage-row, .matrix-wrap { border-radius: 14px !important; }
-    .tactic-card, .coverage-row { padding: 12px !important; }
-    .tactic-title, .row-title { font-size: 1rem !important; line-height: 1.25 !important; }
-    .tactic-meta, .row-subtitle { font-size: .82rem !important; }
-    .technique-chip, .attack-chip { padding: 6px 9px !important; }
-    .reason-field textarea { min-height: 64px !important; }
-    .pagination a, .pagination span { font-size: 12px !important; padding: 7px 10px !important; }
-
+    @media (max-width: 720px) {
+        .summary-strip, .filters { grid-template-columns:1fr; }
+    }
 </style>
 {% endblock %}
 
@@ -90,22 +81,22 @@
         <div>
             <div class="page-eyebrow">// MATRIZ D3FEND</div>
             <h1 class="page-title">Cobertura D3FEND por ATT&CK</h1>
-            <p class="page-subtitle">La matriz cruza cada técnica D3FEND con sus ATT&CK relacionados y suma también coberturas externas administradas manualmente como cumplidas por herramienta.</p>
+            <p class="page-subtitle">Cruza cada técnica D3FEND con sus ATT&CK relacionados y suma coberturas externas administradas manualmente como cumplidas por herramienta.</p>
         </div>
         <div class="page-actions">
-            <a class="btn-secondary" href="{% url 'attack_matrix' %}">Matriz ATT&CK</a>
+            <a class="btn-secondary" href="{% url 'attack_matrix' %}">Ver ATT&CK</a>
             <a class="btn-secondary" href="{% url 'coverage_admin' %}?tab=D3FEND&scope=category">Admin cobertura</a>
         </div>
     </div>
 
     <div class="summary-strip">
-        <div class="summary-card"><div class="summary-label">Cobertura global</div><div class="summary-value good">{{ overall_coverage_percent }}%</div></div>
-        <div class="summary-card"><div class="summary-label">D3FEND habilitados</div><div class="summary-value">{{ total_d3fends }}</div></div>
-        <div class="summary-card"><div class="summary-label">Relaciones cubiertas</div><div class="summary-value">{{ total_covered_relations }}/{{ total_relations }}</div></div>
-        <div class="summary-card"><div class="summary-label">100% cubiertos</div><div class="summary-value">{{ fully_covered }}</div></div>
-        <div class="summary-card"><div class="summary-label">Parciales</div><div class="summary-value">{{ partially_covered }}</div></div>
-        <div class="summary-card"><div class="summary-label">Cumplidas por herramienta</div><div class="summary-value">{{ manual_fulfilled }}</div></div>
-        <div class="summary-card"><div class="summary-label">Casos productivos habilitados</div><div class="summary-value">{{ total_cases }}</div></div>
+        <div class="summary-card"><div class="summary-label">Cobertura global</div><div class="summary-value {% if overall_coverage_percent >= 80 %}good{% elif overall_coverage_percent >= 40 %}medium{% else %}bad{% endif %}">{{ overall_coverage_percent }}%</div><div class="summary-note">{{ total_covered_relations }}/{{ total_relations }} relaciones</div></div>
+        <div class="summary-card"><div class="summary-label">D3FEND visibles</div><div class="summary-value">{{ total_d3fends }}</div><div class="summary-note">según filtros aplicados</div></div>
+        <div class="summary-card"><div class="summary-label">100% cubiertos</div><div class="summary-value good">{{ fully_covered }}</div><div class="summary-note">todos sus ATT&CK cubiertos</div></div>
+        <div class="summary-card"><div class="summary-label">Parciales</div><div class="summary-value medium">{{ partially_covered }}</div><div class="summary-note">al menos una relación cubierta</div></div>
+        <div class="summary-card"><div class="summary-label">Sin ATT&CK</div><div class="summary-value">{{ without_attacks }}</div><div class="summary-note">sin relación en la DB</div></div>
+        <div class="summary-card"><div class="summary-label">Cumplidas por herramienta</div><div class="summary-value">{{ manual_fulfilled }}</div><div class="summary-note">por técnica o categoría</div></div>
+        <div class="summary-card"><div class="summary-label">Casos productivos habilitados</div><div class="summary-value">{{ total_cases }}</div><div class="summary-note">base del cálculo</div></div>
     </div>
 
     <form class="filters" method="get">
@@ -142,9 +133,15 @@
         </div>
     </form>
 
+    <div class="legend">
+        <span><strong>Verde:</strong> ATT&CK cubierto por caso productivo.</span>
+        <span><strong>Azul:</strong> D3FEND cumplido por herramienta.</span>
+        <span><strong>Rojo:</strong> relación ATT&CK sin cobertura.</span>
+    </div>
+
     <div class="matrix-wrap">
         {% if rows %}
-            <table>
+            <table class="matrix-table">
                 <thead>
                     <tr>
                         <th style="width:28%;">D3FEND</th>
@@ -156,9 +153,15 @@
                     {% for row in rows %}
                         <tr>
                             <td>
-                                <span class="d3-code">{{ row.d3fend.code }} {% if row.manual_fulfilled %}<span class="status-chip fulfilled" title="{{ row.override_source }}{% if row.override_reason %}: {{ row.override_reason }}{% endif %}">Cumplida por herramienta</span>{% else %}<span class="status-chip enabled">Activa</span>{% endif %}</span>
-                                <div class="d3-name">{{ row.d3fend.name|default:"Sin nombre" }}</div>
-                                {% if row.d3fend.category %}<div class="d3-category">{{ row.d3fend.category }}</div>{% endif %}{% if row.override_reason %}<div class="d3-category">{{ row.override_source }}: {{ row.override_reason }}</div>{% endif %}
+                                <span class="entity-code">{{ row.d3fend.code }}</span>
+                                {% if row.manual_fulfilled %}
+                                    <span class="status-chip fulfilled" title="{{ row.override_source }}{% if row.override_reason %}: {{ row.override_reason }}{% endif %}">Cumplida por herramienta</span>
+                                {% else %}
+                                    <span class="status-chip enabled">Activa</span>
+                                {% endif %}
+                                <div class="entity-name">{{ row.d3fend.name|default:"Sin nombre" }}</div>
+                                {% if row.d3fend.category %}<div class="entity-meta">{{ row.d3fend.category }}</div>{% endif %}
+                                {% if row.override_reason %}<div class="entity-meta">{{ row.override_source }}: {{ row.override_reason }}</div>{% endif %}
                             </td>
                             <td class="coverage-cell">
                                 <div class="coverage-head">
@@ -169,13 +172,13 @@
                             </td>
                             <td>
                                 {% if row.attacks %}
-                                    <div class="attack-grid">
+                                    <div class="chip-grid">
                                         {% for attack in row.attacks %}
-                                            <span class="attack-chip {% if attack.covered %}covered{% else %}missing{% endif %}" title="{{ attack.external_id }} - {{ attack.name }}">{{ attack.external_id }} · {{ attack.name }}</span>
+                                            <span class="matrix-chip {% if row.manual_fulfilled %}fulfilled{% elif attack.covered %}covered{% else %}missing{% endif %}" title="{{ attack.external_id }} - {{ attack.name }}">{{ attack.external_id }} · {{ attack.name }}</span>
                                         {% endfor %}
                                     </div>
                                 {% else %}
-                                    <span class="attack-chip {% if row.manual_fulfilled %}covered{% endif %}">{% if row.manual_fulfilled %}Cubierta por herramienta aunque no tenga ATT&CK relacionados{% else %}Sin ATT&CK relacionados en DB{% endif %}</span>
+                                    <span class="matrix-chip {% if row.manual_fulfilled %}fulfilled{% endif %}">{% if row.manual_fulfilled %}Cubierta por herramienta aunque no tenga ATT&CK relacionados{% else %}Sin ATT&CK relacionados en DB{% endif %}</span>
                                 {% endif %}
                             </td>
                         </tr>
@@ -183,7 +186,7 @@
                 </tbody>
             </table>
         {% else %}
-            <div class="empty-state">No hay técnicas D3FEND habilitadas en la base de datos.</div>
+            <div class="empty-state">No hay técnicas D3FEND habilitadas para mostrar con los filtros aplicados.</div>
         {% endif %}
     </div>
 </div>

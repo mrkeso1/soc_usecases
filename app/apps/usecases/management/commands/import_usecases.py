@@ -7,12 +7,15 @@ from django.core.exceptions import ValidationError
 from django.core.management.base import BaseCommand, CommandError
 from openpyxl import load_workbook
 
-from apps.usecases.models import UseCase, MitreAttack
+from apps.mitre.models import MitreAttack
+from apps.sources.matching import sync_usecase_sources
+from apps.usecases.models import UseCase
 
 
 COLUMN_MAP = {
     "GRUPO": "group_name",
     "DISPOSITIVO": "device",
+    "FUENTES": "event_sources_raw",
     "TIPO": "case_type",
     "OBJETIVO2": "objective",
     "Tipo_bloqueo": "blocking_type",
@@ -66,7 +69,7 @@ def normalize_choice(value, choices, aliases=None):
     """
     Normaliza un valor de Excel contra los choices reales del modelo.
 
-    Evita guardar variantes como "automatico", "semiautomatico" o "Si"
+    Evita guardar variantes como "automático", "semiautomático" o "Sí"
     cuando el modelo espera exactamente "Automático", "Semiautomático" o "Sí".
     Si no reconoce el valor, lo devuelve sin modificar para no ocultar datos inesperados.
     """
@@ -197,6 +200,15 @@ def extract_attack_ids(value):
     return sorted(set(item.upper() for item in found))
 
 
+def sync_event_sources(usecase, raw_value):
+    return sync_usecase_sources(
+        usecase,
+        raw_value,
+        create_missing=True,
+        defaults={"description": "Creada automaticamente desde import_usecases."},
+    )
+
+
 def validate_import_business_rules(payload, attack_ids):
     instance = UseCase(**payload)
     instance._clean_mitre_attack_ids = set(attack_ids)
@@ -232,6 +244,8 @@ class Command(BaseCommand):
 
         if not excel_path.exists():
             raise CommandError(f"No existe el archivo: {excel_path}")
+        if excel_path.suffix.lower() != ".xlsx":
+            raise CommandError("Solo se permiten archivos .xlsx. No se aceptan .xlsm ni otros formatos con macros.")
 
         wb = load_workbook(excel_path, data_only=True)
 
@@ -273,12 +287,16 @@ class Command(BaseCommand):
             try:
                 payload = {}
                 attack_raw = ""
+                sources_raw = None
 
                 for idx, field_name in mapped_indexes.items():
                     raw_value = row[idx] if idx < len(row) else None
 
                     if field_name == "mitre_attack_rel":
                         attack_raw = normalize_text(raw_value)
+                        continue
+                    if field_name == "event_sources_raw":
+                        sources_raw = normalize_text(raw_value)
                         continue
 
                     if field_name in DATE_FIELDS:
@@ -335,6 +353,7 @@ class Command(BaseCommand):
                             instance.mitre_attacks.add(attack_obj)
 
                 instance.sync_d3fends_from_attacks()
+                sync_event_sources(instance, sources_raw)
 
                 self.stdout.write(self.style.SUCCESS(f"Fila {row_num}: {action} '{name}'"))
 

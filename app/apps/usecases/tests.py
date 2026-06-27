@@ -1,7 +1,5 @@
-from datetime import date, timedelta
+﻿from datetime import date
 from io import BytesIO, StringIO
-from types import SimpleNamespace
-from unittest.mock import patch
 
 from django.contrib.auth import get_user_model
 from django.contrib.auth.models import Group
@@ -10,14 +8,14 @@ from django.core.exceptions import ValidationError
 from django.core.files.uploadedfile import SimpleUploadedFile
 from django.test import TestCase
 from django.urls import reverse
-from django.utils import timezone
 from openpyxl import Workbook, load_workbook
 
-from .coverage_admin import build_coverage_admin_context
-from .framework_sync import run_scheduled_security_frameworks_sync
-from .mitre_sync import MitreAttackSyncResult, load_mitre_attack_data, run_scheduled_mitre_attack_sync
-from .models import CoverageOverride, D3Fend, LifecycleReview, LifecycleSettings, MitreAttack, MitreAttackSyncSettings, UseCase
-from .reports import build_dashboard_pdf
+from apps.lifecycle.models import LifecycleReview, LifecycleSettings
+from apps.mitre.coverage_admin import build_coverage_admin_context
+from apps.mitre.models import CoverageOverride, D3Fend, MitreAttack
+from apps.sources.models import EventSource, UseCaseSource
+
+from .models import UseCase, UseCaseChangeLog, UseCaseRuleCondition
 
 
 class UseCaseBusinessRuleTests(TestCase):
@@ -47,176 +45,6 @@ class UseCaseBusinessRuleTests(TestCase):
         self.assertEqual(list(usecase.d3fends.order_by("id")), [d3fend])
 
 
-class UseCaseLifecycleDateTests(TestCase):
-    def test_save_does_not_recalculate_lifecycle_dates(self):
-        usecase = UseCase.objects.create(
-            name="Endpoint malware alert",
-            last_validation_date=date(2026, 1, 1),
-            next_review_date=date(2026, 3, 1),
-        )
-
-        usecase.owner_name = "SOC"
-        usecase.save()
-        usecase.refresh_from_db()
-
-        self.assertEqual(usecase.next_review_date, date(2026, 3, 1))
-
-    def test_set_lifecycle_review_dates_uses_active_interval(self):
-        LifecycleSettings.objects.create(name="Monthly", review_interval_days=30)
-        usecase = UseCase(name="Privileged login alert")
-
-        usecase.set_lifecycle_review_dates(date(2026, 1, 1))
-
-        self.assertEqual(usecase.last_review_date, date(2026, 1, 1))
-        self.assertEqual(usecase.next_review_date, date(2026, 1, 31))
-
-
-class MitreAttackSyncTests(TestCase):
-    def test_load_mitre_attack_data_creates_and_updates_catalog(self):
-        MitreAttack.objects.create(external_id="T1059", name="Old name", tactic="Execution")
-        data = {
-            "objects": [
-                {
-                    "type": "attack-pattern",
-                    "name": "Command and Scripting Interpreter",
-                    "external_references": [{"source_name": "mitre-attack", "external_id": "T1059"}],
-                    "kill_chain_phases": [{"kill_chain_name": "mitre-attack", "phase_name": "execution"}],
-                },
-                {
-                    "type": "attack-pattern",
-                    "name": "Valid Accounts",
-                    "external_references": [{"source_name": "mitre-attack", "external_id": "T1078"}],
-                    "kill_chain_phases": [{"kill_chain_name": "mitre-attack", "phase_name": "defense-evasion"}],
-                },
-                {"type": "attack-pattern", "name": "No external id", "external_references": []},
-            ]
-        }
-
-        result = load_mitre_attack_data(data)
-
-        self.assertEqual(result.created, 1)
-        self.assertEqual(result.updated, 1)
-        self.assertEqual(result.skipped, 1)
-        self.assertEqual(MitreAttack.objects.get(external_id="T1059").name, "Command and Scripting Interpreter")
-        self.assertEqual(MitreAttack.objects.get(external_id="T1078").tactic, "Defense Evasion")
-
-    def test_scheduled_sync_skips_until_interval_is_due(self):
-        settings = MitreAttackSyncSettings.objects.create(
-            name="Hourly",
-            interval_value=6,
-            interval_unit=MitreAttackSyncSettings.UNIT_HOURS,
-            last_success_at=timezone.now() - timedelta(hours=1),
-        )
-
-        result = run_scheduled_mitre_attack_sync(settings=settings, fetcher=lambda: self.fail("fetcher should not run"))
-
-        self.assertFalse(result.ran)
-        self.assertIn("omitida", result.message)
-
-    def test_scheduled_sync_runs_when_due_and_updates_status(self):
-        settings = MitreAttackSyncSettings.objects.create(
-            name="Daily",
-            interval_value=1,
-            interval_unit=MitreAttackSyncSettings.UNIT_DAYS,
-            last_success_at=timezone.now() - timedelta(days=2),
-        )
-        data = {
-            "objects": [
-                {
-                    "type": "attack-pattern",
-                    "name": "Brute Force",
-                    "external_references": [{"source_name": "mitre-attack", "external_id": "T1110"}],
-                    "kill_chain_phases": [{"kill_chain_name": "mitre-attack", "phase_name": "credential-access"}],
-                }
-            ]
-        }
-
-        result = run_scheduled_mitre_attack_sync(settings=settings, fetcher=lambda: data)
-
-        self.assertTrue(result.ran)
-        settings.refresh_from_db()
-        self.assertEqual(settings.last_status, MitreAttackSyncSettings.STATUS_SUCCESS)
-        self.assertEqual(settings.last_created, 1)
-        self.assertIsNotNone(settings.last_success_at)
-
-    def test_scheduled_sync_logs_failures(self):
-        settings = MitreAttackSyncSettings.objects.create(name="Failing sync", interval_value=1)
-
-        with patch("apps.usecases.mitre_sync.logger") as mocked_logger:
-            with self.assertRaises(RuntimeError):
-                run_scheduled_mitre_attack_sync(
-                    settings=settings,
-                    fetcher=lambda: (_ for _ in ()).throw(RuntimeError("network down")),
-                )
-
-        mocked_logger.exception.assert_called_once()
-        settings.refresh_from_db()
-        self.assertEqual(settings.last_status, MitreAttackSyncSettings.STATUS_ERROR)
-
-    def test_full_framework_sync_skips_when_mitre_sync_is_not_due(self):
-        with patch(
-            "apps.usecases.framework_sync.run_scheduled_mitre_attack_sync",
-            return_value=MitreAttackSyncResult(ran=False, message="Sincronizacion MITRE omitida."),
-        ) as mocked_mitre, patch(
-            "apps.usecases.framework_sync.call_command"
-        ) as mocked_call:
-            call_command("sync_security_frameworks_scheduled", stdout=StringIO())
-
-        mocked_mitre.assert_called_once()
-        mocked_call.assert_not_called()
-
-    def test_full_framework_sync_runs_d3fend_mapping_and_usecase_steps(self):
-        with patch(
-            "apps.usecases.framework_sync.run_scheduled_mitre_attack_sync",
-            return_value=MitreAttackSyncResult(created=1, updated=2, skipped=3, message="OK"),
-        ), patch(
-            "apps.usecases.framework_sync.call_command"
-        ) as mocked_call:
-            call_command("sync_security_frameworks_scheduled", force=True, stdout=StringIO())
-
-        calls = [item.args for item in mocked_call.call_args_list]
-        self.assertEqual(
-            calls,
-            [
-                ("load_d3fend", "--disable-non-detect"),
-                ("normalize_d3fend_codes",),
-                ("load_d3fend", "--mappings-only", "--disable-non-detect"),
-                ("sync_usecase_d3fends",),
-            ],
-        )
-        self.assertEqual(mocked_call.call_args_list[1].kwargs["sleep"], 0)
-
-    def test_full_framework_sync_updates_settings_message(self):
-        settings = MitreAttackSyncSettings.objects.create(name="Full sync", interval_value=1)
-        MitreAttack.objects.create(external_id="T1000", name="Existing attack")
-        D3Fend.objects.create(code="D3-TEST", name="Existing defense")
-
-        def fake_call_command(command_name, *args, **kwargs):
-            output = kwargs.get("stdout")
-            if not output:
-                return
-            if command_name == "load_d3fend" and "--mappings-only" not in args:
-                output.write("Creados: 2\nActualizados: 3\nNormalizados a código oficial: 1\n")
-            elif command_name == "normalize_d3fend_codes":
-                output.write("Normalizados: 4\nFusionados con registros existentes: 1\n")
-            elif command_name == "load_d3fend" and "--mappings-only" in args:
-                output.write("Relaciones únicas procesadas: 9\nD3FEND creados desde mappings: 1\n")
-            elif command_name == "sync_usecase_d3fends":
-                output.write("Casos revisados: 7\nCasos con cambios: 5\n")
-
-        with patch(
-            "apps.usecases.framework_sync.run_scheduled_mitre_attack_sync",
-            return_value=MitreAttackSyncResult(created=1, updated=2, skipped=3, message="Carga ATT&CK finalizada."),
-        ), patch("apps.usecases.framework_sync.call_command", side_effect=fake_call_command):
-            run_scheduled_security_frameworks_sync(force=True, settings=settings)
-
-        settings.refresh_from_db()
-        self.assertIn("ATT&CK: existentes 1, creados 1, modificados 2, omitidos 3", settings.last_message)
-        self.assertIn("D3FEND: existentes 1, creados 3, modificados/normalizados 9", settings.last_message)
-        self.assertIn("Mappings D3FEND->ATT&CK: relaciones procesadas 9", settings.last_message)
-        self.assertIn("Casos: revisados 7, matcheados/actualizados 5", settings.last_message)
-
-
 class SeedDemoDataCommandTests(TestCase):
     def test_seed_demo_data_creates_demo_catalog_users_and_cases(self):
         call_command("seed_demo_data", verbosity=0, stdout=StringIO())
@@ -238,47 +66,6 @@ class SeedDemoDataCommandTests(TestCase):
         self.assertEqual(MitreAttack.objects.filter(external_id="T1059").count(), 1)
         self.assertEqual(UseCase.objects.filter(name="Demo - PowerShell suspicious execution").count(), 1)
         self.assertTrue(LifecycleSettings.objects.get(name="Demo lifecycle").is_active)
-
-
-class MitreAttackSyncAdminTests(TestCase):
-    def test_add_sync_settings_admin_page_renders(self):
-        User = get_user_model()
-        admin_user = User.objects.create_superuser("admin", "admin@example.test", "pass")
-        self.client.force_login(admin_user)
-
-        response = self.client.get(reverse("admin:usecases_mitreattacksyncsettings_add"))
-
-        self.assertEqual(response.status_code, 200)
-
-    def test_run_now_admin_action_executes_sync(self):
-        User = get_user_model()
-        admin_user = User.objects.create_superuser("admin", "admin@example.test", "pass")
-        settings = MitreAttackSyncSettings.objects.create(name="Admin run", interval_value=24)
-        self.client.force_login(admin_user)
-
-        with patch(
-            "apps.usecases.admin.run_scheduled_security_frameworks_sync",
-            return_value=MitreAttackSyncResult(created=1, updated=2, skipped=3, message="OK"),
-        ) as mocked_sync:
-            response = self.client.get(reverse("admin:usecases_mitreattacksyncsettings_run_now", args=[settings.pk]))
-
-        self.assertEqual(response.status_code, 302)
-        mocked_sync.assert_called_once()
-        self.assertTrue(mocked_sync.call_args.kwargs["force"])
-        self.assertEqual(mocked_sync.call_args.kwargs["settings"], settings)
-        messages = [str(message) for message in response.wsgi_request._messages]
-        self.assertTrue(any("D3FEND" in message and "casos" in message for message in messages))
-
-    def test_change_sync_settings_admin_page_shows_full_sync_button(self):
-        User = get_user_model()
-        admin_user = User.objects.create_superuser("admin", "admin@example.test", "pass")
-        settings = MitreAttackSyncSettings.objects.create(name="Admin page", interval_value=24)
-        self.client.force_login(admin_user)
-
-        response = self.client.get(reverse("admin:usecases_mitreattacksyncsettings_change", args=[settings.pk]))
-
-        self.assertEqual(response.status_code, 200)
-        self.assertContains(response, "Ejecutar sync completo ATT&CK + D3FEND")
 
 
 class UseCasePermissionTests(TestCase):
@@ -430,6 +217,7 @@ class UseCasePermissionTests(TestCase):
             "Escalamiento",
             "ENVIO.HO",
             "HO",
+            "FUENTES",
             "Fecha última validación",
         ])
         sheet.append([
@@ -439,6 +227,71 @@ class UseCasePermissionTests(TestCase):
             "Detect test import",
             "Manual",
             "Imported Excel use case",
+            "analyst",
+            "24x7",
+            UseCase.STATUS_PRODUCTION,
+            date(2026, 1, 1),
+            date(2026, 1, 2),
+            "T1059 - Command and Scripting Interpreter",
+            "High",
+            "SOC",
+            "No",
+            "No",
+            "SRC-EDR - Endpoint EDR; CloudTrail",
+            date(2026, 1, 3),
+        ])
+        buffer = BytesIO()
+        workbook.save(buffer)
+        upload = SimpleUploadedFile(
+            "usecases.xlsx",
+            buffer.getvalue(),
+            content_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        )
+        self.client.login(username="analyst", password="pass")
+
+        response = self.client.post(reverse("import_usecases_excel"), {"excel_file": upload})
+
+        self.assertEqual(response.status_code, 302)
+        imported = UseCase.objects.get(name="Imported Excel use case")
+        self.assertEqual(imported.status, UseCase.STATUS_PRODUCTION)
+        self.assertEqual(imported.device, "SIEM")
+        self.assertEqual(list(imported.mitre_attacks.values_list("external_id", flat=True)), ["T1059"])
+        self.assertTrue(EventSource.objects.filter(code="SRC-EDR", name="Endpoint EDR").exists())
+        self.assertTrue(EventSource.objects.filter(name="CloudTrail").exists())
+        self.assertEqual(
+            set(imported.source_links.values_list("source__name", flat=True)),
+            {"Endpoint EDR", "CloudTrail"},
+        )
+
+    def test_import_without_fuentes_does_not_treat_device_as_event_source(self):
+        workbook = Workbook()
+        sheet = workbook.active
+        sheet.append([
+            "GRUPO",
+            "DISPOSITIVO",
+            "TIPO",
+            "OBJETIVO2",
+            "Tipo_bloqueo",
+            "NOMBRE NETWITNESS",
+            "RESPONSABLE",
+            "Monitoreo",
+            "status2",
+            "Fecha alta/ajuste",
+            "Fecha puesta en producción",
+            "MITRE ATT&CK",
+            "Severidad",
+            "Escalamiento",
+            "ENVIO.HO",
+            "HO",
+            "Fecha última validación",
+        ])
+        sheet.append([
+            "SOC",
+            "Legacy FW",
+            "Correlation",
+            "Detect test import without source",
+            "Manual",
+            "Imported without source",
             "analyst",
             "24x7",
             UseCase.STATUS_PRODUCTION,
@@ -463,9 +316,23 @@ class UseCasePermissionTests(TestCase):
         response = self.client.post(reverse("import_usecases_excel"), {"excel_file": upload})
 
         self.assertEqual(response.status_code, 302)
-        imported = UseCase.objects.get(name="Imported Excel use case")
-        self.assertEqual(imported.status, UseCase.STATUS_PRODUCTION)
-        self.assertEqual(list(imported.mitre_attacks.values_list("external_id", flat=True)), ["T1059"])
+        imported = UseCase.objects.get(name="Imported without source")
+        self.assertEqual(imported.device, "Legacy FW")
+        self.assertFalse(imported.source_links.exists())
+        self.assertFalse(EventSource.objects.filter(name="Legacy FW").exists())
+
+    def test_import_rejects_macro_enabled_workbook_extension(self):
+        upload = SimpleUploadedFile(
+            "usecases.xlsm",
+            b"not-a-real-workbook",
+            content_type="application/vnd.ms-excel.sheet.macroEnabled.12",
+        )
+        self.client.login(username="analyst", password="pass")
+
+        response = self.client.post(reverse("import_usecases_excel"), {"excel_file": upload})
+
+        self.assertEqual(response.status_code, 302)
+        self.assertFalse(UseCase.objects.filter(name="usecases.xlsm").exists())
 
     def test_readonly_cannot_import_or_export_xlsx(self):
         self.client.login(username="readonly", password="pass")
@@ -504,6 +371,71 @@ class UseCasePermissionTests(TestCase):
         self.other_usecase.refresh_from_db()
         self.assertEqual(self.other_usecase.severity, "High")
 
+    def test_analyst_can_save_rule_conditions_and_full_rule(self):
+        self.client.login(username="analyst", password="pass")
+
+        response = self.client.post(reverse("usecase_edit", args=[self.owned_usecase.pk]), {
+            "group_name": self.owned_usecase.group_name,
+            "device": self.owned_usecase.device,
+            "case_type": self.owned_usecase.case_type,
+            "objective": "Detect privileged group changes.",
+            "blocking_type": "",
+            "name": self.owned_usecase.name,
+            "owner_name": self.owned_usecase.owner_name,
+            "monitoring": self.owned_usecase.monitoring,
+            "status": self.owned_usecase.status,
+            "created_or_adjusted_at": "",
+            "production_date": "2026-01-01",
+            "mitre_attacks": [str(self.attack.pk)],
+            "severity": self.owned_usecase.severity,
+            "escalation": "",
+            "sent_to_ho": "",
+            "ho_flag": "",
+            "last_validation_date": "",
+            "validation_status": self.owned_usecase.validation_status,
+            "validation_result": self.owned_usecase.validation_result,
+            "is_enabled": "on",
+            "disabled_reason": "",
+            "comments": "Reviewable logic.",
+            "full_rule_text": "SELECT * FROM Event WHERE source = 'Active Directory';",
+            "functional_description": "Controla altas de usuarios privilegiados.",
+            "event_sources": [],
+            "conditions-TOTAL_FORMS": "2",
+            "conditions-INITIAL_FORMS": "0",
+            "conditions-MIN_NUM_FORMS": "0",
+            "conditions-MAX_NUM_FORMS": "1000",
+            "conditions-0-position": "1",
+            "conditions-0-condition_type": UseCaseRuleCondition.TYPE_INCLUDE,
+            "conditions-0-field_name": "source",
+            "conditions-0-operator": UseCaseRuleCondition.OP_EQUALS,
+            "conditions-0-value": "Active Directory",
+            "conditions-0-use_case": str(self.owned_usecase.pk),
+            "conditions-1-position": "2",
+            "conditions-1-condition_type": UseCaseRuleCondition.TYPE_EXCLUDE,
+            "conditions-1-field_name": "environment",
+            "conditions-1-operator": UseCaseRuleCondition.OP_EQUALS,
+            "conditions-1-value": "laboratorio",
+            "conditions-1-use_case": str(self.owned_usecase.pk),
+        })
+
+        self.assertEqual(response.status_code, 302)
+        self.owned_usecase.refresh_from_db()
+        self.assertEqual(self.owned_usecase.rule_conditions.count(), 2)
+        self.assertEqual(self.owned_usecase.full_rule_text, "SELECT * FROM Event WHERE source = 'Active Directory';")
+        self.assertTrue(
+            UseCaseChangeLog.objects.filter(
+                use_case=self.owned_usecase,
+                field_name="rule_conditions",
+                new_value__icontains="Active Directory",
+            ).exists()
+        )
+
+        detail_response = self.client.get(reverse("usecase_detail", args=[self.owned_usecase.pk]))
+        self.assertContains(detail_response, "Regla y condiciones")
+        self.assertContains(detail_response, "Active Directory")
+        self.assertContains(detail_response, "laboratorio")
+        self.assertContains(detail_response, "Controla altas de usuarios privilegiados.")
+
     def test_coverage_override_requires_reason_for_fulfilled_status(self):
         self.client.login(username="analyst", password="pass")
 
@@ -534,13 +466,24 @@ class UseCasePermissionTests(TestCase):
     def test_lifecycle_owner_can_mark_review_done(self):
         self.owned_usecase.lifecycle_control_owner = self.analyst
         self.owned_usecase.save()
+        source = EventSource.objects.create(name="EDR", source_type=EventSource.TYPE_EDR)
+        UseCaseSource.objects.create(use_case=self.owned_usecase, source=source)
         self.client.login(username="analyst", password="pass")
 
-        response = self.client.post(reverse("lifecycle_mark_done", args=[self.owned_usecase.pk]))
+        response = self.client.post(reverse("lifecycle_mark_done", args=[self.owned_usecase.pk]), {
+            "validation_result": LifecycleReview.RESULT_CURRENT,
+            "logic_valid": "on",
+            "sources_active": "on",
+            "event_ids_valid": "on",
+            "fields_exist": "on",
+            "trigger_count": "0",
+            "notes": "Control funcional verificado.",
+        })
 
         self.assertEqual(response.status_code, 302)
         self.owned_usecase.refresh_from_db()
         self.assertEqual(self.owned_usecase.validation_status, UseCase.VALIDATION_STATUS_FINISHED)
+        self.assertEqual(self.owned_usecase.validation_result, UseCase.VALIDATION_RESULT_OK)
         self.assertEqual(LifecycleReview.objects.filter(use_case=self.owned_usecase).count(), 1)
 
     def test_non_owner_cannot_mark_lifecycle_review_done(self):
@@ -562,32 +505,4 @@ class UseCasePermissionTests(TestCase):
         self.assertFalse(UseCase.objects.filter(pk=self.other_usecase.pk).exists())
 
 
-class DashboardPdfReportTests(TestCase):
-    def test_dashboard_pdf_renders_with_charts(self):
-        buffer = BytesIO()
-        context = {
-            "total_cases": 5,
-            "covered_attack_techniques": 3,
-            "all_attack_techniques": 10,
-            "covered_tactics": 2,
-            "total_tactics": 4,
-            "covered_d3fend_techniques": 2.5,
-            "all_d3fend_techniques": 8,
-            "fully_covered_d3fend_techniques": 2,
-            "partially_covered_d3fend_techniques": 3,
-            "attack_radials": [
-                {"title": "Cobertura Técnicas ATT&CK", "percent": 30, "percent_label": "30", "covered": 3, "total": 10},
-                {"title": "Cobertura Tácticas ATT&CK", "percent": 50, "percent_label": "50", "covered": 2, "total": 4},
-            ],
-            "d3fend_radials": [
-                {"title": "Cobertura D3FEND inferida por ATT&CK", "percent": 31.3, "percent_label": "31,3", "covered": 2.5, "total": 8},
-                {"title": "D3FEND totalmente cubiertos", "percent": 25, "percent_label": "25", "covered": 2, "total": 8},
-            ],
-            "uncovered_attacks": [],
-            "uncovered_d3fends": [],
-            "d3fend_coverage_rows": [],
-        }
 
-        build_dashboard_pdf(buffer, context, None, SimpleNamespace(username="tester"))
-
-        self.assertTrue(buffer.getvalue().startswith(b"%PDF"))

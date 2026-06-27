@@ -185,8 +185,9 @@ class LDAPSettingsAdmin(admin.ModelAdmin):
         message = ""
         try:
             server = Server(config.server_uri, use_ssl=config.use_ssl, get_info=ALL)
-            if config.bind_dn and config.bind_password:
-                conn = Connection(server, user=config.bind_dn, password=config.bind_password, auto_bind=True)
+            bind_password = config.get_bind_password()
+            if config.bind_dn and bind_password:
+                conn = Connection(server, user=config.bind_dn, password=bind_password, auto_bind=True)
             else:
                 conn = Connection(server, auto_bind=True)
             conn.unbind()

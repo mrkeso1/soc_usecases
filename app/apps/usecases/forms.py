@@ -1,5 +1,9 @@
 from django import forms
-from .models import UseCase
+from django.forms import inlineformset_factory
+
+from apps.sources.models import EventSource
+
+from .models import UseCase, UseCaseRuleCondition
 
 
 class MitreAttackM2MBridgeMixin(forms.ModelForm):
@@ -18,6 +22,14 @@ class MitreAttackM2MBridgeMixin(forms.ModelForm):
 
 
 class UseCaseForm(MitreAttackM2MBridgeMixin, forms.ModelForm):
+    event_sources = forms.ModelMultipleChoiceField(
+        label="Fuentes de eventos",
+        queryset=EventSource.objects.none(),
+        required=False,
+        help_text="Fuentes relacionadas al caso desde el catalogo de fuentes de eventos.",
+        widget=forms.SelectMultiple(attrs={"class": "form-control"}),
+    )
+
     class Meta:
         model = UseCase
         fields = [
@@ -45,6 +57,9 @@ class UseCaseForm(MitreAttackM2MBridgeMixin, forms.ModelForm):
             # last_review_date y next_review_date son gestionados exclusivamente
             # por el sistema de lifecycle reviews — no deben editarse aquí.
             "comments",
+            "full_rule_text",
+            "functional_description",
+            "event_sources",
         ]
         widgets = {
             "group_name": forms.TextInput(attrs={"class": "form-control"}),
@@ -75,6 +90,8 @@ class UseCaseForm(MitreAttackM2MBridgeMixin, forms.ModelForm):
             "is_enabled": forms.CheckboxInput(attrs={"class": "form-check-input"}),
             "disabled_reason": forms.Textarea(attrs={"class": "form-control", "rows": 3}),
             "comments": forms.Textarea(attrs={"class": "form-control", "rows": 4}),
+            "full_rule_text": forms.Textarea(attrs={"class": "form-control code-input", "rows": 12, "spellcheck": "false"}),
+            "functional_description": forms.Textarea(attrs={"class": "form-control", "rows": 5}),
         }
         labels = {
             "group_name": "Grupo",
@@ -99,6 +116,9 @@ class UseCaseForm(MitreAttackM2MBridgeMixin, forms.ModelForm):
             "is_enabled": "Habilitado",
             "disabled_reason": "Motivo de deshabilitación",
             "comments": "Comentarios",
+            "full_rule_text": "Regla completa",
+            "functional_description": "Descripcion funcional",
+            "event_sources": "Fuentes de eventos",
         }
         help_texts = {
             "mitre_attacks": "Buscá por ID, nombre o táctica. D3FEND se infiere automáticamente.",
@@ -108,4 +128,35 @@ class UseCaseForm(MitreAttackM2MBridgeMixin, forms.ModelForm):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.fields["mitre_attacks"].queryset = self.fields["mitre_attacks"].queryset.filter(is_enabled=True)
+        self.fields["event_sources"].queryset = EventSource.objects.order_by("name")
+        if self.instance and self.instance.pk:
+            self.fields["event_sources"].initial = self.instance.source_links.values_list("source_id", flat=True)
 
+
+class UseCaseRuleConditionForm(forms.ModelForm):
+    class Meta:
+        model = UseCaseRuleCondition
+        fields = ["position", "condition_type", "field_name", "operator", "value"]
+        widgets = {
+            "position": forms.NumberInput(attrs={"class": "form-control condition-position", "min": 1}),
+            "condition_type": forms.Select(attrs={"class": "form-control condition-type"}),
+            "field_name": forms.TextInput(attrs={"class": "form-control", "placeholder": "source, environment, user, action..."}),
+            "operator": forms.Select(attrs={"class": "form-control"}),
+            "value": forms.TextInput(attrs={"class": "form-control", "placeholder": "Valor esperado"}),
+        }
+        labels = {
+            "position": "#",
+            "condition_type": "Tipo",
+            "field_name": "Campo",
+            "operator": "Operador",
+            "value": "Valor",
+        }
+
+
+UseCaseRuleConditionFormSet = inlineformset_factory(
+    UseCase,
+    UseCaseRuleCondition,
+    form=UseCaseRuleConditionForm,
+    extra=0,
+    can_delete=True,
+)

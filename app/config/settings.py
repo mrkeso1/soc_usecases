@@ -11,6 +11,7 @@ if not _SECRET_KEY:
         "Definila antes de iniciar la aplicación."
     )
 SECRET_KEY = _SECRET_KEY
+LDAP_SECRET_KEY = os.getenv("LDAP_SECRET_KEY", "")
 DEBUG = os.getenv("DEBUG", "0") == "1"
 
 ALLOWED_HOSTS = [
@@ -32,6 +33,16 @@ INSTALLED_APPS = [
 
     "apps.accounts.apps.AccountsConfig",
     "apps.usecases.apps.UsecasesConfig",
+    "apps.dashboard.apps.DashboardConfig",
+    "apps.lifecycle.apps.LifecycleConfig",
+    "apps.mitre.apps.MitreConfig",
+    "apps.sources.apps.SourcesConfig",
+    "apps.integrations.apps.IntegrationsConfig",
+    "apps.access_control.apps.AccessControlConfig",
+    "apps.sigma_tools.apps.SigmaToolsConfig",
+    "apps.controls.apps.ControlsConfig",
+    "apps.reports.apps.ReportsConfig",
+    "apps.auditlog.apps.AuditlogConfig",
 ]
 
 MIDDLEWARE = [
@@ -41,6 +52,7 @@ MIDDLEWARE = [
     "django.middleware.csrf.CsrfViewMiddleware",
     "django.contrib.auth.middleware.AuthenticationMiddleware",
     "django.contrib.messages.middleware.MessageMiddleware",
+    "apps.auditlog.middleware.AuditRequestMiddleware",
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
 ]
 
@@ -130,6 +142,7 @@ SECURE_HSTS_SECONDS = int(os.getenv("SECURE_HSTS_SECONDS", "0"))
 SECURE_HSTS_INCLUDE_SUBDOMAINS = env_bool("SECURE_HSTS_INCLUDE_SUBDOMAINS")
 SECURE_HSTS_PRELOAD = env_bool("SECURE_HSTS_PRELOAD")
 SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https") if env_bool("USE_X_FORWARDED_PROTO") else None
+USE_X_FORWARDED_FOR = env_bool("USE_X_FORWARDED_FOR")
 
 LOGGING = {
     "version": 1,

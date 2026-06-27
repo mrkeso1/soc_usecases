@@ -5,18 +5,16 @@ from django.urls import path, reverse
 from django.utils import timezone
 from django.utils.html import format_html, format_html_join
 
-from .framework_sync import run_scheduled_security_frameworks_sync
+from apps.dashboard.models import DashboardReportSettings
+from apps.lifecycle.models import LifecycleReview, LifecycleSettings
+from apps.mitre.framework_sync import run_scheduled_security_frameworks_sync
+from apps.mitre.models import CoverageOverride, D3Fend, MitreAttack, MitreAttackSyncSettings
+
 from .forms import MitreAttackM2MBridgeMixin
 from .models import (
-    CoverageOverride,
-    D3Fend,
-    DashboardReportSettings,
-    LifecycleReview,
-    LifecycleSettings,
-    MitreAttack,
-    MitreAttackSyncSettings,
     UseCase,
     UseCaseChangeLog,
+    UseCaseRuleCondition,
 )
 
 
@@ -161,7 +159,7 @@ class MitreAttackSyncSettingsAdmin(admin.ModelAdmin):
                 "si ya corresponde sincronizar ATT&CK, D3FEND, mappings y casos."
             ),
         }),
-        ("Ultima ejecucion", {
+        ("Última ejecución", {
             "fields": (
                 "last_status",
                 "last_message",
@@ -184,7 +182,7 @@ class MitreAttackSyncSettingsAdmin(admin.ModelAdmin):
             path(
                 "<int:object_id>/run-now/",
                 self.admin_site.admin_view(self.run_now),
-                name="usecases_mitreattacksyncsettings_run_now",
+                name="mitre_mitreattacksyncsettings_run_now",
             )
         ]
         return custom_urls + urls
@@ -200,7 +198,7 @@ class MitreAttackSyncSettingsAdmin(admin.ModelAdmin):
         color, label = colors.get(obj.last_status, ("#6b7280", obj.last_status))
         return format_html('<strong style="color:{};">{}</strong>', color, label)
 
-    @admin.display(description="Ultima OK")
+    @admin.display(description="Última OK")
     def last_success_display(self, obj):
         if not obj.last_success_at:
             return "-"
@@ -212,7 +210,7 @@ class MitreAttackSyncSettingsAdmin(admin.ModelAdmin):
             return "-"
         return format_html_join("", "{}<br>", ((line,) for line in obj.last_message.splitlines()))
 
-    @admin.display(description="Proxima ejecucion")
+    @admin.display(description="Próxima ejecución")
     def next_run_display(self, obj):
         next_run = obj.next_run_at()
         if not next_run or obj.is_due():
@@ -223,7 +221,7 @@ class MitreAttackSyncSettingsAdmin(admin.ModelAdmin):
     def run_now_link(self, obj):
         if not obj or not obj.pk:
             return "Disponible despues de guardar la configuracion."
-        url = reverse("admin:usecases_mitreattacksyncsettings_run_now", args=[obj.pk])
+        url = reverse("admin:mitre_mitreattacksyncsettings_run_now", args=[obj.pk])
         return format_html(
             '<a class="button" href="{}">Ejecutar sync completo ATT&CK + D3FEND</a>',
             url,
@@ -332,6 +330,13 @@ class UseCaseBusinessRulesAdminForm(MitreAttackM2MBridgeMixin, forms.ModelForm):
 class UseCaseAdmin(admin.ModelAdmin):
     form = UseCaseBusinessRulesAdminForm
 
+    class RuleConditionInline(admin.TabularInline):
+        model = UseCaseRuleCondition
+        extra = 0
+        fields = ("position", "condition_type", "field_name", "operator", "value")
+
+    inlines = (RuleConditionInline,)
+
     list_display = (
         "name",
         "group_name",
@@ -357,6 +362,10 @@ class UseCaseAdmin(admin.ModelAdmin):
         "lifecycle_control_owner__last_name",
         "comments",
         "disabled_reason",
+        "functional_description",
+        "full_rule_text",
+        "rule_conditions__field_name",
+        "rule_conditions__value",
         "mitre_attacks__external_id",
         "mitre_attacks__name",
         "d3fends__code",
@@ -423,6 +432,8 @@ class UseCaseAdmin(admin.ModelAdmin):
                     "is_enabled",
                     "disabled_reason",
                     "comments",
+                    "functional_description",
+                    "full_rule_text",
                 )
             },
         ),

@@ -31,7 +31,7 @@
         body {
             margin: 0;
             min-height: 100vh;
-            font-family: 'Syne', sans-serif;
+            font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
             background: var(--bg);
             color: var(--text);
         }
@@ -81,8 +81,8 @@
             margin: 0;
             color: var(--text-strong);
             font-size: clamp(1.35rem, 2.1vw, 1.72rem);
-            font-weight: 800;
-            letter-spacing: -0.028em;
+            font-weight: 750;
+            letter-spacing: 0;
             line-height: 1.12;
         }
 
@@ -143,7 +143,7 @@
             border: 1px solid var(--border);
             background: var(--surface);
             color: var(--text);
-            font-family: 'Syne', sans-serif;
+            font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
             font-weight: 700;
             font-size: 0.86rem;
             text-decoration: none;
@@ -263,6 +263,79 @@
             font-family: 'JetBrains Mono', monospace;
             font-size: 11px;
             line-height: 1.3;
+        }
+
+        .rule-condition-list {
+            display: grid;
+            gap: 10px;
+        }
+
+        .rule-condition {
+            display: grid;
+            grid-template-columns: auto minmax(0, 1fr);
+            gap: 12px;
+            align-items: start;
+            padding: 12px;
+            border: 1px solid rgba(0, 229, 160, 0.24);
+            border-radius: 10px;
+            background: rgba(0, 229, 160, 0.06);
+        }
+
+        .rule-condition.exclude {
+            border-color: rgba(255, 71, 87, 0.28);
+            background: rgba(255, 71, 87, 0.06);
+        }
+
+        .rule-condition-index {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            width: 30px;
+            height: 30px;
+            border-radius: 8px;
+            border: 1px solid rgba(0, 229, 160, 0.34);
+            color: var(--good);
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 11px;
+            font-weight: 800;
+        }
+
+        .rule-condition.exclude .rule-condition-index {
+            border-color: rgba(255, 71, 87, 0.38);
+            color: var(--bad);
+        }
+
+        .rule-condition-main {
+            min-width: 0;
+        }
+
+        .rule-condition-meta {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            flex-wrap: wrap;
+            margin-bottom: 6px;
+        }
+
+        .rule-condition-expression {
+            color: var(--text-strong);
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 12px;
+            line-height: 1.5;
+            overflow-wrap: anywhere;
+            word-break: break-word;
+        }
+
+        .rule-code {
+            margin: 0;
+            max-height: 360px;
+            overflow: auto;
+            white-space: pre-wrap;
+            word-break: break-word;
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 12px;
+            line-height: 1.55;
+            color: var(--text-strong);
         }
 
         .badge {
@@ -435,10 +508,10 @@
         }
     
 
-    /* Normalización visual alineada a Ciclo de Vida */
+    /* Normalización visual alineada al sistema base */
     .page-header { margin-bottom: 18px !important; gap: 14px !important; }
-    .page-eyebrow, .eyebrow { font-size: 11px !important; letter-spacing: .12em !important; }
-    .page-title { font-size: 1.9rem !important; line-height: 1.12 !important; margin: 4px 0 !important; letter-spacing: -0.02em !important; }
+    .page-eyebrow, .eyebrow { font-size: 11px !important; letter-spacing: .08em !important; }
+    .page-title { font-size: 1.42rem !important; line-height: 1.18 !important; margin: 4px 0 !important; letter-spacing: 0 !important; }
     .page-subtitle { font-size: .9rem !important; line-height: 1.45 !important; margin-top: 4px !important; }
     .section-title, .history-title, .summary-title { font-size: 1.05rem !important; line-height: 1.25 !important; }
     .section-help { font-size: .88rem !important; line-height: 1.45 !important; margin-bottom: 14px !important; }
@@ -446,14 +519,14 @@
     .summary-card, .summary-chip, .panel, .card, .side-card { border-radius: 14px !important; }
     .summary-card, .summary-chip { padding: 10px 14px !important; }
     .summary-value, .chip-value { font-size: 1.2rem !important; line-height: 1.05 !important; margin-top: 6px !important; }
-    .summary-label, .chip-label, .field label, .detail-label, .readonly-label { font-size: 10px !important; letter-spacing: .07em !important; }
+    .summary-label, .chip-label, .field label, .detail-label, .readonly-label { font-size: 10px !important; letter-spacing: .04em !important; }
     .btn, .btn-primary, .btn-secondary, .btn-ghost, .mini-btn, .save-btn, .action-link, .tab-button, .tab-link { font-size: 12px !important; border-radius: 8px !important; }
     .btn, .btn-primary, .btn-secondary, .btn-ghost { min-height: 36px !important; padding: 8px 12px !important; }
     .badge, .status-chip, .mapping-chip, .technique-chip, .attack-chip { font-size: .78rem !important; }
     th, td { font-size: .88rem !important; }
     th { font-size: .72rem !important; letter-spacing: .06em !important; }
     @media (max-width: 720px) {
-        .page-title { font-size: 1.55rem !important; }
+        .page-title { font-size: 1.3rem !important; }
         .page-header { margin-bottom: 14px !important; }
     }
 
@@ -462,7 +535,7 @@
     .section { padding: 18px !important; }
     .detail-value { font-size: .9rem !important; }
     .case-title-box { padding: 7px 11px !important; border-radius: 10px !important; }
-    .case-title-value { font-size: .88rem !important; }
+    .case-title-value { font-size: .88rem !important; letter-spacing: 0 !important; }
     .side-card { padding: 14px !important; }
 
 </style>
@@ -486,11 +559,11 @@
     }
 
     .page-title {
-        font-family: 'JetBrains Mono', monospace !important;
+        font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif !important;
         font-size: 20px !important;
         line-height: 1.2 !important;
         letter-spacing: 0 !important;
-        font-weight: 800 !important;
+        font-weight: 750 !important;
         text-transform: none !important;
     }
 
@@ -510,10 +583,10 @@
     }
 
     .case-title-value {
-        font-family: 'JetBrains Mono', monospace !important;
+        font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif !important;
         font-size: 12px !important;
         line-height: 1.35 !important;
-        font-weight: 600 !important;
+        font-weight: 650 !important;
         letter-spacing: 0 !important;
         color: var(--text-strong) !important;
     }
@@ -587,7 +660,7 @@
     .header-actions .btn,
     .pagination a,
     .pagination span {
-        font-family: 'JetBrains Mono', monospace !important;
+        font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif !important;
         font-size: 12px !important;
         font-weight: 700 !important;
         min-height: 34px !important;
@@ -663,6 +736,21 @@
         opacity: 1 !important;
     }
 
+    html[data-theme="light"] .container .rule-condition {
+        background: #f0fff9 !important;
+        border-color: rgba(0,137,96,.24) !important;
+    }
+
+    html[data-theme="light"] .container .rule-condition.exclude {
+        background: #fff4f5 !important;
+        border-color: rgba(190,18,60,.22) !important;
+    }
+
+    html[data-theme="light"] .container .rule-condition-expression,
+    html[data-theme="light"] .container .rule-code {
+        color: var(--text-strong) !important;
+    }
+
     @media (max-width: 980px) {
         .detail-shell { grid-template-columns: 1fr !important; }
         .side-card { position: static !important; }
@@ -697,6 +785,8 @@
         <div class="header-actions">
             <a class="btn" href="{% url 'usecase_list' %}">Volver al inventario</a>
             {% if can_manage_usecases %}
+                <a class="btn" href="{% url 'usecase_source_create' %}?use_case={{ usecase.pk }}&next=usecase">Vincular fuente</a>
+                <a class="btn" href="{% url 'technical_backup_create' %}?use_case={{ usecase.pk }}">Backup técnico</a>
                 <a class="btn btn-primary" href="{% url 'usecase_edit' usecase.pk %}">Editar completo</a>
             {% endif %}
             {% if can_delete_usecases %}
@@ -735,8 +825,80 @@
                         <div class="detail-value">{{ usecase.case_type|default:"-" }}</div>
                     </div>
                     <div class="detail-item full">
+                        <span class="detail-label">Fuentes de eventos normalizadas</span>
+                        <div class="detail-value">
+                            {% for link in usecase.source_links.all %}
+                                <div style="display:grid;grid-template-columns:minmax(0,1fr) auto;gap:10px;padding:10px 0;border-bottom:1px solid var(--border);">
+                                    <div>
+                                        <a class="entity-link" href="{% url 'source_detail' link.source.pk %}">{{ link.source.display_name }}</a>
+                                        <div class="muted">
+                                            {{ link.source.source_type_label }}
+                                            {% if link.source.taxonomy_label %} - {{ link.source.taxonomy_label }}{% endif %}
+                                            {% if link.source.ingestion_label %} - {{ link.source.ingestion_label }}{% endif %}
+                                        </div>
+                                    </div>
+                                    <span class="badge accent">{{ link.source.get_protection_display }}</span>
+                                </div>
+                            {% empty %}
+                                <span class="empty-value">Sin fuentes vinculadas. Dato legacy: {{ usecase.device|default:"-" }}</span>
+                            {% endfor %}
+                        </div>
+                    </div>
+                    <div class="detail-item full">
                         <span class="detail-label">Objetivo</span>
                         <div class="detail-value">{{ usecase.objective|linebreaksbr|default:"-" }}</div>
+                    </div>
+                </div>
+            </section>
+
+            <section class="section">
+                <div class="section-header">
+                    <div>
+                        <h2 class="section-title">Regla y condiciones</h2>
+                        <p class="section-help">Logica tecnica registrada para versionar y auditar el caso.</p>
+                    </div>
+                </div>
+                <div class="detail-grid">
+                    <div class="detail-item full">
+                        <span class="detail-label">Condiciones de la regla</span>
+                        <div class="detail-value">
+                            <div class="rule-condition-list">
+                                {% for condition in usecase.rule_conditions.all %}
+                                    <div class="rule-condition {% if condition.condition_type == 'exclude' %}exclude{% endif %}">
+                                        <span class="rule-condition-index">{{ condition.position|stringformat:"02d" }}</span>
+                                        <div class="rule-condition-main">
+                                            <div class="rule-condition-meta">
+                                                {% if condition.condition_type == 'exclude' %}
+                                                    <span class="badge bad">Excluir</span>
+                                                {% else %}
+                                                    <span class="badge good">Incluir</span>
+                                                {% endif %}
+                                                <span class="badge">{{ condition.get_operator_display }}</span>
+                                            </div>
+                                            <div class="rule-condition-expression">
+                                                {{ condition.field_name }}{% if condition.value %} = {{ condition.value }}{% endif %}
+                                            </div>
+                                        </div>
+                                    </div>
+                                {% empty %}
+                                    <span class="empty-value">Sin condiciones registradas.</span>
+                                {% endfor %}
+                            </div>
+                        </div>
+                    </div>
+                    <div class="detail-item full">
+                        <span class="detail-label">Regla completa</span>
+                        <div class="detail-value mono">
+                            {% if usecase.full_rule_text %}
+                                <pre class="rule-code">{{ usecase.full_rule_text }}</pre>
+                            {% else %}
+                                <span class="empty-value">Sin regla completa registrada.</span>
+                            {% endif %}
+                        </div>
+                    </div>
+                    <div class="detail-item full">
+                        <span class="detail-label">Descripcion funcional</span>
+                        <div class="detail-value">{{ usecase.functional_description|linebreaksbr|default:"-" }}</div>
                     </div>
                 </div>
             </section>
@@ -942,6 +1104,55 @@
                     </div>
                 </div>
             </section>
+
+            <section class="section">
+                <div class="section-header">
+                    <div>
+                        <h2 class="section-title">Backup técnico</h2>
+                        <p class="section-help">Respaldo vigente de lógica y Sigma con versionado y checksum.</p>
+                    </div>
+                    {% if can_manage_usecases %}
+                        <div class="header-actions">
+                            <a class="btn" href="{% url 'technical_backup_create' %}?use_case={{ usecase.pk }}">Nueva version</a>
+                            {% if usecase.full_rule_text or usecase.rule_conditions.all %}
+                                <form class="delete-inline-form" method="post" action="{% url 'technical_backup_from_usecase_rule' usecase.pk %}">
+                                    {% csrf_token %}
+                                    <button class="btn btn-primary" type="submit">Generar desde regla</button>
+                                </form>
+                            {% endif %}
+                        </div>
+                    {% endif %}
+                </div>
+                <div class="detail-grid">
+                    {% if current_backup %}
+                        <div class="detail-item third">
+                            <span class="detail-label">Versión</span>
+                            <div class="detail-value">v{{ current_backup.version }}</div>
+                        </div>
+                        <div class="detail-item third">
+                            <span class="detail-label">Tipo</span>
+                            <div class="detail-value">{{ current_backup.get_backup_type_display }}</div>
+                        </div>
+                        <div class="detail-item third">
+                            <span class="detail-label">Checksum</span>
+                            <div class="detail-value mono">{{ current_backup.short_checksum }}</div>
+                        </div>
+                        <div class="detail-item full">
+                            <span class="detail-label">Acción</span>
+                            <div class="detail-value">
+                                <a class="tag" href="{% url 'technical_backup_detail' current_backup.pk %}">Ver backup vigente</a>
+                            </div>
+                        </div>
+                    {% else %}
+                        <div class="detail-item full">
+                            <span class="detail-label">Estado</span>
+                            <div class="detail-value">
+                                <span class="badge warn">Sin backup vigente</span>
+                            </div>
+                        </div>
+                    {% endif %}
+                </div>
+            </section>
         </main>
 
         <aside class="card side-card">
@@ -975,6 +1186,16 @@
                 <div class="status-value">{{ usecase.inferred_d3fends|length }}</div>
             </div>
             <div class="status-line">
+                <div class="status-label">Backup técnico</div>
+                <div class="status-value">
+                    {% if current_backup %}
+                        <a class="badge good" href="{% url 'technical_backup_detail' current_backup.pk %}">v{{ current_backup.version }}</a>
+                    {% else %}
+                        <span class="badge warn">Pendiente</span>
+                    {% endif %}
+                </div>
+            </div>
+            <div class="status-line">
                 <div class="status-label">Próx. revisión</div>
                 <div class="status-value">{{ usecase.next_review_date|date:"d/m/Y"|default:"—" }}</div>
             </div>
@@ -995,80 +1216,6 @@
         </aside>
     </div>
 
-    <section class="card history-card" id="historial-cambios">
-        <div class="history-header">
-            <div>
-                <h2 class="history-title">Historial de cambios</h2>
-                <p class="section-help">Últimas modificaciones registradas para este caso de uso.</p>
-            </div>
-            {% if change_logs_page.paginator.count %}
-                <div class="history-count">
-                    Mostrando {{ change_logs_page.start_index }}-{{ change_logs_page.end_index }} de {{ change_logs_page.paginator.count }} cambios
-                </div>
-            {% endif %}
-        </div>
-
-        <div class="table-wrap">
-            <table class="history-table">
-                <thead>
-                    <tr>
-                        <th>Fecha</th>
-                        <th>Usuario</th>
-                        <th>Campo</th>
-                        <th>Valor anterior</th>
-                        <th>Valor nuevo</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    {% for log in change_logs_page %}
-                    <tr>
-                        <td class="mono">{{ log.changed_at|date:"d/m/Y H:i" }}</td>
-                        <td>
-                            {% if log.changed_by %}
-                                {{ log.changed_by.username }}
-                            {% else %}
-                                -
-                            {% endif %}
-                        </td>
-                        <td>{{ log.field_label }}</td>
-                        <td>{{ log.old_value_pretty }}</td>
-                        <td>{{ log.new_value_pretty }}</td>
-                    </tr>
-                    {% empty %}
-                    <tr>
-                        <td colspan="5" class="empty-value">No hay cambios registrados.</td>
-                    </tr>
-                    {% endfor %}
-                </tbody>
-            </table>
-        </div>
-
-        {% if change_logs_page.has_other_pages %}
-            <nav class="pagination" aria-label="Paginación del historial de cambios">
-                {% if change_logs_page.has_previous %}
-                    <a href="?history_page={{ change_logs_page.previous_page_number }}#historial-cambios">Anterior</a>
-                {% else %}
-                    <span class="disabled">Anterior</span>
-                {% endif %}
-
-                {% for page_num in change_logs_page_range %}
-                    {% if page_num == change_logs_page.paginator.ELLIPSIS %}
-                        <span class="disabled">{{ page_num }}</span>
-                    {% elif page_num == change_logs_page.number %}
-                        <span class="current">{{ page_num }}</span>
-                    {% else %}
-                        <a href="?history_page={{ page_num }}#historial-cambios">{{ page_num }}</a>
-                    {% endif %}
-                {% endfor %}
-
-                {% if change_logs_page.has_next %}
-                    <a href="?history_page={{ change_logs_page.next_page_number }}#historial-cambios">Siguiente</a>
-                {% else %}
-                    <span class="disabled">Siguiente</span>
-                {% endif %}
-            </nav>
-        {% endif %}
-    </section>
 </div>
 </body>
 </html>

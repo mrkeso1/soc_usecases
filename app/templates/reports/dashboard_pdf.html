@@ -22,7 +22,7 @@ th { background:#f3f4f6; text-align:left; }
 <table>
 <tr><th>Casos productivos</th><td>{{ kpis.total_cases }}</td><th>ATT&CK técnicas</th><td>{{ kpis.attack_techniques }}</td></tr>
 <tr><th>ATT&CK tácticas</th><td>{{ kpis.attack_tactics }}</td><th>D3FEND inferido</th><td>{{ kpis.d3fend_inferred }}</td></tr>
-<tr><th>D3FEND 100% / parcial</th><td>{{ kpis.d3fend_full_partial }}</td><th>Filtros</th><td>{{ selected_device|default:'-' }} · {{ selected_severity|default:'-' }} · {{ selected_enabled|default:'-' }}</td></tr>
+<tr><th>D3FEND 100% / parcial</th><td>{{ kpis.d3fend_full_partial }}</td><th>Filtros</th><td>{{ selected_device|default:'-' }} · {{ selected_source_label|default:'-' }} · {{ selected_severity|default:'-' }} · {{ selected_enabled|default:'-' }}</td></tr>
 </table>
 <h2>Cobertura ATT&CK</h2>
 <table>
