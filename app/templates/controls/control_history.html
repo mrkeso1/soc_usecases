@@ -1,0 +1,36 @@
+{% extends "base.html" %}
+
+{% block title %}Historial de controles - SOC Control Manager{% endblock %}
+
+{% block content %}
+<main class="container">
+    <section class="page-shell wide">
+        <header class="page-header">
+            <div>
+                <div class="page-eyebrow">// CONTROLES / HISTORIAL</div>
+                <h1 class="page-title">Historial de controles</h1>
+                <p class="page-subtitle">Versión global v{{ inventory_version }}.</p>
+            </div>
+            <div class="header-actions"><a class="btn" href="{% url 'control_list' %}">Volver</a></div>
+        </header>
+        <section class="table-panel">
+            <table class="data-table">
+                <thead><tr><th>Fecha</th><th>Accion</th><th>Control</th><th>Actor</th><th>Cambios</th></tr></thead>
+                <tbody>
+                    {% for change in changes %}
+                        <tr>
+                            <td>{{ change.created_at|date:"d/m/Y H:i" }}</td>
+                            <td>{{ change.action }}</td>
+                            <td>{{ change.control_code }} · {{ change.control_name }}</td>
+                            <td>{{ change.actor|default:"Sistema" }}</td>
+                            <td>{{ change.changes|default:"{}" }}</td>
+                        </tr>
+                    {% empty %}
+                        <tr><td colspan="5" class="muted">Todavia no hay cambios.</td></tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </section>
+    </section>
+</main>
+{% endblock %}

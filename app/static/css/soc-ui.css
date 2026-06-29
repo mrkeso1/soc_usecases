@@ -1,0 +1,436 @@
+/*
+ * Global visual normalization.
+ * Loaded after template-level styles so legacy per-page CSS cannot inflate
+ * operational screens or long identifiers.
+ */
+
+:root {
+    --soc-title-xl: clamp(1.22rem, 0.42vw + 1.04rem, 1.42rem);
+    --soc-title-lg: clamp(1.02rem, 0.25vw + .94rem, 1.14rem);
+    --soc-title-md: .96rem;
+    --soc-body: .9rem;
+    --soc-small: .82rem;
+    --soc-micro: 10px;
+}
+
+html body {
+    font-size: var(--soc-body) !important;
+    letter-spacing: 0 !important;
+}
+
+html body .container {
+    padding-top: 24px !important;
+}
+
+html body .page-header {
+    gap: 14px !important;
+    margin-bottom: 16px !important;
+}
+
+html body .page-eyebrow,
+html body .eyebrow {
+    font-family: 'JetBrains Mono', ui-monospace, monospace !important;
+    font-size: var(--soc-micro) !important;
+    font-weight: 800 !important;
+    letter-spacing: .12em !important;
+    line-height: 1.2 !important;
+    margin-bottom: 6px !important;
+}
+
+html body h1,
+html body h1.page-title,
+html body .page-header h1,
+html body .page-shell h1.page-title,
+html body .container h1.page-title,
+html body main .page-header h1.page-title,
+html body main h1.page-title {
+    color: var(--text-strong) !important;
+    font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif !important;
+    font-size: var(--soc-title-xl) !important;
+    font-weight: 750 !important;
+    line-height: 1.18 !important;
+    letter-spacing: 0 !important;
+    margin: 0 !important;
+    max-width: min(920px, 100%) !important;
+    overflow-wrap: anywhere !important;
+    text-wrap: balance;
+    word-break: normal !important;
+}
+
+html body h2,
+html body h2.page-title,
+html body .panel h2.page-title,
+html body .section-title,
+html body .history-title,
+html body .summary-title {
+    color: var(--text-strong) !important;
+    font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif !important;
+    font-size: var(--soc-title-lg) !important;
+    font-weight: 750 !important;
+    line-height: 1.22 !important;
+    letter-spacing: 0 !important;
+    margin: 0 !important;
+    overflow-wrap: anywhere !important;
+    word-break: normal !important;
+}
+
+html body h3,
+html body .period-heading strong,
+html body .tactic-title,
+html body .row-title {
+    color: var(--text-strong) !important;
+    font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif !important;
+    font-size: var(--soc-title-md) !important;
+    font-weight: 750 !important;
+    line-height: 1.22 !important;
+    letter-spacing: 0 !important;
+    overflow-wrap: anywhere !important;
+}
+
+html body .page-subtitle,
+html body .section-help,
+html body .summary-note,
+html body .muted,
+html body .entity-subtitle {
+    color: var(--text-muted) !important;
+    font-size: var(--soc-small) !important;
+    line-height: 1.42 !important;
+    letter-spacing: 0 !important;
+    overflow-wrap: anywhere !important;
+}
+
+html body .panel,
+html body .kpi-card,
+html body .filter-panel,
+html body .table-panel,
+html body .form-panel,
+html body .period-card,
+html body .summary-card,
+html body .tactic-card {
+    border-radius: 12px !important;
+}
+
+html body .panel,
+html body .filter-panel,
+html body .form-panel {
+    padding: 14px !important;
+}
+
+html body .kpi-card,
+html body .summary-card {
+    padding: 11px 13px !important;
+}
+
+html body .kpi-label,
+html body .summary-label,
+html body .field-label,
+html body .field label,
+html body .detail-label,
+html body .table-panel th,
+html body th {
+    font-family: 'JetBrains Mono', ui-monospace, monospace !important;
+    font-size: var(--soc-micro) !important;
+    font-weight: 800 !important;
+    letter-spacing: .07em !important;
+    line-height: 1.24 !important;
+}
+
+html body .kpi-value,
+html body .summary-value,
+html body .chip-value {
+    font-family: 'JetBrains Mono', ui-monospace, monospace !important;
+    font-size: 1.08rem !important;
+    font-weight: 800 !important;
+    line-height: 1.1 !important;
+    letter-spacing: 0 !important;
+}
+
+html body .data-table td,
+html body .data-table th,
+html body td,
+html body th {
+    font-size: .84rem !important;
+    line-height: 1.34 !important;
+    overflow-wrap: anywhere !important;
+    vertical-align: top !important;
+}
+
+html body .entity-name,
+html body .entity-link,
+html body .entity-code,
+html body .case-name,
+html body .strong-link,
+html body .identifier-text,
+html body .identifier-link,
+html body .list-item-main,
+html body .tech-name {
+    max-width: 100% !important;
+    min-width: 0 !important;
+    overflow-wrap: anywhere !important;
+    word-break: break-word !important;
+    letter-spacing: 0 !important;
+}
+
+html body .entity-name,
+html body .case-name,
+html body .data-table .entity-name,
+html body .data-table .case-name {
+    color: var(--text-strong) !important;
+    font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif !important;
+    font-size: .88rem !important;
+    font-weight: 700 !important;
+    line-height: 1.36 !important;
+}
+
+html body .entity-link,
+html body .strong-link,
+html body .data-table .entity-link,
+html body .data-table .strong-link {
+    display: inline-block !important;
+    color: var(--text-strong) !important;
+    font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif !important;
+    font-size: .88rem !important;
+    font-weight: 700 !important;
+    line-height: 1.36 !important;
+    text-decoration: none !important;
+}
+
+html body .entity-link:hover,
+html body .strong-link:hover {
+    color: var(--accent) !important;
+}
+
+html body .entity-code,
+html body code.entity-code {
+    display: inline-flex !important;
+    width: fit-content !important;
+    max-width: 100% !important;
+    margin-bottom: 4px !important;
+    padding: 0 !important;
+    border: 0 !important;
+    background: transparent !important;
+    color: var(--accent) !important;
+    font-family: 'JetBrains Mono', ui-monospace, monospace !important;
+    font-size: .72rem !important;
+    font-weight: 800 !important;
+    letter-spacing: .04em !important;
+    line-height: 1.2 !important;
+    text-transform: uppercase !important;
+}
+
+html body .badge,
+html body .status-chip,
+html body .mapping-chip,
+html body .technique-chip,
+html body .attack-chip {
+    font-size: .72rem !important;
+    line-height: 1.2 !important;
+}
+
+html body input,
+html body select,
+html body textarea,
+html body button,
+html body .btn,
+html body .btn-primary,
+html body .btn-secondary,
+html body .btn-ghost,
+html body .mini-btn {
+    font-size: .82rem !important;
+}
+
+html body .report-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+    gap: 14px;
+    margin-top: 16px;
+}
+
+html body .report-card {
+    display: flex;
+    min-height: 190px;
+    flex-direction: column;
+    justify-content: space-between;
+    gap: 18px;
+}
+
+html body .report-card h2 {
+    margin: 6px 0 8px;
+}
+
+html body .report-card p {
+    max-width: 58ch;
+    color: var(--text);
+    font-size: .88rem;
+    line-height: 1.45;
+}
+
+html body .report-card-footer {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    flex-wrap: wrap;
+}
+
+@keyframes socFadeUp {
+    from {
+        opacity: 0;
+        transform: translateY(14px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+html body .dashboard-report-page .page-shell.wide {
+    width: min(1600px, 100%) !important;
+}
+
+html body .dashboard-report-page .page-header {
+    margin-bottom: 18px !important;
+}
+
+html body .dashboard-report-page .kpi-grid {
+    grid-template-columns: repeat(5, minmax(0, 1fr)) !important;
+    gap: 14px !important;
+    margin: 16px 0 !important;
+}
+
+html body .dashboard-report-page .panel,
+html body .dashboard-report-page .kpi-card,
+html body .dashboard-report-page .radial-card,
+html body .dashboard-report-page .filter-panel {
+    position: relative !important;
+    border-radius: 14px !important;
+    border-color: var(--border) !important;
+    background: var(--surface) !important;
+    animation: socFadeUp .46s ease both;
+    transition: border-color .18s ease, transform .18s ease, background .18s ease;
+}
+
+html body .dashboard-report-page .panel:hover,
+html body .dashboard-report-page .kpi-card:hover,
+html body .dashboard-report-page .radial-card:hover {
+    border-color: var(--border-bright) !important;
+    transform: translateY(-1px);
+}
+
+html body .dashboard-report-page .kpi-card:nth-child(1),
+html body .dashboard-report-page .radial-card:nth-child(1),
+html body .dashboard-report-page .panel:nth-child(1) {
+    animation-delay: .03s;
+}
+
+html body .dashboard-report-page .kpi-card:nth-child(2),
+html body .dashboard-report-page .radial-card:nth-child(2),
+html body .dashboard-report-page .panel:nth-child(2) {
+    animation-delay: .07s;
+}
+
+html body .dashboard-report-page .kpi-card:nth-child(3),
+html body .dashboard-report-page .panel:nth-child(3) {
+    animation-delay: .11s;
+}
+
+html body .dashboard-report-page .kpi-card:nth-child(4),
+html body .dashboard-report-page .panel:nth-child(4) {
+    animation-delay: .15s;
+}
+
+html body .dashboard-report-page .kpi-card:nth-child(5),
+html body .dashboard-report-page .panel:nth-child(5) {
+    animation-delay: .19s;
+}
+
+html body .dashboard-report-page .scope-note {
+    margin: 0 0 22px;
+    padding: 11px 14px;
+    border: 1px solid rgba(37, 99, 235, .28);
+    border-radius: 10px;
+    background: var(--accent-dim);
+    color: var(--text);
+    font-family: 'JetBrains Mono', ui-monospace, monospace;
+    font-size: .78rem;
+    font-weight: 650;
+    line-height: 1.45;
+}
+
+html body .dashboard-report-page .panel-head {
+    min-height: 34px;
+}
+
+html body .dashboard-report-page .panel-title {
+    color: var(--text-muted) !important;
+}
+
+html body .dashboard-report-page .metric-row strong,
+html body .dashboard-report-page .attention-item strong {
+    color: var(--text-strong);
+    font-family: 'JetBrains Mono', ui-monospace, monospace;
+    font-weight: 800;
+}
+
+html body .dashboard-report-page .stats-grid .panel-title,
+html body .dashboard-report-page .stats-grid .list-item-main,
+html body .dashboard-report-page .stats-grid .list-item-sub,
+html body .dashboard-report-page .stats-grid .summary-row,
+html body .dashboard-report-page .stats-grid .summary-row-value,
+html body .dashboard-report-page .stats-grid .empty-note {
+    font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif !important;
+    font-synthesis: none !important;
+    letter-spacing: 0 !important;
+    text-rendering: geometricPrecision !important;
+}
+
+html body .dashboard-report-page .stats-grid .panel-title {
+    color: var(--text-muted) !important;
+    font-size: .82rem !important;
+    font-weight: 750 !important;
+    line-height: 1.25 !important;
+}
+
+html body .dashboard-report-page .stats-grid .list-item-main {
+    color: var(--text-strong) !important;
+    font-size: .9rem !important;
+    font-weight: 650 !important;
+    line-height: 1.35 !important;
+}
+
+html body .dashboard-report-page .stats-grid .list-item-sub,
+html body .dashboard-report-page .stats-grid .summary-row {
+    color: var(--text-muted) !important;
+    font-size: .8rem !important;
+    font-weight: 500 !important;
+    line-height: 1.38 !important;
+}
+
+html body .dashboard-report-page .stats-grid .summary-row-value {
+    color: var(--text-strong) !important;
+    font-size: .84rem !important;
+    font-weight: 700 !important;
+}
+
+@media (max-width: 1280px) {
+    html body .dashboard-report-page .kpi-grid {
+        grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+    }
+}
+
+@media (max-width: 900px) {
+    :root {
+        --soc-title-xl: 1.24rem;
+        --soc-title-lg: 1.02rem;
+    }
+
+    html body .dashboard-report-page .kpi-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+    }
+}
+
+@media (max-width: 560px) {
+    html body .dashboard-report-page .kpi-grid {
+        grid-template-columns: 1fr !important;
+    }
+}

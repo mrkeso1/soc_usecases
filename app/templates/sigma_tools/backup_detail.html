@@ -1,0 +1,52 @@
+{% extends "base.html" %}
+
+{% block title %}Backup tecnico - SOC Control Manager{% endblock %}
+
+{% block content %}
+<main class="container">
+    <section class="page-shell wide">
+        <header class="page-header">
+            <div>
+                <div class="page-eyebrow">// SIGMA / BACKUP</div>
+                <h1 class="page-title">{{ backup.use_case.name }}</h1>
+                <p class="page-subtitle">Version {{ backup.version }} - checksum {{ backup.checksum }}</p>
+            </div>
+            <div class="header-actions">
+                <a class="btn" href="{% url 'technical_backup_list' %}">Volver</a>
+                <a class="btn" href="{% url 'usecase_detail' backup.use_case.pk %}">Ver caso</a>
+                {% if can_manage_backups %}
+                    <a class="btn-primary" href="{% url 'usecase_edit' backup.use_case.pk %}">Editar regla</a>
+                {% endif %}
+            </div>
+        </header>
+
+        <section class="kpi-grid">
+            <article class="kpi-card"><div class="kpi-label">Version</div><div class="kpi-value">v{{ backup.version }}</div></article>
+            <article class="kpi-card"><div class="kpi-label">Tipo</div><div class="kpi-value">{{ backup.get_backup_type_display }}</div></article>
+            <article class="kpi-card"><div class="kpi-label">Vigente</div><div class="kpi-value">{% if backup.is_current %}Si{% else %}No{% endif %}</div></article>
+            <article class="kpi-card"><div class="kpi-label">Checksum</div><div class="kpi-value" style="font-size:1rem;">{{ backup.short_checksum }}</div></article>
+        </section>
+
+        <div class="split-layout">
+            <section class="panel">
+                <h2 class="page-title" style="font-size:1.08rem;">Logica / regla SIEM</h2>
+                <textarea readonly style="min-height:320px; margin-top:12px; font-family:'JetBrains Mono', monospace;">{{ backup.logic_text }}</textarea>
+            </section>
+            <section class="panel">
+                <h2 class="page-title" style="font-size:1.08rem;">Sigma</h2>
+                <textarea readonly style="min-height:320px; margin-top:12px; font-family:'JetBrains Mono', monospace;">{{ backup.sigma_text }}</textarea>
+            </section>
+        </div>
+
+        <section class="panel" style="margin-top:16px;">
+            <h2 class="page-title" style="font-size:1.08rem;">Versiones del caso</h2>
+            <div class="tag-list" style="margin-top:12px;">
+                {% for item in versions %}
+                    <a class="tag" href="{% url 'technical_backup_detail' item.pk %}">v{{ item.version }} - {{ item.short_checksum }}{% if item.is_current %} - vigente{% endif %}</a>
+                {% endfor %}
+            </div>
+            {% if backup.notes %}<p class="muted" style="margin-top:14px;">{{ backup.notes }}</p>{% endif %}
+        </section>
+    </section>
+</main>
+{% endblock %}

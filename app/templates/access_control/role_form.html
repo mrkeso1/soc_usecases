@@ -1,0 +1,38 @@
+{% extends "base.html" %}
+
+{% block title %}{{ title }} - SOC Control Manager{% endblock %}
+
+{% block content %}
+<main class="container">
+    <section class="page-shell">
+        <header class="page-header">
+            <div>
+                <div class="page-eyebrow">// ADMINISTRACION / ACCESOS</div>
+                <h1 class="page-title">{{ title }}</h1>
+                <p class="page-subtitle">Selecciona permisos funcionales para este rol.</p>
+            </div>
+            <div class="header-actions"><a class="btn" href="{% url 'access_control_home' %}">Volver</a></div>
+        </header>
+
+        <form method="post" class="form-panel">
+            {% csrf_token %}
+            <div class="form-grid">
+                <div class="field full">
+                    <label class="field-label" for="{{ form.name.id_for_label }}">Nombre</label>
+                    {{ form.name }}
+                    {{ form.name.errors }}
+                </div>
+                <div class="field full">
+                    <label class="field-label">Permisos</label>
+                    {{ form.permissions }}
+                    {{ form.permissions.errors }}
+                </div>
+            </div>
+            <div class="form-actions" style="margin-top:14px;">
+                <a class="btn" href="{% url 'access_control_home' %}">Cancelar</a>
+                <button class="btn-primary" type="submit">Guardar</button>
+            </div>
+        </form>
+    </section>
+</main>
+{% endblock %}

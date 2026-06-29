@@ -1,0 +1,274 @@
+{% extends "base.html" %}
+
+{% block title %}{{ title }} - Fuentes{% endblock %}
+
+{% block extra_css %}
+<style>
+    .source-form-shell {
+        display: grid;
+        gap: 16px;
+    }
+
+    .source-form-section {
+        border: 1px solid var(--border);
+        border-radius: 14px;
+        background: var(--surface);
+        overflow: hidden;
+    }
+
+    .source-section-head {
+        display: grid;
+        grid-template-columns: 34px minmax(0, 1fr) auto;
+        gap: 12px;
+        align-items: center;
+        padding: 14px 16px;
+        border-bottom: 1px solid var(--border);
+    }
+
+    .source-section-icon {
+        width: 34px;
+        height: 34px;
+        display: grid;
+        place-items: center;
+        border-radius: 10px;
+        color: var(--good);
+        background: var(--good-dim);
+        border: 1px solid rgba(16, 185, 129, .28);
+        font-family: 'JetBrains Mono', monospace;
+        font-weight: 900;
+    }
+
+    .source-section-title {
+        color: var(--text-strong);
+        font-size: 1rem;
+        font-weight: 800;
+        line-height: 1.2;
+    }
+
+    .source-section-subtitle {
+        margin-top: 3px;
+        color: var(--text-muted);
+        font-size: .84rem;
+        line-height: 1.35;
+    }
+
+    .source-section-actions {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 7px;
+        justify-content: flex-end;
+    }
+
+    .source-form-grid {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 14px;
+        padding: 16px;
+    }
+
+    .source-form-grid .full {
+        grid-column: 1 / -1;
+    }
+
+    .field-error {
+        margin-top: 5px;
+        color: var(--bad);
+        font-size: .8rem;
+    }
+
+    @media (max-width: 820px) {
+        .source-section-head,
+        .source-form-grid {
+            grid-template-columns: 1fr;
+        }
+
+        .source-section-actions {
+            justify-content: flex-start;
+        }
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<main class="container">
+    <section class="page-shell">
+        <header class="page-header">
+            <div>
+                <div class="page-eyebrow">// FUENTES / ALTA</div>
+                <h1 class="page-title">{{ title }}</h1>
+                <p class="page-subtitle">Taxonomia y configuracion de ingesta para usar la fuente como base del inventario.</p>
+            </div>
+            <div class="header-actions">
+                <a class="btn" href="{% url 'source_admin_catalog' %}">Catalogos</a>
+            </div>
+        </header>
+
+        <form method="post" class="source-form-shell">
+            {% csrf_token %}
+            {{ form.non_field_errors }}
+
+            <section class="source-form-section">
+                <div class="source-section-head">
+                    <div class="source-section-icon">DB</div>
+                    <div>
+                        <div class="source-section-title">Identificacion y taxonomia</div>
+                        <div class="source-section-subtitle">Nombre, proteccion y clasificacion de la fuente.</div>
+                    </div>
+                    <div class="source-section-actions">
+                        <a class="btn" href="{% url 'source_category_create' %}">Agregar categoria principal</a>
+                        <a class="btn" href="{% url 'source_subcategory_create' %}">Agregar subcategoria</a>
+                        <a class="btn" href="{% url 'source_type_create' %}">Agregar tipo</a>
+                    </div>
+                </div>
+                <div class="source-form-grid">
+                    <div class="field">
+                        <label for="{{ form.name.id_for_label }}">Nombre de la fuente / dispositivo *</label>
+                        {{ form.name }}
+                        {% if form.name.errors %}<div class="field-error">{{ form.name.errors }}</div>{% endif %}
+                    </div>
+                    <div class="field">
+                        <label for="{{ form.protection.id_for_label }}">Proteccion *</label>
+                        {{ form.protection }}
+                        {% if form.protection.errors %}<div class="field-error">{{ form.protection.errors }}</div>{% endif %}
+                    </div>
+                    <div class="field">
+                        <label for="{{ form.category_ref.id_for_label }}">Categoria *</label>
+                        {{ form.category_ref }}
+                        {% if form.category_ref.errors %}<div class="field-error">{{ form.category_ref.errors }}</div>{% endif %}
+                    </div>
+                    <div class="field">
+                        <label for="{{ form.subcategory_ref.id_for_label }}">Subcategoria</label>
+                        {{ form.subcategory_ref }}
+                        {% if form.subcategory_ref.errors %}<div class="field-error">{{ form.subcategory_ref.errors }}</div>{% endif %}
+                    </div>
+                    <div class="field">
+                        <label for="{{ form.source_type.id_for_label }}">Tipo</label>
+                        {{ form.source_type }}
+                        {% if form.source_type.errors %}<div class="field-error">{{ form.source_type.errors }}</div>{% endif %}
+                    </div>
+                    <div class="field">
+                        <label for="{{ form.code.id_for_label }}">Codigo interno</label>
+                        {{ form.code }}
+                        {% if form.code.errors %}<div class="field-error">{{ form.code.errors }}</div>{% endif %}
+                    </div>
+                </div>
+            </section>
+
+            <section class="source-form-section">
+                <div class="source-section-head">
+                    <div class="source-section-icon">IN</div>
+                    <div>
+                        <div class="source-section-title">Configuracion de ingesta</div>
+                        <div class="source-section-subtitle">Metodo de envio, protocolo, conectividad y estado operativo.</div>
+                    </div>
+                    <div class="source-section-actions">
+                        <a class="btn" href="{% url 'source_delivery_method_create' %}">Agregar metodo</a>
+                    </div>
+                </div>
+                <div class="source-form-grid">
+                    <div class="field">
+                        <label for="{{ form.delivery_method.id_for_label }}">Metodo de envio</label>
+                        {{ form.delivery_method }}
+                        {% if form.delivery_method.errors %}<div class="field-error">{{ form.delivery_method.errors }}</div>{% endif %}
+                    </div>
+                    <div class="field">
+                        <label for="{{ form.protocol.id_for_label }}">Protocolo</label>
+                        {{ form.protocol }}
+                        {% if form.protocol.errors %}<div class="field-error">{{ form.protocol.errors }}</div>{% endif %}
+                    </div>
+                    <div class="field">
+                        <label for="{{ form.port.id_for_label }}">Puerto</label>
+                        {{ form.port }}
+                        {% if form.port.errors %}<div class="field-error">{{ form.port.errors }}</div>{% endif %}
+                    </div>
+                    <div class="field">
+                        <label for="{{ form.service_account.id_for_label }}">Cuenta de servicio</label>
+                        {{ form.service_account }}
+                        {% if form.service_account.errors %}<div class="field-error">{{ form.service_account.errors }}</div>{% endif %}
+                    </div>
+                    <div class="field">
+                        <label for="{{ form.host.id_for_label }}">Host / endpoint</label>
+                        {{ form.host }}
+                        {% if form.host.errors %}<div class="field-error">{{ form.host.errors }}</div>{% endif %}
+                    </div>
+                    <div class="field">
+                        <label for="{{ form.status.id_for_label }}">Estado</label>
+                        {{ form.status }}
+                        {% if form.status.errors %}<div class="field-error">{{ form.status.errors }}</div>{% endif %}
+                    </div>
+                    <div class="field">
+                        <label for="{{ form.vendor.id_for_label }}">Fabricante</label>
+                        {{ form.vendor }}
+                    </div>
+                    <div class="field">
+                        <label for="{{ form.product.id_for_label }}">Producto</label>
+                        {{ form.product }}
+                    </div>
+                    <div class="field">
+                        <label for="{{ form.environment.id_for_label }}">Ambiente</label>
+                        {{ form.environment }}
+                    </div>
+                    <div class="field">
+                        <label for="{{ form.owner.id_for_label }}">Responsable</label>
+                        {{ form.owner }}
+                    </div>
+                    <div class="field full">
+                        <label for="{{ form.description.id_for_label }}">Descripcion</label>
+                        {{ form.description }}
+                    </div>
+                </div>
+            </section>
+
+            <div class="form-actions">
+                <a class="btn" href="{% if source %}{% url 'source_detail' source.pk %}{% else %}{% url 'source_list' %}{% endif %}">Cancelar</a>
+                <button class="btn-primary" type="submit">Guardar fuente</button>
+            </div>
+        </form>
+
+        {{ subcategory_options|json_script:"source-subcategory-options" }}
+        <script>
+            document.addEventListener("DOMContentLoaded", function () {
+                var categorySelect = document.getElementById("{{ form.category_ref.id_for_label }}");
+                var subcategorySelect = document.getElementById("{{ form.subcategory_ref.id_for_label }}");
+                var payload = document.getElementById("source-subcategory-options");
+                if (!categorySelect || !subcategorySelect || !payload) return;
+
+                var options = JSON.parse(payload.textContent || "[]");
+                var selectedValue = subcategorySelect.value;
+
+                function renderSubcategories() {
+                    var categoryId = categorySelect.value;
+                    var currentValue = subcategorySelect.value || selectedValue;
+                    subcategorySelect.innerHTML = "";
+
+                    var blank = document.createElement("option");
+                    blank.value = "";
+                    blank.textContent = categoryId ? "Sin subcategoria" : "Selecciona una categoria";
+                    subcategorySelect.appendChild(blank);
+
+                    options
+                        .filter(function (item) { return String(item.parent_id) === String(categoryId); })
+                        .forEach(function (item) {
+                            var option = document.createElement("option");
+                            option.value = item.id;
+                            option.textContent = item.name;
+                            if (String(item.id) === String(currentValue)) option.selected = true;
+                            subcategorySelect.appendChild(option);
+                        });
+
+                    if (subcategorySelect.selectedIndex < 0) {
+                        subcategorySelect.value = "";
+                    }
+                    selectedValue = subcategorySelect.value;
+                }
+
+                categorySelect.addEventListener("change", function () {
+                    selectedValue = "";
+                    renderSubcategories();
+                });
+                renderSubcategories();
+            });
+        </script>
+    </section>
+</main>
+{% endblock %}

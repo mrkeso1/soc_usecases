@@ -1,0 +1,44 @@
+{% extends "base.html" %}
+
+{% block title %}Evento auditoria - SOC Control Manager{% endblock %}
+
+{% block content %}
+<main class="container">
+    <section class="page-shell">
+        <header class="page-header">
+            <div>
+                <div class="page-eyebrow">// AUDITORIA / DETALLE</div>
+                <h1 class="page-title">{% if timeline_detail %}{{ item.action_label }}{% else %}{{ item.action_label }}{% endif %}</h1>
+                <p class="page-subtitle">{% if timeline_detail %}{{ item.occurred_at|date:"d/m/Y H:i:s" }}{% else %}{{ item.created_at|date:"d/m/Y H:i:s" }}{% endif %}</p>
+            </div>
+            <div class="header-actions"><a class="btn" href="{% url 'audit_list' %}">Volver</a></div>
+        </header>
+
+        <section class="panel">
+            {% if timeline_detail %}
+                <div class="detail-grid">
+                    <div class="detail-item"><div class="detail-label">Area</div><div class="detail-value">{{ item.area_label }}</div></div>
+                    <div class="detail-item"><div class="detail-label">Actor</div><div class="detail-value">{{ item.actor|default:"Sistema" }}</div></div>
+                    <div class="detail-item"><div class="detail-label">Entidad</div><div class="detail-value">{{ item.entity_type }} {{ item.entity_id|default:"" }}</div></div>
+                    <div class="detail-item"><div class="detail-label">Origen</div><div class="detail-value">{{ item.source }}</div></div>
+                    <div class="detail-item full"><div class="detail-label">Resumen</div><div class="detail-value">{{ item.summary }}</div></div>
+                    {% if item.object_url %}
+                        <div class="detail-item full"><div class="detail-label">Objeto original</div><div class="detail-value"><a class="btn-primary" href="{{ item.object_url }}">{{ item.object_label|default:"Abrir objeto" }}</a></div></div>
+                    {% endif %}
+                    {% for label, value in item.details %}
+                        <div class="detail-item full"><div class="detail-label">{{ label }}</div><pre class="detail-value" style="white-space:pre-wrap;">{{ value }}</pre></div>
+                    {% endfor %}
+                </div>
+            {% else %}
+                <div class="detail-grid">
+                    <div class="detail-item"><div class="detail-label">Actor</div><div class="detail-value">{{ item.actor|default:"Sistema" }}</div></div>
+                    <div class="detail-item"><div class="detail-label">IP</div><div class="detail-value">{{ item.ip_address|default:"-" }}</div></div>
+                    <div class="detail-item"><div class="detail-label">Entidad</div><div class="detail-value">{{ item.entity_type|default:"-" }} {{ item.entity_id|default:"" }}</div></div>
+                    <div class="detail-item"><div class="detail-label">User-Agent</div><div class="detail-value">{{ item.user_agent|default:"-" }}</div></div>
+                    <div class="detail-item full"><div class="detail-label">Detalles</div><pre class="detail-value" style="white-space:pre-wrap;">{{ item.details }}</pre></div>
+                </div>
+            {% endif %}
+        </section>
+    </section>
+</main>
+{% endblock %}

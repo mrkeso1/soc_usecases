@@ -5,7 +5,7 @@
 | Componente | Requisito |
 | --- | --- |
 | Runtime | Python 3.12+ |
-| Framework | Django 6.0.5 |
+| Framework | Django 5.2.15 LTS |
 | DB | PostgreSQL 16 recomendado |
 | App server dev | Django runserver |
 | App server prod | Gunicorn |

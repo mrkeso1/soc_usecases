@@ -1,0 +1,72 @@
+{% extends "base.html" %}
+
+{% block title %}Accesos - SOC Control Manager{% endblock %}
+
+{% block content %}
+<main class="container">
+    <section class="page-shell wide">
+        <header class="page-header">
+            <div>
+                <div class="page-eyebrow">// ADMINISTRACION / ACCESOS</div>
+                <h1 class="page-title">Roles y permisos</h1>
+                <p class="page-subtitle">Administracion profesional de perfiles usando grupos y permisos Django sobre la misma base de usuarios.</p>
+            </div>
+            <div class="header-actions">
+                <a class="btn" href="{% url 'admin_console' %}">Panel admin</a>
+                <a class="btn-primary" href="{% url 'access_role_create' %}">Nuevo rol</a>
+                <a class="btn" href="/admin/">Django Admin</a>
+            </div>
+        </header>
+
+        <section class="split-layout">
+            <div class="panel">
+                <h2 class="page-title" style="font-size:1.08rem;">Roles configurados</h2>
+                <div class="table-panel" style="margin-top:12px;">
+                    <table class="data-table">
+                        <thead><tr><th>Rol</th><th>Usuarios</th><th>Permisos</th><th>Acciones</th></tr></thead>
+                        <tbody>
+                            {% for group in groups %}
+                                <tr>
+                                    <td><strong class="detail-value">{{ group.name }}</strong></td>
+                                    <td>{{ group.user_set.count }}</td>
+                                    <td>
+                                        {% for permission in group.permissions.all|slice:":8" %}
+                                            <span class="badge">{{ permission.content_type.app_label }}.{{ permission.codename }}</span>
+                                        {% empty %}
+                                            <span class="muted">Sin permisos</span>
+                                        {% endfor %}
+                                    </td>
+                                    <td><a class="btn" href="{% url 'access_role_edit' group.pk %}">Editar</a></td>
+                                </tr>
+                            {% empty %}
+                                <tr><td colspan="4" class="muted">No hay roles configurados.</td></tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <aside class="panel">
+                <h2 class="page-title" style="font-size:1.08rem;">Asignar roles</h2>
+                <form method="post" style="margin-top:12px;">
+                    {% csrf_token %}
+                    <input type="hidden" name="form_kind" value="assignment">
+                    <div class="form-grid" style="grid-template-columns:1fr;">
+                        <div class="field">
+                            <label class="field-label" for="{{ assignment_form.user.id_for_label }}">Usuario</label>
+                            {{ assignment_form.user }}
+                        </div>
+                        <div class="field">
+                            <label class="field-label">Roles</label>
+                            {{ assignment_form.groups }}
+                        </div>
+                    </div>
+                    <div class="form-actions" style="margin-top:14px;">
+                        <button class="btn-primary" type="submit">Actualizar</button>
+                    </div>
+                </form>
+            </aside>
+        </section>
+    </section>
+</main>
+{% endblock %}

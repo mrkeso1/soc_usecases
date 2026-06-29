@@ -48,6 +48,8 @@ services:
       MITRE_SYNC_POLL_SECONDS: ${MITRE_SYNC_POLL_SECONDS:-3600}
     depends_on:
       - db
+    healthcheck:
+      disable: true
     command: python manage.py run_mitre_scheduler
 
 volumes:

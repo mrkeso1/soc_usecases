@@ -1,0 +1,100 @@
+{% extends "base.html" %}
+
+{% block title %}Backups tecnicos - SOC Control Manager{% endblock %}
+
+{% block content %}
+<main class="container">
+    <section class="page-shell wide">
+        <header class="page-header">
+            <div>
+                <div class="page-eyebrow">// SIGMA / BACKUPS</div>
+                <h1 class="page-title">Backups tecnicos por caso de uso</h1>
+                <p class="page-subtitle">Historial generado automaticamente desde la regla cargada en Inventario, con checksum para validar integridad.</p>
+            </div>
+            <div class="header-actions">
+                <a class="btn" href="{% url 'sigma_epl_to_sigma' %}">Sigma Tools</a>
+            </div>
+        </header>
+
+        {% if messages %}
+            <div class="messages">
+                {% for message in messages %}<div class="message">{{ message }}</div>{% endfor %}
+            </div>
+        {% endif %}
+
+        <section class="kpi-grid">
+            <article class="kpi-card"><div class="kpi-label">Casos</div><div class="kpi-value">{{ total_cases }}</div></article>
+            <article class="kpi-card"><div class="kpi-label">Con backup vigente</div><div class="kpi-value">{{ backed_cases }}</div></article>
+            <article class="kpi-card"><div class="kpi-label">Sin backup</div><div class="kpi-value">{{ missing_count }}</div></article>
+            <article class="kpi-card"><div class="kpi-label">Cobertura</div><div class="kpi-value">{{ coverage_percent }}%</div></article>
+        </section>
+
+        <section class="filter-panel">
+            <form method="get" class="filter-grid">
+                <div class="field">
+                    <label>Buscar</label>
+                    <input type="text" name="q" value="{{ q }}" placeholder="Caso, titulo, checksum o notas">
+                </div>
+                <button class="btn-primary" type="submit">Filtrar</button>
+                <a class="btn" href="{% url 'technical_backup_list' %}">Limpiar</a>
+            </form>
+        </section>
+
+        <section class="table-panel" style="margin-top:14px;">
+            <table class="data-table">
+                <thead>
+                    <tr>
+                        <th>Caso</th>
+                        <th>Version</th>
+                        <th>Tipo</th>
+                        <th>Checksum</th>
+                        <th>Vigente</th>
+                        <th>Creado</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for backup in backups %}
+                        <tr>
+                            <td>
+                                <a class="entity-link" href="{% url 'technical_backup_detail' backup.pk %}">{{ backup.use_case.name }}</a>
+                                {% if backup.title %}<div class="entity-subtitle">{{ backup.title }}</div>{% endif %}
+                            </td>
+                            <td>v{{ backup.version }}</td>
+                            <td><span class="badge accent">{{ backup.get_backup_type_display }}</span></td>
+                            <td><span class="entity-code">{{ backup.short_checksum }}</span></td>
+                            <td><span class="badge {% if backup.is_current %}good{% else %}neutral{% endif %}">{% if backup.is_current %}Si{% else %}No{% endif %}</span></td>
+                            <td>{{ backup.created_at|date:"d/m/Y H:i" }}</td>
+                        </tr>
+                    {% empty %}
+                        <tr><td colspan="6" class="muted">No hay backups tecnicos generados todavia.</td></tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </section>
+
+        {% if missing_cases %}
+            <section class="panel" style="margin-top:16px;">
+                <div class="page-header" style="margin-bottom:10px;">
+                    <div>
+                        <h2 class="page-title" style="font-size:1.08rem;">Casos sin backup vigente</h2>
+                        <p class="page-subtitle">Primeros casos detectados sin respaldo tecnico actual. Edita el caso y guarda la regla para generarlo.</p>
+                    </div>
+                </div>
+                <div class="tag-list">
+                    {% for usecase in missing_cases %}
+                        <a class="tag" href="{% url 'usecase_edit' usecase.pk %}">{{ usecase.name }}</a>
+                    {% endfor %}
+                </div>
+            </section>
+        {% endif %}
+
+        {% if backups.paginator.num_pages > 1 %}
+            <nav class="pagination">
+                {% if backups.has_previous %}<a class="btn" href="?page={{ backups.previous_page_number }}&q={{ q|urlencode }}">Anterior</a>{% endif %}
+                <span class="btn">Pagina {{ backups.number }} / {{ backups.paginator.num_pages }}</span>
+                {% if backups.has_next %}<a class="btn" href="?page={{ backups.next_page_number }}&q={{ q|urlencode }}">Siguiente</a>{% endif %}
+            </nav>
+        {% endif %}
+    </section>
+</main>
+{% endblock %}

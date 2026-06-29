@@ -1,0 +1,85 @@
+{% extends "base.html" %}
+
+{% block title %}Controles - SOC Control Manager{% endblock %}
+
+{% block content %}
+<main class="container">
+    <section class="page-shell wide">
+        <header class="page-header">
+            <div>
+                <div class="page-eyebrow">// GOBIERNO / CONTROLES</div>
+                <h1 class="page-title">Inventario de controles</h1>
+                <p class="page-subtitle">Controles de gobierno asociados a fuentes y casos de uso del inventario central.</p>
+            </div>
+            <div class="header-actions">
+                {% if can_change_controls %}<a class="btn-primary" href="{% url 'control_create' %}">Nuevo control</a>{% endif %}
+            </div>
+        </header>
+
+        <section class="kpi-grid">
+            <article class="kpi-card"><div class="kpi-label">Total</div><div class="kpi-value">{{ total_inventory }}</div></article>
+            <article class="kpi-card"><div class="kpi-label">Versión inventario</div><div class="kpi-value">v{{ inventory_version }}</div></article>
+        </section>
+
+        <form method="get" class="filter-panel">
+            <div class="filter-grid">
+                <div class="field">
+                    <label class="field-label">Buscar</label>
+                    <input name="q" value="{{ q }}" placeholder="Codigo, nombre, fuente, objetivo">
+                </div>
+                <div class="field">
+                    <label class="field-label">Estado</label>
+                    <select name="status">
+                        <option value="">Todos</option>
+                        {% for value,label in status_choices %}
+                            <option value="{{ value }}" {% if selected_status == value %}selected{% endif %}>{{ label }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="field">
+                    <label class="field-label">Fuente</label>
+                    <select name="source">
+                        <option value="">Todas</option>
+                        {% for source in sources %}
+                            <option value="{{ source.pk }}" {% if selected_source == source.pk|stringformat:"s" %}selected{% endif %}>{{ source.display_name }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <button class="btn-primary" type="submit">Filtrar</button>
+                <a class="btn" href="{% url 'control_list' %}">Limpiar</a>
+            </div>
+        </form>
+
+        <section class="table-panel" style="margin-top:16px;">
+            <table class="data-table">
+                <thead>
+                    <tr><th>Control</th><th>Fuente</th><th>Estado</th><th>Casos</th><th>Revision</th><th>Acciones</th></tr>
+                </thead>
+                <tbody>
+                    {% for item in items %}
+                        <tr>
+                            <td>
+                                <span class="entity-code">{{ item.code }}</span>
+                                <a class="entity-link" href="{% url 'control_detail' item.pk %}">{{ item.name }}</a>
+                                <div class="entity-subtitle">v{{ item.version }} · {{ item.classification }}</div>
+                            </td>
+                            <td><a class="entity-link" href="{% url 'source_detail' item.source.pk %}">{{ item.source.display_name }}</a></td>
+                            <td><span class="badge {% if item.status == 'Produccion' %}good{% elif item.status == 'Baja' %}bad{% else %}warn{% endif %}">{{ item.status }}</span></td>
+                            <td>{{ item.use_cases.count }}</td>
+                            <td>{{ item.next_review_at|date:"d/m/Y"|default:"Sin fecha" }}</td>
+                            <td>
+                                <div class="header-actions">
+                                    <a class="btn" href="{% url 'control_detail' item.pk %}">Ver</a>
+                                    {% if can_change_controls %}<a class="btn" href="{% url 'control_edit' item.pk %}">Editar</a>{% endif %}
+                                </div>
+                            </td>
+                        </tr>
+                    {% empty %}
+                        <tr><td colspan="6" class="muted">No hay controles para los filtros actuales.</td></tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </section>
+    </section>
+</main>
+{% endblock %}

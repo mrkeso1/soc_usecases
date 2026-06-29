@@ -1,0 +1,48 @@
+{% extends "base.html" %}
+
+{% block title %}{{ item.code }} - SOC Control Manager{% endblock %}
+
+{% block content %}
+<main class="container">
+    <section class="page-shell wide">
+        <header class="page-header">
+            <div>
+                <div class="page-eyebrow">// CONTROLES / DETALLE</div>
+                <h1 class="page-title">{{ item.name }}</h1>
+                <p class="page-subtitle"><span class="entity-code">{{ item.code }}</span> versión {{ item.version }} · {{ item.source.display_name }}</p>
+            </div>
+            <div class="header-actions">
+                <a class="btn" href="{% url 'control_list' %}">Volver</a>
+                {% if can_change_controls %}<a class="btn-primary" href="{% url 'control_edit' item.pk %}">Editar</a>{% endif %}
+            </div>
+        </header>
+
+        <section class="split-layout">
+            <div class="panel">
+                <div class="detail-grid">
+                    <div class="detail-item"><div class="detail-label">Estado</div><div class="detail-value">{{ item.status }}</div></div>
+                    <div class="detail-item"><div class="detail-label">Clasificación</div><div class="detail-value">{{ item.classification }}</div></div>
+                    <div class="detail-item"><div class="detail-label">Responsable</div><div class="detail-value">{{ item.owner|default:"-" }}</div></div>
+                    <div class="detail-item"><div class="detail-label">Próxima revisión</div><div class="detail-value">{{ item.next_review_at|date:"d/m/Y"|default:"-" }}</div></div>
+                    <div class="detail-item full"><div class="detail-label">Objetivo</div><div class="detail-value">{{ item.objective|linebreaksbr|default:"-" }}</div></div>
+                    <div class="detail-item full"><div class="detail-label">Descripción</div><div class="detail-value">{{ item.description|linebreaksbr|default:"-" }}</div></div>
+                    <div class="detail-item full"><div class="detail-label">Riesgo mitigado</div><div class="detail-value">{{ item.mitigated_risk|linebreaksbr|default:"-" }}</div></div>
+                    <div class="detail-item full"><div class="detail-label">Evidencia</div><div class="detail-value">{{ item.evidence|linebreaksbr|default:"-" }}</div></div>
+                </div>
+            </div>
+            <aside class="panel">
+                <h2 class="page-title" style="font-size:1.08rem;">Casos vinculados</h2>
+                <div class="metric-list" style="margin-top:12px;">
+                    {% for usecase in item.use_cases.all %}
+                        <a class="entity-link" href="{% url 'usecase_detail' usecase.pk %}">{{ usecase.name }}</a>
+                    {% empty %}
+                        <p class="muted">Sin casos vinculados.</p>
+                    {% endfor %}
+                </div>
+                <h2 class="page-title" style="font-size:1.08rem; margin-top:18px;">Condiciones</h2>
+                <pre class="detail-item" style="white-space:pre-wrap; margin-top:12px;">{{ item.control_conditions|default:"[]" }}</pre>
+            </aside>
+        </section>
+    </section>
+</main>
+{% endblock %}

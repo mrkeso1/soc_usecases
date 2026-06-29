@@ -1,0 +1,37 @@
+{% extends "base.html" %}
+
+{% block title %}{{ title }} - SOC Control Manager{% endblock %}
+
+{% block content %}
+<main class="container">
+    <section class="page-shell wide">
+        <header class="page-header">
+            <div>
+                <div class="page-eyebrow">// GOBIERNO / CONTROLES</div>
+                <h1 class="page-title">{{ title }}</h1>
+                <p class="page-subtitle">Alta y mantenimiento de controles asociados al inventario central.</p>
+            </div>
+            <div class="header-actions"><a class="btn" href="{% url 'control_list' %}">Volver</a></div>
+        </header>
+        <form method="post" class="form-panel">
+            {% csrf_token %}
+            {{ form.non_field_errors }}
+            <div class="form-grid">
+                {% for field in form %}
+                    <div class="field {% if field.name in 'use_cases objective description mitigated_risk evidence control_conditions_text' %}full{% endif %}">
+                        <label class="field-label" for="{{ field.id_for_label }}">{{ field.label }}</label>
+                        {{ field }}
+                        {% if field.help_text %}<p class="muted">{{ field.help_text }}</p>{% endif %}
+                        {{ field.errors }}
+                    </div>
+                {% endfor %}
+            </div>
+            <div class="form-actions" style="margin-top:16px;">
+                <a class="btn" href="{% url 'control_list' %}">Cancelar</a>
+                <button class="btn-primary" type="submit">Guardar</button>
+            </div>
+        </form>
+    </section>
+</main>
+{% endblock %}
+

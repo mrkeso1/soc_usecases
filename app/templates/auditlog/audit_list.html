@@ -1,0 +1,106 @@
+{% extends "base.html" %}
+
+{% block title %}Auditoria - SOC Control Manager{% endblock %}
+
+{% block content %}
+<main class="container">
+    <section class="page-shell wide">
+        <header class="page-header">
+            <div>
+                <div class="page-eyebrow">// OPERACION / AUDITORIA</div>
+                <h1 class="page-title">Auditoria central</h1>
+                <p class="page-subtitle">Línea de tiempo unificada de seguridad, inventario, lifecycle, controles, reportes y conversiones Sigma.</p>
+            </div>
+        </header>
+
+        <section class="kpi-grid">
+            <article class="kpi-card"><div class="kpi-label">Eventos totales</div><div class="kpi-value">{{ total_events }}</div></article>
+            <article class="kpi-card"><div class="kpi-label">Resultado filtro</div><div class="kpi-value">{{ filtered_events }}</div></article>
+            <article class="kpi-card"><div class="kpi-label">Eventos seguridad</div><div class="kpi-value">{{ security_events }}</div></article>
+            <article class="kpi-card"><div class="kpi-label">Eventos operativos</div><div class="kpi-value">{{ business_events }}</div></article>
+        </section>
+
+        <form method="get" class="filter-panel">
+            <div class="filter-grid">
+                <div class="field">
+                    <label class="field-label">Buscar</label>
+                    <input name="q" value="{{ q }}" placeholder="usuario, entidad, caso, control, archivo, IP">
+                </div>
+                <div class="field">
+                    <label class="field-label">Area</label>
+                    <select name="area">
+                        {% for value, label in area_choices %}
+                            <option value="{{ value }}" {% if selected_area == value %}selected{% endif %}>{{ label }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="field">
+                    <label class="field-label">Desde</label>
+                    <input type="date" name="start" value="{{ selected_start }}">
+                </div>
+                <div class="field">
+                    <label class="field-label">Hasta</label>
+                    <input type="date" name="end" value="{{ selected_end }}">
+                </div>
+                <button class="btn-primary" type="submit">Filtrar</button>
+                <a class="btn" href="{% url 'audit_list' %}">Limpiar</a>
+                {% if can_export_audit %}
+                    <a class="btn" href="{% url 'audit_export_csv' %}?q={{ q|urlencode }}&area={{ selected_area }}&start={{ selected_start }}&end={{ selected_end }}">CSV</a>
+                    <a class="btn" href="{% url 'audit_export_xlsx' %}?q={{ q|urlencode }}&area={{ selected_area }}&start={{ selected_start }}&end={{ selected_end }}">Excel</a>
+                {% endif %}
+            </div>
+        </form>
+
+        <section class="table-panel" style="margin-top:16px;">
+            <table class="data-table">
+                <thead>
+                    <tr>
+                        <th>Fecha</th>
+                        <th>Area</th>
+                        <th>Accion</th>
+                        <th>Actor</th>
+                        <th>Entidad</th>
+                        <th>Resumen</th>
+                        <th></th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for item in items %}
+                        <tr>
+                            <td>{{ item.occurred_at|date:"d/m/Y H:i:s" }}</td>
+                            <td><span class="badge {{ item.area_badge }}">{{ item.area_label }}</span></td>
+                            <td><span class="badge {{ item.action_badge }}">{{ item.action_label }}</span></td>
+                            <td>{{ item.actor|default:"Sistema" }}</td>
+                            <td>
+                                <span class="entity-code">{{ item.entity_type }}</span>
+                                <div>{{ item.entity_id|default:"-" }}</div>
+                            </td>
+                            <td><span class="entity-link">{{ item.summary }}</span></td>
+                            <td>
+                                <div class="row-actions">
+                                    <a class="btn" href="{% url 'audit_timeline_detail' item.detail_url_source item.pk %}">Ver</a>
+                                    {% if item.object_url %}<a class="btn" href="{{ item.object_url }}">{{ item.object_label|default:"Abrir" }}</a>{% endif %}
+                                </div>
+                            </td>
+                        </tr>
+                    {% empty %}
+                        <tr><td colspan="7" class="muted">No hay eventos para los filtros actuales.</td></tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </section>
+
+        {% if page_obj.paginator.num_pages > 1 %}
+            <nav class="pagination">
+                {% if page_obj.has_previous %}
+                    <a class="btn" href="?page={{ page_obj.previous_page_number }}&q={{ q|urlencode }}&area={{ selected_area }}&start={{ selected_start }}&end={{ selected_end }}">Anterior</a>
+                {% endif %}
+                <span class="btn">Pagina {{ page_obj.number }} / {{ page_obj.paginator.num_pages }}</span>
+                {% if page_obj.has_next %}
+                    <a class="btn" href="?page={{ page_obj.next_page_number }}&q={{ q|urlencode }}&area={{ selected_area }}&start={{ selected_start }}&end={{ selected_end }}">Siguiente</a>
+                {% endif %}
+            </nav>
+        {% endif %}
+    </section>
+</main>
+{% endblock %}

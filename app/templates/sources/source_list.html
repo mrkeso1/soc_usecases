@@ -1,0 +1,122 @@
+{% extends "base.html" %}
+
+{% block title %}Fuentes - SOC Control Manager{% endblock %}
+
+{% block content %}
+<main class="container">
+    <div class="page-shell wide">
+        <header class="page-header">
+            <div>
+                <div class="page-eyebrow">// FUENTES</div>
+                <h1 class="page-title">Fuentes de eventos</h1>
+                <p class="page-subtitle">Catalogo del inventario para vincular tecnologias, logs y sensores a los casos de uso.</p>
+            </div>
+            <div class="header-actions">
+                {% if can_manage_sources %}
+                    <a class="btn-primary" href="{% url 'source_create' %}">Nueva fuente</a>
+                    <a class="btn" href="{% url 'source_admin_catalog' %}">Catálogos</a>
+                    <a class="btn" href="{% url 'usecase_source_create' %}">Vincular caso</a>
+                {% endif %}
+            </div>
+        </header>
+
+        {% if messages %}
+            <div class="messages">
+                {% for message in messages %}<div class="message">{{ message }}</div>{% endfor %}
+            </div>
+        {% endif %}
+
+        <section class="kpi-grid">
+            <div class="kpi-card"><div class="kpi-label">Total</div><div class="kpi-value">{{ total_sources }}</div></div>
+            <div class="kpi-card"><div class="kpi-label">Activas</div><div class="kpi-value">{{ active_sources }}</div></div>
+            <div class="kpi-card"><div class="kpi-label">Vinculadas</div><div class="kpi-value">{{ linked_sources }}</div></div>
+            <div class="kpi-card"><div class="kpi-label">Pagina</div><div class="kpi-value">{{ sources.number }}/{{ sources.paginator.num_pages }}</div></div>
+        </section>
+
+        <section class="filter-panel">
+            <form method="get" class="filter-grid">
+                <div class="field">
+                    <label>Buscar</label>
+                    <input type="text" name="q" value="{{ q }}" placeholder="Nombre, código, vendor, host">
+                </div>
+                <div class="field">
+                    <label>Tipo</label>
+                    <select name="source_type">
+                        <option value="">Todos</option>
+                        {% for value,label in type_choices %}
+                            <option value="{{ value }}" {% if selected_source_type == value %}selected{% endif %}>{{ label }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="field">
+                    <label>Estado</label>
+                    <select name="status">
+                        <option value="">Todos</option>
+                        {% for value,label in status_choices %}
+                            <option value="{{ value }}" {% if selected_status == value %}selected{% endif %}>{{ label }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="field">
+                    <label>Taxonomía</label>
+                    <select name="category">
+                        <option value="">Todas</option>
+                        {% for item in category_choices %}
+                            <option value="{{ item.pk }}" {% if selected_category == item.pk|stringformat:"s" %}selected{% endif %}>{{ item }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <button class="btn-primary" type="submit">Filtrar</button>
+                <a class="btn" href="{% url 'source_list' %}">Limpiar</a>
+            </form>
+        </section>
+
+        <section class="table-panel" style="margin-top:14px;">
+            <table class="data-table">
+                <thead>
+                    <tr>
+                        <th>Fuente</th>
+                        <th>Proteccion</th>
+                        <th>Tipo</th>
+                        <th>Taxonomia</th>
+                        <th>Ingesta</th>
+                        <th>Estado</th>
+                        <th>Casos</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for source in sources %}
+                        <tr>
+                            <td>
+                                <span class="entity-code">{{ source.code|default:"FUENTE" }}</span>
+                                <a class="entity-link" href="{% url 'source_detail' source.pk %}">{{ source.name }}</a>
+                                {% if source.owner %}<div class="entity-subtitle">{{ source.owner }}</div>{% endif %}
+                            </td>
+                            <td><span class="badge accent">{{ source.get_protection_display }}</span></td>
+                            <td><span class="badge accent">{{ source.source_type_label }}</span></td>
+                            <td>{{ source.taxonomy_label|default:"-" }}</td>
+                            <td>
+                                {{ source.host|default:"-" }}
+                                {% if source.ingestion_label %}<div class="muted">{{ source.ingestion_label }}</div>{% endif %}
+                                {% if source.service_account %}<div class="muted">Cuenta {{ source.service_account }}</div>{% endif %}
+                            </td>
+                            <td><span class="badge {% if source.status == 'active' %}good{% elif source.status == 'planned' %}warn{% elif source.status == 'retired' %}bad{% endif %}">{{ source.get_status_display }}</span></td>
+                            <td>{{ source.usecase_count }}</td>
+                        </tr>
+                    {% empty %}
+                        <tr><td colspan="7" class="muted">No hay fuentes para los filtros seleccionados.</td></tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </section>
+
+        {% if sources.paginator.num_pages > 1 %}
+            <nav class="pagination">
+                {% if sources.has_previous %}<a class="btn" href="?page={{ sources.previous_page_number }}&q={{ q|urlencode }}&source_type={{ selected_source_type }}&status={{ selected_status }}&category={{ selected_category }}">Anterior</a>{% endif %}
+                <span class="btn">Pagina {{ sources.number }} / {{ sources.paginator.num_pages }}</span>
+                {% if sources.has_next %}<a class="btn" href="?page={{ sources.next_page_number }}&q={{ q|urlencode }}&source_type={{ selected_source_type }}&status={{ selected_status }}&category={{ selected_category }}">Siguiente</a>{% endif %}
+            </nav>
+        {% endif %}
+    </div>
+</main>
+{% endblock %}

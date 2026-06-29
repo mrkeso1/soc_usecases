@@ -1,0 +1,168 @@
+{% extends "base.html" %}
+
+{% block title %}Plantillas PDF - SOC Control Manager{% endblock %}
+
+{% block extra_css %}
+<style>
+    .template-form-grid {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) minmax(280px, 360px);
+        gap: 16px;
+        align-items: start;
+    }
+    .field-grid {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 12px;
+    }
+    .field.full { grid-column: 1 / -1; }
+    .template-form-grid input[type="checkbox"] {
+        width: auto;
+        min-height: auto;
+    }
+    .section-options ul {
+        list-style: none;
+        display: grid;
+        gap: 8px;
+        padding: 0;
+        margin: 0;
+    }
+    .section-options li label,
+    .flag-options label {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        margin: 0;
+        color: var(--text);
+        font-size: .86rem;
+        text-transform: none;
+        letter-spacing: 0;
+        font-family: 'Syne', sans-serif;
+        font-weight: 700;
+    }
+    .flag-options {
+        display: grid;
+        gap: 8px;
+    }
+    .current-logo {
+        max-width: 180px;
+        max-height: 80px;
+        object-fit: contain;
+        padding: 10px;
+        border: 1px solid var(--border);
+        border-radius: 10px;
+        background: var(--surface-2);
+    }
+    @media (max-width: 980px) {
+        .template-form-grid,
+        .field-grid { grid-template-columns: 1fr; }
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<main class="container">
+    <section class="page-shell wide">
+        <header class="page-header">
+            <div>
+                <div class="page-eyebrow">// REPORTES / PLANTILLAS</div>
+                <h1 class="page-title">Plantillas PDF configurables</h1>
+                <p class="page-subtitle">Configura identidad visual, secciones y metadatos por tipo de reporte.</p>
+            </div>
+            <div class="header-actions">
+                <a class="btn-secondary" href="{% url 'report_preview' report_type %}">Preview</a>
+                <a class="btn-secondary" href="{% url 'report_index' %}">Reportes</a>
+            </div>
+        </header>
+
+        <section class="panel" style="margin-bottom:16px;">
+            <form method="get" class="review-filters" style="margin:0;">
+                <select name="report_type" onchange="this.form.submit()">
+                    {% for value, label in report_types %}
+                        <option value="{{ value }}" {% if value == report_type %}selected{% endif %}>{{ label }}</option>
+                    {% endfor %}
+                </select>
+                <button class="btn" type="submit">Cambiar tipo</button>
+            </form>
+        </section>
+
+        <form method="post" enctype="multipart/form-data" class="template-form-grid">
+            {% csrf_token %}
+            <input type="hidden" name="report_type" value="{{ report_type }}">
+            <section class="panel">
+                {{ form.non_field_errors }}
+                <div class="field-grid">
+                    <div class="field">
+                        <label class="field-label" for="{{ form.organization_name.id_for_label }}">{{ form.organization_name.label }}</label>
+                        {{ form.organization_name }}
+                        {{ form.organization_name.errors }}
+                    </div>
+                    <div class="field">
+                        <label class="field-label" for="{{ form.document_label.id_for_label }}">{{ form.document_label.label }}</label>
+                        {{ form.document_label }}
+                        {{ form.document_label.errors }}
+                    </div>
+                    <div class="field full">
+                        <label class="field-label" for="{{ form.report_title.id_for_label }}">{{ form.report_title.label }}</label>
+                        {{ form.report_title }}
+                        {{ form.report_title.errors }}
+                    </div>
+                    <div class="field full">
+                        <label class="field-label" for="{{ form.introduction_text.id_for_label }}">{{ form.introduction_text.label }}</label>
+                        {{ form.introduction_text }}
+                        {{ form.introduction_text.errors }}
+                    </div>
+                    <div class="field">
+                        <label class="field-label" for="{{ form.primary_color.id_for_label }}">{{ form.primary_color.label }}</label>
+                        {{ form.primary_color }}
+                        {{ form.primary_color.errors }}
+                    </div>
+                    <div class="field">
+                        <label class="field-label" for="{{ form.accent_color.id_for_label }}">{{ form.accent_color.label }}</label>
+                        {{ form.accent_color }}
+                        {{ form.accent_color.errors }}
+                    </div>
+                    <div class="field">
+                        <label class="field-label" for="{{ form.footer_text.id_for_label }}">{{ form.footer_text.label }}</label>
+                        {{ form.footer_text }}
+                        {{ form.footer_text.errors }}
+                    </div>
+                    <div class="field">
+                        <label class="field-label" for="{{ form.confidentiality_label.id_for_label }}">{{ form.confidentiality_label.label }}</label>
+                        {{ form.confidentiality_label }}
+                        {{ form.confidentiality_label.errors }}
+                    </div>
+                    <div class="field full">
+                        <label class="field-label" for="{{ form.logo.id_for_label }}">{{ form.logo.label }}</label>
+                        {{ form.logo }}
+                        {{ form.logo.errors }}
+                    </div>
+                </div>
+            </section>
+
+            <aside class="panel">
+                <div class="section-options">
+                    <label class="field-label">{{ form.sections.label }}</label>
+                    {{ form.sections }}
+                    {{ form.sections.errors }}
+                </div>
+
+                <div class="flag-options" style="margin-top:16px;">
+                    <label>{{ form.show_header }} Mostrar encabezado</label>
+                    <label>{{ form.show_footer }} Mostrar footer</label>
+                    <label>{{ form.show_generation_date }} Mostrar fecha</label>
+                    <label>{{ form.show_page_numbers }} Mostrar pagina</label>
+                    {% if config.logo %}
+                        <img class="current-logo" src="{{ config.logo.url }}" alt="Logo actual">
+                        <label>{{ form.remove_logo }} Quitar logo actual</label>
+                    {% endif %}
+                </div>
+
+                <div class="header-actions" style="justify-content:flex-end; margin-top:18px;">
+                    <button class="btn-primary" type="submit">Guardar plantilla</button>
+                </div>
+            </aside>
+        </form>
+    </section>
+</main>
+{% endblock %}

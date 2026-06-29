@@ -1,0 +1,57 @@
+﻿{% extends "base.html" %}
+
+{% block title %}Sigma Tools - SOC Control Manager{% endblock %}
+
+{% block content %}
+<main class="container">
+    <section class="page-shell wide">
+        <header class="page-header">
+            <div>
+                <div class="page-eyebrow">// SIGMA TOOLS</div>
+                <h1 class="page-title">{% if mode == "converter" %}Sigma a SIEM{% else %}EPL a Sigma{% endif %}</h1>
+                <p class="page-subtitle">Convierte logica de deteccion y registra la trazabilidad en la auditoria central.</p>
+            </div>
+            <div class="header-actions">
+                <a class="btn-tab {% if mode == 'epl' %}active{% endif %}" href="{% url 'sigma_epl_to_sigma' %}">EPL a Sigma</a>
+                <a class="btn-tab {% if mode == 'converter' %}active{% endif %}" href="{% url 'sigma_converter' %}">Sigma a SIEM</a>
+                <a class="btn-tab" href="{% url 'technical_backup_list' %}">Backups</a>
+            </div>
+        </header>
+
+        <form method="post" class="split-layout">
+            {% csrf_token %}
+            <section class="form-panel">
+                <div class="form-grid">
+                    <div class="field full">
+                        <label class="field-label" for="{{ form.use_case.id_for_label }}">Caso de uso</label>
+                        {{ form.use_case }}
+                    </div>
+                    {% if mode == "converter" %}
+                        <div class="field full">
+                            <label class="field-label" for="{{ form.target.id_for_label }}">Destino</label>
+                            {{ form.target }}
+                        </div>
+                    {% endif %}
+                    <div class="field full">
+                        <label class="field-label" for="{{ form.input_text.id_for_label }}">Entrada</label>
+                        {{ form.input_text }}
+                    </div>
+                </div>
+                <div class="form-actions" style="margin-top:14px;">
+                    <button class="btn-primary" type="submit">Convertir</button>
+                </div>
+            </section>
+
+            <aside class="panel">
+                <h2 class="page-title" style="font-size:1.08rem;">Resultado</h2>
+                {% if result %}
+                    <textarea readonly style="min-height:360px; margin-top:12px; font-family:'JetBrains Mono', monospace;">{{ result }}</textarea>
+                {% else %}
+                    <p class="muted" style="margin-top:12px;">El resultado aparece aca despues de convertir.</p>
+                {% endif %}
+            </aside>
+        </form>
+
+    </section>
+</main>
+{% endblock %}

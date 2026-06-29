@@ -1,0 +1,299 @@
+{% extends "base.html" %}
+
+{% block title %}Admin fuentes - SOC Control Manager{% endblock %}
+
+{% block content %}
+<style>
+    .catalog-layout {
+        display: grid !important;
+        align-items: start;
+        grid-template-columns: 1fr !important;
+        gap: 16px !important;
+    }
+
+    .catalog-panel {
+        min-width: 0;
+    }
+
+    .catalog-panel .table-panel {
+        overflow-x: visible;
+    }
+
+    .catalog-table {
+        width: 100%;
+        min-width: 0 !important;
+        table-layout: fixed;
+    }
+
+    .catalog-table th:nth-child(1),
+    .catalog-table td:nth-child(1) {
+        width: 30%;
+    }
+
+    .catalog-table th:nth-child(2),
+    .catalog-table td:nth-child(2) {
+        width: 22%;
+    }
+
+    .catalog-table th:nth-child(3),
+    .catalog-table td:nth-child(3) {
+        width: 12%;
+    }
+
+    .catalog-table th:nth-child(4),
+    .catalog-table td:nth-child(4) {
+        width: 14%;
+    }
+
+    .catalog-table th:nth-child(5),
+    .catalog-table td:nth-child(5) {
+        width: 22%;
+    }
+
+    .catalog-table th,
+    .catalog-table td {
+        padding: 9px 10px !important;
+        vertical-align: middle !important;
+    }
+
+    .catalog-name {
+        display: block;
+        color: var(--text-strong);
+        font-weight: 700;
+        line-height: 1.25;
+        overflow-wrap: anywhere;
+    }
+
+    .catalog-actions {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        white-space: nowrap;
+    }
+
+    .catalog-actions form {
+        display: inline;
+        margin: 0;
+    }
+
+    .catalog-actions .btn {
+        min-height: 28px !important;
+        padding: 0 9px !important;
+        font-size: .76rem !important;
+        line-height: 1 !important;
+    }
+
+    .catalog-actions .btn-danger-soft {
+        color: var(--bad) !important;
+        border-color: color-mix(in srgb, var(--bad) 36%, transparent) !important;
+        background: var(--bad-dim) !important;
+    }
+
+    .catalog-pagination {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 10px;
+        margin-top: 10px;
+        color: var(--text-muted);
+        font-size: .82rem;
+    }
+
+    .catalog-pagination-links {
+        display: inline-flex;
+        gap: 6px;
+    }
+
+    .catalog-pagination-links .btn {
+        min-height: 30px !important;
+        padding: 0 10px !important;
+    }
+
+    @media (max-width: 1080px) {
+        .catalog-layout {
+            grid-template-columns: 1fr;
+        }
+    }
+
+    @media (max-width: 760px) {
+        .catalog-panel .table-panel {
+            overflow-x: auto;
+        }
+
+        .catalog-table {
+            min-width: 760px !important;
+        }
+    }
+</style>
+
+<main class="container">
+    <section class="page-shell wide">
+        <header class="page-header">
+            <div>
+                <div class="page-eyebrow">// ADMINISTRACIÓN / FUENTES</div>
+                <h1 class="page-title">Catálogos de fuentes</h1>
+                <p class="page-subtitle">Administra los tipos, categorías y subcategorías que se usan al dar de alta fuentes de eventos.</p>
+            </div>
+            <div class="header-actions">
+                <a class="btn" href="{% url 'source_list' %}">Fuentes</a>
+                <a class="btn-primary" href="{% url 'source_category_create' %}">Nueva categoria principal</a>
+                <a class="btn-primary" href="{% url 'source_subcategory_create' %}">Nueva subcategoria</a>
+                <a class="btn-primary" href="{% url 'source_type_create' %}">Nuevo tipo</a>
+                <a class="btn-primary" href="{% url 'source_delivery_method_create' %}">Nuevo metodo</a>
+            </div>
+        </header>
+
+        {% if messages %}
+            <div class="messages">
+                {% for message in messages %}<div class="message">{{ message }}</div>{% endfor %}
+            </div>
+        {% endif %}
+
+        <section class="kpi-grid">
+            <article class="kpi-card"><div class="kpi-label">Fuentes</div><div class="kpi-value">{{ source_count }}</div></article>
+            <article class="kpi-card"><div class="kpi-label">Tipos</div><div class="kpi-value">{{ source_type_count }}</div></article>
+            <article class="kpi-card"><div class="kpi-label">Taxonomía</div><div class="kpi-value">{{ categories|length }}</div></article>
+            <article class="kpi-card"><div class="kpi-label">Metodos</div><div class="kpi-value">{{ delivery_method_count }}</div></article>
+        </section>
+
+        <section class="split-layout catalog-layout">
+            <div class="panel catalog-panel">
+                <div class="page-header" style="margin-bottom:12px;">
+                    <div>
+                        <h2 class="page-title" style="font-size:1.08rem;">Categorías y subcategorías</h2>
+                        <p class="page-subtitle">Usalas para ordenar SIEM, identidad, cloud, red, endpoints y fuentes internas.</p>
+                    </div>
+                    <div class="catalog-actions">
+                        <a class="btn" href="{% url 'source_category_create' %}">Categoria principal</a>
+                        <a class="btn" href="{% url 'source_subcategory_create' %}">Subcategoria</a>
+                    </div>
+                </div>
+                <div class="table-panel">
+                    <table class="data-table catalog-table">
+                        <thead><tr><th>Nombre</th><th>Padre</th><th>Fuentes</th><th>Estado</th><th>Acciones</th></tr></thead>
+                        <tbody>
+                            {% for item in categories %}
+                                <tr>
+                                    <td><strong class="catalog-name">{{ item.name }}</strong></td>
+                                    <td>{% if item.parent %}{{ item.parent.name }}{% else %}<span class="badge accent">Principal</span>{% endif %}</td>
+                                    <td>{{ item.direct_source_count|add:item.subcategory_source_count }}</td>
+                                    <td><span class="badge {% if item.is_active %}good{% else %}bad{% endif %}">{% if item.is_active %}Activa{% else %}Inactiva{% endif %}</span></td>
+                                    <td>
+                                        <div class="catalog-actions">
+                                            <a class="btn" href="{% url 'source_category_edit' item.pk %}">Editar</a>
+                                            <form method="post" action="{% url 'source_category_delete' item.pk %}">
+                                                {% csrf_token %}
+                                                <button class="btn btn-danger-soft" type="submit">Eliminar</button>
+                                            </form>
+                                        </div>
+                                    </td>
+                                </tr>
+                            {% empty %}
+                                <tr><td colspan="5" class="muted">No hay categorías configuradas.</td></tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <aside class="panel catalog-panel">
+                <div class="page-header" style="margin-bottom:12px;">
+                    <div>
+                        <h2 class="page-title" style="font-size:1.08rem;">Tipos de fuente</h2>
+                        <p class="page-subtitle">Definen el selector Tipo en el alta de fuentes. Se muestran 20 por página.</p>
+                    </div>
+                    <a class="btn" href="{% url 'source_type_create' %}">Agregar</a>
+                </div>
+                <div class="table-panel">
+                    <table class="data-table catalog-table">
+                        <thead><tr><th>Tipo</th><th>Código</th><th>Fuentes</th><th>Estado</th><th>Acciones</th></tr></thead>
+                        <tbody>
+                            {% for item in source_types %}
+                                <tr>
+                                    <td><strong class="catalog-name">{{ item.name }}</strong></td>
+                                    <td><code class="entity-code">{{ item.code }}</code></td>
+                                    <td>{{ item.source_count }}</td>
+                                    <td><span class="badge {% if item.is_active %}good{% else %}bad{% endif %}">{% if item.is_active %}Activo{% else %}Inactivo{% endif %}</span></td>
+                                    <td>
+                                        <div class="catalog-actions">
+                                            <a class="btn" href="{% url 'source_type_edit' item.pk %}">Editar</a>
+                                            <form method="post" action="{% url 'source_type_delete' item.pk %}">
+                                                {% csrf_token %}
+                                                <button class="btn btn-danger-soft" type="submit">Eliminar</button>
+                                            </form>
+                                        </div>
+                                    </td>
+                                </tr>
+                            {% empty %}
+                                <tr><td colspan="5" class="muted">No hay tipos configurados.</td></tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                {% if source_types_page.paginator.num_pages > 1 %}
+                    <nav class="catalog-pagination" aria-label="Paginación de tipos de fuente">
+                        <span>Página {{ source_types_page.number }} de {{ source_types_page.paginator.num_pages }}</span>
+                        <div class="catalog-pagination-links">
+                            {% if source_types_page.has_previous %}
+                                <a class="btn" href="?types_page={{ source_types_page.previous_page_number }}">Anterior</a>
+                            {% endif %}
+                            {% if source_types_page.has_next %}
+                                <a class="btn" href="?types_page={{ source_types_page.next_page_number }}">Siguiente</a>
+                            {% endif %}
+                        </div>
+                    </nav>
+                {% endif %}
+            </aside>
+        </section>
+
+        <section class="panel catalog-panel" style="margin-top:16px;">
+            <div class="page-header" style="margin-bottom:12px;">
+                <div>
+                    <h2 class="page-title" style="font-size:1.08rem;">Metodos de envio</h2>
+                    <p class="page-subtitle">Definen como llega la telemetria: Syslog, API, agente, collector, forwarder, webhook o carga manual.</p>
+                </div>
+                <a class="btn" href="{% url 'source_delivery_method_create' %}">Agregar</a>
+            </div>
+            <div class="table-panel">
+                <table class="data-table catalog-table">
+                    <thead><tr><th>Metodo</th><th>Codigo</th><th>Fuentes</th><th>Estado</th><th>Acciones</th></tr></thead>
+                    <tbody>
+                        {% for item in delivery_methods %}
+                            <tr>
+                                <td><strong class="catalog-name">{{ item.name }}</strong></td>
+                                <td><code class="entity-code">{{ item.code }}</code></td>
+                                <td>{{ item.source_count }}</td>
+                                <td><span class="badge {% if item.is_active %}good{% else %}bad{% endif %}">{% if item.is_active %}Activo{% else %}Inactivo{% endif %}</span></td>
+                                <td>
+                                    <div class="catalog-actions">
+                                        <a class="btn" href="{% url 'source_delivery_method_edit' item.pk %}">Editar</a>
+                                        <form method="post" action="{% url 'source_delivery_method_delete' item.pk %}">
+                                            {% csrf_token %}
+                                            <button class="btn btn-danger-soft" type="submit">Eliminar</button>
+                                        </form>
+                                    </div>
+                                </td>
+                            </tr>
+                        {% empty %}
+                            <tr><td colspan="5" class="muted">No hay metodos configurados.</td></tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            {% if delivery_methods_page.paginator.num_pages > 1 %}
+                <nav class="catalog-pagination" aria-label="Paginacion de metodos de envio">
+                    <span>Pagina {{ delivery_methods_page.number }} de {{ delivery_methods_page.paginator.num_pages }}</span>
+                    <div class="catalog-pagination-links">
+                        {% if delivery_methods_page.has_previous %}
+                            <a class="btn" href="?methods_page={{ delivery_methods_page.previous_page_number }}">Anterior</a>
+                        {% endif %}
+                        {% if delivery_methods_page.has_next %}
+                            <a class="btn" href="?methods_page={{ delivery_methods_page.next_page_number }}">Siguiente</a>
+                        {% endif %}
+                    </div>
+                </nav>
+            {% endif %}
+        </section>
+    </section>
+</main>
+{% endblock %}

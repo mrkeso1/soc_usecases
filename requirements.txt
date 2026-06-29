@@ -1,4 +1,4 @@
-Django==6.0.5
+Django==5.2.15
 psycopg[binary]==3.2.6
 gunicorn==23.0.0
 python-dotenv==1.0.1
