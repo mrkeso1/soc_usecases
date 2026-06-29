@@ -127,7 +127,8 @@ docker compose run --rm web python manage.py makemigrations --check --dry-run
 
 ## Deuda Tecnica Detectada
 
-- Limpiar mojibake en strings historicos de modelos/admin/templates.
-- Mover registros de admin de modelos ya segregados a sus apps finales.
-- Definir si el directorio `soc-control-manager-django-master/` queda fuera del repo final.
-- Agregar pruebas de navegador o snapshots visuales para dashboard, matrices, reportes y formularios grandes.
+- Mantener el guardrail de encoding para codigo, templates, static y docs; las migrations antiguas pueden conservar texto historico.
+- Mantener los registros de admin dentro de la app dueña del modelo.
+- Mantener `soc-control-manager-django-master/` fuera del repo/deploy final; esta incluido en `.gitignore`.
+- Ejecutar `tools/visual_smoke_playwright.py` antes de releases con cambios de UI.
+- Validar `ENABLE_LEGACY_USECASE_REDIRECTS=0` en staging antes de eliminar rutas viejas bajo `/usecases/`.

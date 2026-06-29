@@ -17,3 +17,6 @@ app/logs/*
 .pytest_cache/
 .coverage
 htmlcov/
+
+soc-control-manager-django-master/
+visual-artifacts/

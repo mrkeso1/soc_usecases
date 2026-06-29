@@ -786,7 +786,7 @@
             <a class="btn" href="{% url 'usecase_list' %}">Volver al inventario</a>
             {% if can_manage_usecases %}
                 <a class="btn" href="{% url 'usecase_source_create' %}?use_case={{ usecase.pk }}&next=usecase">Vincular fuente</a>
-                <a class="btn" href="{% url 'technical_backup_create' %}?use_case={{ usecase.pk }}">Backup técnico</a>
+                <a class="btn" href="{% url 'usecase_edit' usecase.pk %}">Editar regla</a>
                 <a class="btn btn-primary" href="{% url 'usecase_edit' usecase.pk %}">Editar completo</a>
             {% endif %}
             {% if can_delete_usecases %}
@@ -1113,11 +1113,10 @@
                     </div>
                     {% if can_manage_usecases %}
                         <div class="header-actions">
-                            <a class="btn" href="{% url 'technical_backup_create' %}?use_case={{ usecase.pk }}">Nueva version</a>
                             {% if usecase.full_rule_text or usecase.rule_conditions.all %}
                                 <form class="delete-inline-form" method="post" action="{% url 'technical_backup_from_usecase_rule' usecase.pk %}">
                                     {% csrf_token %}
-                                    <button class="btn btn-primary" type="submit">Generar desde regla</button>
+                                    <button class="btn btn-primary" type="submit">Actualizar desde regla</button>
                                 </form>
                             {% endif %}
                         </div>

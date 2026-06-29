@@ -1,4 +1,20 @@
 <style>
+    .page-shell,
+    .page-shell button,
+    .page-shell input,
+    .page-shell select,
+    .page-shell textarea,
+    .page-shell .tab-button,
+    .page-shell .btn,
+    .page-shell .section-title,
+    .page-shell .summary-title,
+    .page-shell .case-name-box {
+        font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif !important;
+        font-synthesis: none !important;
+        letter-spacing: 0 !important;
+        text-rendering: optimizeLegibility !important;
+    }
+
     .page-title {
         font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif !important;
         font-size: 20px !important;
@@ -9,17 +25,54 @@
     }
 
     .header-actions .btn,
-    .form-actions .btn {
+    .form-actions .btn,
+    .tab-button {
         font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif !important;
         font-size: 12px !important;
         font-weight: 700 !important;
         min-height: 34px !important;
         padding: 0 12px !important;
         border-radius: 8px !important;
-        line-height: 1 !important;
+        line-height: 1.15 !important;
         letter-spacing: 0 !important;
         box-shadow: none !important;
         transform: none !important;
+        text-transform: none !important;
+        white-space: nowrap !important;
+    }
+
+    .tab-button.active {
+        background: rgba(45, 122, 255, .14) !important;
+        border-color: rgba(45, 122, 255, .85) !important;
+        color: #ffffff !important;
+        box-shadow:
+            0 0 0 1px rgba(45, 122, 255, .35),
+            inset 0 0 0 1px rgba(255, 255, 255, .04) !important;
+    }
+
+    .tab-button.active::after {
+        content: "";
+        position: absolute;
+        left: 10px;
+        right: 10px;
+        bottom: -11px;
+        height: 3px;
+        border-radius: 999px;
+        background: var(--accent);
+        box-shadow: 0 0 12px rgba(45, 122, 255, .55);
+    }
+
+    .tab-button {
+        position: relative !important;
+    }
+
+    html[data-theme="light"] .tab-button.active {
+        background: rgba(27, 99, 216, .12) !important;
+        border-color: rgba(27, 99, 216, .85) !important;
+        color: #12315f !important;
+        box-shadow:
+            0 0 0 1px rgba(27, 99, 216, .25),
+            inset 0 0 0 1px rgba(255, 255, 255, .7) !important;
     }
 
     html[data-theme="light"] .case-title-box,

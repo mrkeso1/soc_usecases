@@ -20,6 +20,7 @@ from .forms import UseCaseForm, UseCaseRuleConditionFormSet
 from apps.mitre.models import D3Fend, MitreAttack
 from apps.sources.models import EventSource, UseCaseSource
 from apps.sigma_tools.models import UseCaseTechnicalBackup
+from apps.sigma_tools.services import sync_inventory_rule_backup
 
 from .models import UseCase, UseCaseChangeLog
 from .permissions import (
@@ -590,6 +591,7 @@ def usecase_create(request):
             condition_formset.instance = usecase
             condition_formset.save()
             _sync_usecase_sources(usecase, form.cleaned_data.get("event_sources", []), request.user)
+            sync_inventory_rule_backup(usecase, request.user)
             usecase.sync_d3fends_from_attacks()
             messages.success(request, "Caso de uso creado correctamente.")
             return redirect("usecase_detail", pk=usecase.pk)
@@ -628,6 +630,7 @@ def usecase_edit(request, pk):
             condition_formset.instance = updated
             condition_formset.save()
             _sync_usecase_sources(updated, form.cleaned_data.get("event_sources", []), request.user)
+            sync_inventory_rule_backup(updated, request.user)
             updated.sync_d3fends_from_attacks()
             new_data = _snapshot_usecase(updated)
             UseCaseChangeLog.create_diff(updated, old_data, new_data, request.user)

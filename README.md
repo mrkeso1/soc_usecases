@@ -11,7 +11,7 @@ docker compose exec web python manage.py test --keepdb
 docker compose exec web python manage.py makemigrations --check --dry-run
 ```
 
-Resultado: 99 tests OK y sin migraciones pendientes.
+Resultado: 110 tests OK y sin migraciones pendientes.
 
 ## Capacidades Principales
 
@@ -21,12 +21,13 @@ Resultado: 99 tests OK y sin migraciones pendientes.
 - Fuentes de eventos normalizadas con tipo, categoria, subcategoria, metodo de envio, protocolo, puerto, host y cuenta de servicio.
 - MITRE ATT&CK y D3FEND con sync completo, coverage admin, matrices y correlacion D3FEND -> ATT&CK.
 - Dashboard ejecutivo y dashboard MITRE, con snapshots diarios de cobertura.
-- Ciclo de vida con periodos configurables, responsables, revision por modal, reset de periodo e inicio de ciclo.
+- Ciclo de vida con periodos configurables, responsables, revision por modal, metricas de deteccion, transiciones auditables, reset de periodo e inicio de ciclo.
 - Reportes PDF ejecutivo, MITRE, inventario, ciclo de vida y controles, con preview real y plantillas configurables.
 - Conversion EPL -> Sigma y Sigma -> destinos SIEM.
 - Auditoria central con filtros y exportacion.
 - LDAP administrable desde Django Admin y control de acceso por grupos/permisos.
 - Logs rotativos para autenticacion, MITRE sync y errores HTTP.
+- Guardrail de encoding para evitar mojibake visible en codigo, templates, static y docs.
 
 ## Arquitectura de Apps
 
@@ -37,9 +38,9 @@ Resultado: 99 tests OK y sin migraciones pendientes.
 | `sources` | Fuentes de eventos, taxonomia, metodos de envio y vinculacion con casos. |
 | `mitre` | ATT&CK, D3FEND, coverage, matrices, autocompletes y sincronizacion. |
 | `dashboard` | Dashboard ejecutivo/MITRE, PDF del dashboard y snapshots de cobertura. |
-| `lifecycle` | Periodos, ciclos, revisiones, responsables y controles de ciclo de vida. |
+| `lifecycle` | Periodos, ciclos, revisiones, metricas de deteccion, transiciones, responsables y controles de ciclo de vida. |
 | `reports` | Centro de reportes, plantillas, preview y descargas PDF. |
-| `sigma_tools` | Conversion EPL/Sigma/SIEM y backups tecnicos versionados. |
+| `sigma_tools` | Conversion EPL/Sigma/SIEM y consulta de backups tecnicos versionados generados desde inventario. |
 | `controls` | Inventario de controles y versionado. |
 | `access_control` | Administracion delegada de grupos y permisos. |
 | `auditlog` | Auditoria central, timeline y exportacion. |
@@ -66,7 +67,7 @@ Algunos modelos movidos conservan `db_table` historico `usecases_*` para no romp
 | `/reports/template/` | Plantillas PDF. |
 | `/sigma/epl-to-sigma/` | Conversion EPL a Sigma. |
 | `/sigma/converter/` | Conversion Sigma a SIEM. |
-| `/sigma/backups/` | Backups tecnicos. |
+| `/sigma/backups/` | Cobertura e historial de backups tecnicos. |
 | `/controls/` | Controles. |
 | `/access/admin/` | Administracion funcional de accesos. |
 | `/audit/` | Auditoria central. |
@@ -146,6 +147,16 @@ docker compose exec web python manage.py sync_security_frameworks_scheduled --fo
 docker compose exec web python manage.py capture_mitre_coverage_snapshot
 ```
 
+Smoke visual opcional con Playwright:
+
+```bash
+pip install -r requirements-dev.txt
+python -m playwright install chromium
+VISUAL_USER=demo_admin VISUAL_PASSWORD=Demo12345! python tools/visual_smoke_playwright.py
+```
+
+Los screenshots quedan en `visual-artifacts/`.
+
 ## Sincronizacion MITRE/D3FEND
 
 La frecuencia se configura en Django Admin sobre `MitreAttackSyncSettings`:
@@ -204,8 +215,6 @@ Get-Content .\logs\mitre_sync.log -Wait
 
 ## Deuda Tecnica Conocida
 
-- Limpiar encoding/mojibake en textos historicos de modelos, admin, templates y docs.
-- Mover admin classes de MITRE/lifecycle/dashboard desde `apps.usecases.admin` a sus apps finales.
-- Revisar si se mantienen o se eliminan redirects legacy bajo `/usecases/` cuando ya no haya usuarios dependientes.
-- Agregar tests visuales/browser para las pantallas mas sensibles del UI.
-- Revisar el directorio `soc-control-manager-django-master/`: es referencia de integracion, no deberia formar parte del deploy final.
+- Mantener el guardrail de encoding; solo quedan mojibakes historicos en migrations antiguas.
+- Las rutas legacy bajo `/usecases/` siguen activas por compatibilidad; se pueden apagar con `ENABLE_LEGACY_USECASE_REDIRECTS=0` antes de removerlas.
+- Seguir consolidando CSS inline de templates secundarios hacia archivos estaticos.

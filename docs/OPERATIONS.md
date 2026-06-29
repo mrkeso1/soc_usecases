@@ -86,18 +86,15 @@ Cuando se carga una fuente, la subcategoria debe pertenecer a la categoria selec
 Rutas:
 
 - `/sigma/backups/`
-- `/sigma/backups/new/`
 - `/sigma/backups/from-usecase/<id>/`
 
-Desde el detalle de un caso aparece `Generar desde regla` si el caso tiene regla completa o condiciones. Esa accion:
+El backup tecnico se genera automaticamente al guardar un caso de uso desde Inventario cuando existe regla completa o condiciones. Desde el detalle de un caso tambien aparece `Actualizar desde regla` para sincronizar casos existentes. Esa accion:
 
 1. toma `UseCase.full_rule_text`;
 2. si no existe, arma una logica con `UseCaseRuleCondition`;
-3. crea una nueva version `UseCaseTechnicalBackup`;
+3. crea una nueva version `UseCaseTechnicalBackup` solo si la logica cambio;
 4. calcula checksum SHA-256;
 5. marca la nueva version como vigente.
-
-Tambien se puede abrir `Nuevo backup` desde el caso; el formulario se prellena con la regla del inventario.
 
 ## Sincronizacion MITRE/D3FEND
 

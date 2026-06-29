@@ -6,7 +6,7 @@ from django.contrib.auth.models import Group
 from django.core.management import call_command
 from django.core.exceptions import ValidationError
 from django.core.files.uploadedfile import SimpleUploadedFile
-from django.test import TestCase
+from django.test import TestCase, override_settings
 from django.urls import reverse
 from openpyxl import Workbook, load_workbook
 
@@ -122,6 +122,18 @@ class UseCasePermissionTests(TestCase):
         response = self.client.get(reverse("usecase_list"))
 
         self.assertEqual(response.status_code, 403)
+
+    def test_legacy_usecase_routes_redirect_by_default(self):
+        response = self.client.get("/usecases/attack-matrix/")
+
+        self.assertEqual(response.status_code, 302)
+        self.assertIn(reverse("attack_matrix"), response["Location"])
+
+    @override_settings(ENABLE_LEGACY_USECASE_REDIRECTS=False)
+    def test_legacy_usecase_routes_can_be_disabled(self):
+        response = self.client.get("/usecases/attack-matrix/")
+
+        self.assertEqual(response.status_code, 404)
 
     def test_readonly_cannot_export_csv_or_pdf(self):
         self.client.login(username="readonly", password="pass")

@@ -555,7 +555,8 @@
                                 {% if row.is_reviewed and row.period_review %}
                                     <div class="review-detail">
                                         <div><strong>{{ row.period_review.result }}</strong> · {{ row.period_review.checked_at|date:"d/m/Y" }}</div>
-                                        <div>Alertas: {{ row.period_review.trigger_count }} · Lógica: {% if row.period_review.logic_valid %}OK{% else %}Revisar{% endif %} · Fuentes: {% if row.period_review.sources_active %}OK{% else %}Revisar{% endif %}</div>
+                                        <div>Alertas: {{ row.period_review.trigger_count }} · Incidentes: {{ row.period_review.true_incidents }} · Falsos positivos: {{ row.period_review.false_positives }}</div>
+                                        <div>Lógica: {% if row.period_review.logic_valid %}OK{% else %}Revisar{% endif %} · Fuentes: {% if row.period_review.sources_active %}OK{% else %}Revisar{% endif %}</div>
                                         {% if row.period_review.notes %}<div>{{ row.period_review.notes|truncatechars:160 }}</div>{% endif %}
                                     </div>
                                 {% elif row.can_finish %}
@@ -588,6 +589,14 @@
                                                     <div class="field">
                                                         <label class="field-label">Cantidad de alertas</label>
                                                         <input type="number" name="trigger_count" min="0" value="0" required>
+                                                    </div>
+                                                    <div class="field">
+                                                        <label class="field-label">Incidentes reales</label>
+                                                        <input type="number" name="true_incidents" min="0" value="0" required>
+                                                    </div>
+                                                    <div class="field">
+                                                        <label class="field-label">Falsos positivos</label>
+                                                        <input type="number" name="false_positives" min="0" value="0" required>
                                                     </div>
                                                     <div class="field">
                                                         <label class="field-label">Resultado</label>

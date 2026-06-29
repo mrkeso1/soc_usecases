@@ -121,7 +121,10 @@ class UseCaseForm(MitreAttackM2MBridgeMixin, forms.ModelForm):
             "event_sources": "Fuentes de eventos",
         }
         help_texts = {
-            "mitre_attacks": "Buscá por ID, nombre o táctica. D3FEND se infiere automáticamente.",
+            "event_sources": "Selecciona fuentes del catalogo normalizado; no uses el dispositivo legacy como reemplazo.",
+            "full_rule_text": "Pega la regla completa del SIEM/EPL/Sigma. Se usa para backups tecnicos y auditoria.",
+            "functional_description": "Explica en lenguaje operativo que detecta el caso, alcance y criterio de validacion.",
+            "mitre_attacks": "Busca por ID, nombre o tactica. D3FEND se infiere automaticamente.",
             "disabled_reason": "Obligatorio si el caso queda deshabilitado.",
         }
 

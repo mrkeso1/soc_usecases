@@ -67,8 +67,17 @@ El score MITRE pondera:
 - `LifecyclePeriod`: periodos configurables dentro del ciclo.
 - `LifecyclePeriodMember`: casos incluidos por periodo.
 - `LifecycleReview`: evidencia de revision.
+- `DetectionMetric`: indicador por caso/periodo con alertas, incidentes reales, falsos positivos, precision, efectividad y estado.
+- `LifecycleTransition`: log explicito de cambios de estado lifecycle, reasignaciones, resets de periodo y cierre/inicio de ciclo.
 
 La revision registra logica funcional, fuentes activas, Event IDs vigentes, campos existentes, necesidad de ajuste, optimizacion o baja, alertas, falsos positivos e incidentes.
+
+Al guardar una revision se actualizan en forma automatica:
+
+- el estado de validacion del caso de uso;
+- el registro `LifecycleReview`;
+- una metrica `DetectionMetric` para el periodo;
+- una transicion `LifecycleTransition` visible desde auditoria central.
 
 ## Reportes
 
@@ -108,6 +117,7 @@ El backup tecnico puede generarse desde:
 - `auditlog.service.audit`: eventos explicitos de negocio.
 - `/audit/`: vista central con filtros.
 - Export CSV/XLSX desde auditoria.
+- Eventos de ciclo de vida incluyen revisiones, metricas de deteccion y transiciones de periodo/ciclo.
 
 Los historiales locales viejos redirigen o deben quedar ocultos a favor de auditoria central.
 
