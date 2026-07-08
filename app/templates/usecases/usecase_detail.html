@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 <html lang="es">
+{% load usecase_tags %}
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -355,6 +356,12 @@
         .badge.warn { border-color: rgba(245,166,35,0.28); background: rgba(245,166,35,0.08); color: var(--medium); }
         .badge.bad { border-color: rgba(255,71,87,0.28); background: rgba(255,71,87,0.08); color: var(--bad); }
         .badge.accent { border-color: rgba(45,122,255,0.35); background: var(--accent-dim); color: #a8c8ff; }
+
+        .chips {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 7px;
+        }
 
         .side-card {
             padding: 18px;
@@ -785,7 +792,6 @@
         <div class="header-actions">
             <a class="btn" href="{% url 'usecase_list' %}">Volver al inventario</a>
             {% if can_manage_usecases %}
-                <a class="btn" href="{% url 'usecase_source_create' %}?use_case={{ usecase.pk }}&next=usecase">Vincular fuente</a>
                 <a class="btn" href="{% url 'usecase_edit' usecase.pk %}">Editar regla</a>
                 <a class="btn btn-primary" href="{% url 'usecase_edit' usecase.pk %}">Editar completo</a>
             {% endif %}
@@ -814,11 +820,23 @@
                     </div>
                     <div class="detail-item third">
                         <span class="detail-label">Grupo</span>
-                        <div class="detail-value">{{ usecase.group_name|default:"-" }}</div>
+                        <div class="detail-value chips">
+                            {% for group in usecase.group_name|split_multi %}
+                                <span class="badge">{{ group }}</span>
+                            {% empty %}
+                                -
+                            {% endfor %}
+                        </div>
                     </div>
                     <div class="detail-item third">
                         <span class="detail-label">Dispositivo</span>
-                        <div class="detail-value">{{ usecase.device|default:"-" }}</div>
+                        <div class="detail-value chips">
+                            {% for device in usecase.device|split_multi %}
+                                <span class="badge accent">{{ device }}</span>
+                            {% empty %}
+                                -
+                            {% endfor %}
+                        </div>
                     </div>
                     <div class="detail-item third">
                         <span class="detail-label">Tipo</span>

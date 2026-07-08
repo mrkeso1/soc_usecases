@@ -691,6 +691,24 @@ def build_dashboard_context(request):
     Disabled production cases are also excluded unless the user explicitly asks
     to include them through the Habilitado filter.
     """
+    today = date.today()
+    operational_usecases = UseCase.objects.exclude(status__iexact=UseCase.STATUS_RETIRED)
+    operational_total_cases = operational_usecases.count()
+    operational_source_linked_cases = operational_usecases.filter(source_links__isnull=False).distinct().count()
+    operational_mitre_mapped_cases = operational_usecases.filter(mitre_attacks__isnull=False).distinct().count()
+    operational_documented_cases = operational_usecases.filter(
+        models.Q(objective__gt="") | models.Q(functional_description__gt="")
+    ).distinct().count()
+    lifecycle_pending = operational_usecases.filter(
+        models.Q(next_review_date__isnull=True) | models.Q(next_review_date__lt=today)
+    ).count()
+    attention_total = (
+        max(operational_total_cases - operational_source_linked_cases, 0)
+        + max(operational_total_cases - operational_mitre_mapped_cases, 0)
+        + max(operational_total_cases - operational_documented_cases, 0)
+        + lifecycle_pending
+    )
+
     base_qs = (
         UseCase.objects
         .filter(status__iexact=PRODUCTION_STATUS)
@@ -1089,6 +1107,8 @@ def build_dashboard_context(request):
     selected_source_obj = EventSource.objects.filter(pk=int(source)).first() if source.isdigit() else None
 
     context = {
+        "today": today,
+        "attention_total": attention_total,
         "production_status": PRODUCTION_STATUS,
         "coverage_scope_label": (
             "Casos de uso en Produccion y habilitados"

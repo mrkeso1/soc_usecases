@@ -210,6 +210,8 @@ class UseCasePermissionTests(TestCase):
         self.assertEqual(workbook.active["F1"].value, "NOMBRE NETWITNESS")
 
     def test_analyst_can_import_usecases_excel(self):
+        d3fend = D3Fend.objects.create(code="D3-PSEP", name="Process Spawn Analysis")
+        d3fend.related_attacks.add(self.attack)
         workbook = Workbook()
         sheet = workbook.active
         sheet.append([
@@ -268,12 +270,200 @@ class UseCasePermissionTests(TestCase):
         self.assertEqual(imported.status, UseCase.STATUS_PRODUCTION)
         self.assertEqual(imported.device, "SIEM")
         self.assertEqual(list(imported.mitre_attacks.values_list("external_id", flat=True)), ["T1059"])
+        self.assertEqual(list(imported.d3fends.values_list("code", flat=True)), ["D3-PSEP"])
         self.assertTrue(EventSource.objects.filter(code="SRC-EDR", name="Endpoint EDR").exists())
         self.assertTrue(EventSource.objects.filter(name="CloudTrail").exists())
         self.assertEqual(
             set(imported.source_links.values_list("source__name", flat=True)),
             {"Endpoint EDR", "CloudTrail"},
         )
+
+    def test_import_accepts_mitre_header_variants_and_infers_d3fend(self):
+        d3fend = D3Fend.objects.create(code="D3-TEST", name="Test Defensive Technique")
+        d3fend.related_attacks.add(self.attack)
+        workbook = Workbook()
+        sheet = workbook.active
+        sheet.append([
+            "Nombre NetWitness",
+            "Estado",
+            "Fecha producción",
+            "MITRE ATT&CK relacionado",
+        ])
+        sheet.append([
+            "Imported variant attack header",
+            UseCase.STATUS_PRODUCTION,
+            date(2026, 1, 2),
+            "T1059",
+        ])
+        buffer = BytesIO()
+        workbook.save(buffer)
+        upload = SimpleUploadedFile(
+            "usecases.xlsx",
+            buffer.getvalue(),
+            content_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        )
+        self.client.login(username="analyst", password="pass")
+
+        response = self.client.post(reverse("import_usecases_excel"), {"excel_file": upload})
+
+        self.assertEqual(response.status_code, 302)
+        imported = UseCase.objects.get(name="Imported variant attack header")
+        self.assertEqual(list(imported.mitre_attacks.values_list("external_id", flat=True)), ["T1059"])
+        self.assertEqual(list(imported.d3fends.values_list("code", flat=True)), ["D3-TEST"])
+
+    def test_import_accepts_real_mitre_tecnicas_header(self):
+        second_attack = MitreAttack.objects.create(external_id="T1595", name="Active Scanning")
+        d3fend = D3Fend.objects.create(code="D3-CAA", name="Connection Attempt Analysis")
+        d3fend.related_attacks.add(self.attack, second_attack)
+        workbook = Workbook()
+        sheet = workbook.active
+        sheet.append([
+            "NOMBRE NETWITNESS",
+            "status2",
+            "Fecha puesta en producción",
+            "MITRE Tecnicas",
+        ])
+        sheet.append([
+            "Imported real mitre header",
+            UseCase.STATUS_PRODUCTION,
+            date(2026, 1, 2),
+            "T1595, T1059",
+        ])
+        buffer = BytesIO()
+        workbook.save(buffer)
+        upload = SimpleUploadedFile(
+            "usecases.xlsx",
+            buffer.getvalue(),
+            content_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        )
+        self.client.login(username="analyst", password="pass")
+
+        response = self.client.post(reverse("import_usecases_excel"), {"excel_file": upload})
+
+        self.assertEqual(response.status_code, 302)
+        imported = UseCase.objects.get(name="Imported real mitre header")
+        self.assertEqual(
+            list(imported.mitre_attacks.order_by("external_id").values_list("external_id", flat=True)),
+            ["T1059", "T1595"],
+        )
+        self.assertEqual(list(imported.d3fends.values_list("code", flat=True)), ["D3-CAA"])
+        output = self.client.session.get("last_usecase_import_output", "")
+        self.assertNotIn("No se detectó una columna MITRE", output)
+        self.assertIn("MITRE asociado -> T1059, T1595", output)
+
+    def test_import_saves_production_row_with_warning_when_attack_id_is_not_in_catalog(self):
+        workbook = Workbook()
+        sheet = workbook.active
+        sheet.append([
+            "NOMBRE NETWITNESS",
+            "status2",
+            "Fecha puesta en producción",
+            "MITRE ATT&CK",
+        ])
+        sheet.append([
+            "Imported missing attack",
+            UseCase.STATUS_PRODUCTION,
+            date(2026, 1, 2),
+            "T9999",
+        ])
+        buffer = BytesIO()
+        workbook.save(buffer)
+        upload = SimpleUploadedFile(
+            "usecases.xlsx",
+            buffer.getvalue(),
+            content_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        )
+        self.client.login(username="analyst", password="pass")
+
+        response = self.client.post(reverse("import_usecases_excel"), {"excel_file": upload})
+
+        self.assertEqual(response.status_code, 302)
+        imported = UseCase.objects.get(name="Imported missing attack")
+        self.assertFalse(imported.mitre_attacks.exists())
+        output = self.client.session.get("last_usecase_import_output", "")
+        self.assertIn("ATT&CK no encontrados en el catalogo -> T9999", output)
+        self.assertIn("guardada con datos incompletos", output)
+
+    def test_import_update_matches_existing_name_flexibly_and_updates_mitre(self):
+        d3fend = D3Fend.objects.create(code="D3-UPDATE", name="Update Defensive Technique")
+        d3fend.related_attacks.add(self.attack)
+        existing = UseCase.objects.create(
+            name="Imported Existing Case",
+            status=UseCase.STATUS_PRODUCTION,
+            production_date=date(2026, 1, 1),
+        )
+        workbook = Workbook()
+        sheet = workbook.active
+        sheet.append([
+            "NOMBRE NETWITNESS",
+            "status2",
+            "Fecha puesta en producción",
+            "MITRE ATT&CK",
+        ])
+        sheet.append([
+            " imported   existing case ",
+            UseCase.STATUS_PRODUCTION,
+            date(2026, 1, 2),
+            "T1059",
+        ])
+        buffer = BytesIO()
+        workbook.save(buffer)
+        upload = SimpleUploadedFile(
+            "usecases.xlsx",
+            buffer.getvalue(),
+            content_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        )
+        self.client.login(username="analyst", password="pass")
+
+        response = self.client.post(
+            reverse("import_usecases_excel"),
+            {"excel_file": upload, "update_existing": "on"},
+        )
+
+        self.assertEqual(response.status_code, 302)
+        self.assertEqual(UseCase.objects.filter(name__icontains="existing case").count(), 1)
+        existing.refresh_from_db()
+        self.assertEqual(existing.name, "imported   existing case")
+        self.assertEqual(list(existing.mitre_attacks.values_list("external_id", flat=True)), ["T1059"])
+        self.assertEqual(list(existing.d3fends.values_list("code", flat=True)), ["D3-UPDATE"])
+        output = self.client.session.get("last_usecase_import_output", "")
+        self.assertIn("MITRE asociado -> T1059", output)
+
+    def test_import_falls_back_to_scanning_row_for_attack_ids(self):
+        d3fend = D3Fend.objects.create(code="D3-FALLBACK", name="Fallback Defensive Technique")
+        d3fend.related_attacks.add(self.attack)
+        workbook = Workbook()
+        sheet = workbook.active
+        sheet.append([
+            "NOMBRE NETWITNESS",
+            "status2",
+            "Fecha puesta en producción",
+            "Referencia de framework",
+        ])
+        sheet.append([
+            "Imported attack fallback",
+            UseCase.STATUS_PRODUCTION,
+            date(2026, 1, 2),
+            "MITRE technique T1059",
+        ])
+        buffer = BytesIO()
+        workbook.save(buffer)
+        upload = SimpleUploadedFile(
+            "usecases.xlsx",
+            buffer.getvalue(),
+            content_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        )
+        self.client.login(username="analyst", password="pass")
+
+        response = self.client.post(reverse("import_usecases_excel"), {"excel_file": upload})
+
+        self.assertEqual(response.status_code, 302)
+        imported = UseCase.objects.get(name="Imported attack fallback")
+        self.assertEqual(list(imported.mitre_attacks.values_list("external_id", flat=True)), ["T1059"])
+        self.assertEqual(list(imported.d3fends.values_list("code", flat=True)), ["D3-FALLBACK"])
+        output = self.client.session.get("last_usecase_import_output", "")
+        self.assertIn("MITRE detectado por busqueda en toda la fila -> T1059", output)
+        self.assertIn("MITRE asociado -> T1059", output)
 
     def test_import_without_fuentes_does_not_treat_device_as_event_source(self):
         workbook = Workbook()
@@ -447,6 +637,58 @@ class UseCasePermissionTests(TestCase):
         self.assertContains(detail_response, "Active Directory")
         self.assertContains(detail_response, "laboratorio")
         self.assertContains(detail_response, "Controla altas de usuarios privilegiados.")
+
+    def test_usecase_form_accepts_multiple_groups_and_devices(self):
+        event_source = EventSource.objects.create(code="SRC-FW", name="Firewall Events")
+        self.client.login(username="analyst", password="pass")
+
+        response = self.client.post(reverse("usecase_edit", args=[self.owned_usecase.pk]), {
+            "group_name": "Endpoints; Perimetral\nCloud",
+            "device": "EDR, Firewall; CASB",
+            "case_type": self.owned_usecase.case_type,
+            "objective": self.owned_usecase.objective,
+            "blocking_type": "",
+            "name": self.owned_usecase.name,
+            "owner_name": self.owned_usecase.owner_name,
+            "monitoring": self.owned_usecase.monitoring,
+            "status": self.owned_usecase.status,
+            "created_or_adjusted_at": "",
+            "production_date": "2026-01-01",
+            "mitre_attacks": [str(self.attack.pk)],
+            "severity": self.owned_usecase.severity,
+            "escalation": "",
+            "sent_to_ho": "",
+            "ho_flag": "",
+            "last_validation_date": "",
+            "validation_status": self.owned_usecase.validation_status,
+            "validation_result": self.owned_usecase.validation_result,
+            "is_enabled": "on",
+            "disabled_reason": "",
+            "comments": "",
+            "full_rule_text": "",
+            "functional_description": "",
+            "event_sources": [str(event_source.pk)],
+            "conditions-TOTAL_FORMS": "0",
+            "conditions-INITIAL_FORMS": "0",
+            "conditions-MIN_NUM_FORMS": "0",
+            "conditions-MAX_NUM_FORMS": "1000",
+        })
+
+        self.assertEqual(response.status_code, 302)
+        self.owned_usecase.refresh_from_db()
+        self.assertEqual(self.owned_usecase.group_name, "Endpoints, Perimetral, Cloud")
+        self.assertEqual(self.owned_usecase.device, "EDR, Firewall, CASB")
+        self.assertEqual(list(self.owned_usecase.source_links.values_list("source_id", flat=True)), [event_source.pk])
+
+        list_response = self.client.get(reverse("usecase_list"), {"device": "Firewall"})
+        self.assertContains(list_response, self.owned_usecase.name)
+
+        edit_response = self.client.get(reverse("usecase_edit", args=[self.owned_usecase.pk]))
+        self.assertContains(edit_response, "data-options")
+        self.assertContains(edit_response, "data-multi-select")
+        self.assertContains(edit_response, "Perimetral")
+        self.assertContains(edit_response, "Firewall")
+        self.assertContains(edit_response, "SRC-FW - Firewall Events")
 
     def test_coverage_override_requires_reason_for_fulfilled_status(self):
         self.client.login(username="analyst", password="pass")

@@ -1,9 +1,12 @@
+import json
+
 from django import forms
 from django.forms import inlineformset_factory
 
 from apps.sources.models import EventSource
 
 from .models import UseCase, UseCaseRuleCondition
+from .text_utils import normalize_multi_text, split_multi_value
 
 
 class MitreAttackM2MBridgeMixin(forms.ModelForm):
@@ -27,7 +30,11 @@ class UseCaseForm(MitreAttackM2MBridgeMixin, forms.ModelForm):
         queryset=EventSource.objects.none(),
         required=False,
         help_text="Fuentes relacionadas al caso desde el catalogo de fuentes de eventos.",
-        widget=forms.SelectMultiple(attrs={"class": "form-control"}),
+        widget=forms.SelectMultiple(attrs={
+            "class": "form-control",
+            "data-multi-select": "true",
+            "data-placeholder": "Buscar fuente...",
+        }),
     )
 
     class Meta:
@@ -62,8 +69,16 @@ class UseCaseForm(MitreAttackM2MBridgeMixin, forms.ModelForm):
             "event_sources",
         ]
         widgets = {
-            "group_name": forms.TextInput(attrs={"class": "form-control"}),
-            "device": forms.TextInput(attrs={"class": "form-control"}),
+            "group_name": forms.TextInput(attrs={
+                "class": "form-control",
+                "data-multi-tags": "true",
+                "data-placeholder": "Agregar grupo...",
+            }),
+            "device": forms.TextInput(attrs={
+                "class": "form-control",
+                "data-multi-tags": "true",
+                "data-placeholder": "Agregar dispositivo...",
+            }),
             "case_type": forms.TextInput(attrs={"class": "form-control"}),
             "objective": forms.Textarea(attrs={"class": "form-control", "rows": 4}),
             "blocking_type": forms.Select(attrs={"class": "form-control"}),
@@ -132,8 +147,28 @@ class UseCaseForm(MitreAttackM2MBridgeMixin, forms.ModelForm):
         super().__init__(*args, **kwargs)
         self.fields["mitre_attacks"].queryset = self.fields["mitre_attacks"].queryset.filter(is_enabled=True)
         self.fields["event_sources"].queryset = EventSource.objects.order_by("name")
+        self.fields["group_name"].widget.attrs["data-options"] = json.dumps(self._multi_value_options("group_name"))
+        self.fields["device"].widget.attrs["data-options"] = json.dumps(self._multi_value_options("device"))
         if self.instance and self.instance.pk:
             self.fields["event_sources"].initial = self.instance.source_links.values_list("source_id", flat=True)
+
+    @staticmethod
+    def _multi_value_options(field_name):
+        values = []
+        seen = set()
+        for raw_value in UseCase.objects.exclude(**{field_name: ""}).values_list(field_name, flat=True):
+            for value in split_multi_value(raw_value):
+                key = value.casefold()
+                if key not in seen:
+                    values.append(value)
+                    seen.add(key)
+        return sorted(values, key=str.casefold)
+
+    def clean_group_name(self):
+        return normalize_multi_text(self.cleaned_data.get("group_name"))
+
+    def clean_device(self):
+        return normalize_multi_text(self.cleaned_data.get("device"))
 
 
 class UseCaseRuleConditionForm(forms.ModelForm):

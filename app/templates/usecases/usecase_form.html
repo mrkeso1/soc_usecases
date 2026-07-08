@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="es">
 <head>
     <meta charset="UTF-8">
@@ -358,6 +358,81 @@
 
         .chip button:hover { opacity: 1; }
 
+        .multi-tag-wrap {
+            position: relative;
+        }
+
+        .multi-tag-editor {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            align-items: center;
+            min-height: 42px;
+            padding: 7px;
+            border: 1px solid var(--border);
+            border-radius: 10px;
+            background: rgba(6, 11, 20, 0.35);
+        }
+
+        .multi-tag-editor:focus-within {
+            border-color: var(--border-bright);
+            box-shadow: 0 0 0 3px rgba(45, 122, 255, 0.12);
+        }
+
+        .multi-tag-editor input {
+            min-width: 170px !important;
+            flex: 1 1 170px;
+            min-height: 28px !important;
+            border: 0 !important;
+            background: transparent !important;
+            box-shadow: none !important;
+            padding: 4px !important;
+        }
+
+        .multi-tag-hidden {
+            display: none !important;
+        }
+
+        .multi-tag-options {
+            position: absolute;
+            left: 0;
+            right: 0;
+            top: calc(100% + 6px);
+            z-index: 25;
+            display: none;
+            max-height: 220px;
+            overflow-y: auto;
+            border: 1px solid var(--border-bright);
+            border-radius: 12px;
+            background: var(--surface-2);
+            box-shadow: 0 18px 40px rgba(0, 0, 0, 0.42);
+        }
+
+        .multi-tag-option {
+            width: 100%;
+            display: block;
+            border: 0;
+            border-bottom: 1px solid var(--border);
+            background: transparent;
+            color: var(--text);
+            padding: 10px 12px;
+            text-align: left;
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 12px;
+            cursor: pointer;
+        }
+
+        .multi-tag-option:hover,
+        .multi-tag-option:focus {
+            background: var(--surface-3);
+            color: var(--text-strong);
+            outline: none;
+        }
+
+        .multi-tag-option:last-child {
+            border-bottom: 0;
+        }
+
         .d3fend-readonly {
             margin-top: 14px;
             padding: 14px;
@@ -568,7 +643,7 @@
         }
     
 
-    /* Normalización visual alineada a Ciclo de Vida */
+    /* Normalizacion visual alineada a Ciclo de Vida */
     .page-header { margin-bottom: 18px !important; gap: 14px !important; }
     .page-eyebrow, .eyebrow { font-size: 11px !important; letter-spacing: .12em !important; }
     .page-title { font-size: 1.9rem !important; line-height: 1.12 !important; margin: 4px 0 !important; letter-spacing: -0.02em !important; }
@@ -874,7 +949,7 @@
     <main class="page-shell">
         <div class="page-header">
             <div>
-                <div class="eyebrow">// INVENTARIO · EDICIÓN</div>
+                <div class="eyebrow">// INVENTARIO - EDICION</div>
                 <h1 class="page-title">{{ title|default:"Editar caso de uso" }}</h1>
                 <div class="case-name-box">
                     {% if usecase %}{{ usecase.name }}{% else %}Nuevo caso de uso{% endif %}
@@ -905,15 +980,15 @@
                     <nav class="tabs" aria-label="Secciones del formulario">
                         <button type="button" class="tab-button active" data-tab="general">General</button>
                         <button type="button" class="tab-button" data-tab="regla">Regla</button>
-                        <button type="button" class="tab-button" data-tab="clasificacion">Clasificación</button>
+                        <button type="button" class="tab-button" data-tab="clasificacion">Clasificacion</button>
                         <button type="button" class="tab-button" data-tab="mitre">MITRE / D3FEND</button>
                         <button type="button" class="tab-button" data-tab="lifecycle">Lifecycle</button>
-                        <button type="button" class="tab-button" data-tab="notas">Habilitación / notas</button>
+                        <button type="button" class="tab-button" data-tab="notas">Habilitacion / notas</button>
                     </nav>
 
                     <div class="tab-panel active" id="tab-general">
                         <h2 class="section-title">Datos principales</h2>
-                        <p class="section-help">Información base del caso. El nombre debe ser legible y mantener la referencia real de NetWitness.</p>
+                        <p class="section-help">Informacion base del caso. El nombre debe ser legible y mantener la referencia real de NetWitness.</p>
                         <div class="grid">
                             <div class="field full">
                                 <label>Nombre NetWitness</label>
@@ -922,11 +997,12 @@
                             <div class="field">
                                 <label>Grupo</label>
                                 {{ form.group_name }}
+                                <div class="hint">Podes cargar varios grupos: Enter, coma o punto y coma agrega cada valor.</div>
                             </div>
                             <div class="field">
                                 <label>Dispositivo</label>
                                 {{ form.device }}
-                                <div class="hint">Dato legacy del inventario. No reemplaza a las fuentes de eventos vinculadas.</div>
+                                <div class="hint">Podes cargar varios dispositivos. Dato legacy: no reemplaza a las fuentes de eventos vinculadas.</div>
                             </div>
                             <div class="field full">
                                 <label>Fuentes de eventos</label>
@@ -952,9 +1028,9 @@
                         <div class="rule-builder-head">
                             <div>
                                 <h2 class="section-title">Condiciones de la regla</h2>
-                                <p class="section-help">Criterios de inclusión y exclusión que forman la lógica del caso.</p>
+                                <p class="section-help">Criterios de inclusion y exclusion que forman la logica del caso.</p>
                             </div>
-                            <button type="button" class="btn btn-secondary" id="add-condition">Agregar condición</button>
+                            <button type="button" class="btn btn-secondary" id="add-condition">Agregar condicion</button>
                         </div>
 
                         <div id="condition-formset" class="rule-builder">
@@ -965,7 +1041,7 @@
                                     <div class="condition-card-head">
                                         <div class="condition-title">
                                             <span class="condition-index">{{ forloop.counter|stringformat:"02d" }}</span>
-                                            <span>Condición</span>
+                                            <span>Condicion</span>
                                         </div>
                                         {% if condition_form.DELETE %}
                                             <label class="condition-delete-toggle">
@@ -1006,7 +1082,7 @@
                                 <div class="condition-card-head">
                                     <div class="condition-title">
                                         <span class="condition-index">__NN__</span>
-                                        <span>Condición</span>
+                                        <span>Condicion</span>
                                     </div>
                                     {% if condition_formset.empty_form.DELETE %}
                                         <label class="condition-delete-toggle">
@@ -1044,18 +1120,18 @@
                             <div class="field full">
                                 <label>Regla completa</label>
                                 {{ form.full_rule_text }}
-                                <div class="hint">Pegá acá la regla completa del SIEM/EPL/Sigma/consulta original.</div>
+                                <div class="hint">Pega aca la regla completa del SIEM/EPL/Sigma/consulta original.</div>
                             </div>
                             <div class="field full">
-                                <label>Descripción funcional</label>
+                                <label>Descripcion funcional</label>
                                 {{ form.functional_description }}
                             </div>
                         </div>
                     </div>
 
                     <div class="tab-panel" id="tab-clasificacion">
-                        <h2 class="section-title">Operación y criticidad</h2>
-                        <p class="section-help">Campos operativos para inventario, priorización y seguimiento diario.</p>
+                        <h2 class="section-title">Operacion y criticidad</h2>
+                        <p class="section-help">Campos operativos para inventario, priorizacion y seguimiento diario.</p>
                         <div class="grid">
                             <div class="field">
                                 <label>Responsable desarrollo</label>
@@ -1078,7 +1154,7 @@
                                 {{ form.created_or_adjusted_at }}
                             </div>
                             <div class="field">
-                                <label>Fecha puesta en producción</label>
+                                <label>Fecha puesta en produccion</label>
                                 {{ form.production_date }}
                             </div>
                             <div class="field">
@@ -1086,7 +1162,7 @@
                                 {{ form.escalation }}
                             </div>
                             <div class="field">
-                                <label>Envío HO</label>
+                                <label>EnvA­o HO</label>
                                 {{ form.sent_to_ho }}
                             </div>
                             <div class="field">
@@ -1098,44 +1174,44 @@
 
                     <div class="tab-panel" id="tab-mitre">
                         <h2 class="section-title">MITRE ATT&amp;CK y D3FEND</h2>
-                        <p class="section-help">Cargá solo las técnicas ATT&amp;CK. D3FEND se infiere automáticamente desde esas técnicas y no se edita manualmente.</p>
+                        <p class="section-help">Carga solo las tecnicas ATT&amp;CK. D3FEND se infiere automaticamente desde esas tecnicas y no se edita manualmente.</p>
                         <div class="grid">
                             <div class="field full">
                                 <label>MITRE ATT&amp;CK relacionado</label>
                                 <div class="autocomplete-box">
-                                    <input type="text" id="mitre-search" placeholder="Buscar por ID, nombre o táctica..." autocomplete="off">
+                                    <input type="text" id="mitre-search" placeholder="Buscar por ID, nombre o tactica..." autocomplete="off">
                                     <div id="mitre-results" class="autocomplete-results"></div>
                                 </div>
                                 {{ form.mitre_attacks }}
                                 <div id="mitre-chips" class="chips"></div>
-                                <div class="hint">Ejemplo: T1059, PowerShell, Credential Access. Podés asociar varias técnicas.</div>
+                                <div class="hint">Ejemplo: T1059, PowerShell, Credential Access. Podes asociar varias tecnicas.</div>
                             </div>
                             <div class="field full">
                                 <div class="d3fend-readonly">
-                                    <div class="readonly-label">D3FEND inferido automáticamente</div>
+                                    <div class="readonly-label">D3FEND inferido automaticamente</div>
                                     <div class="chips">
                                         {% if usecase %}
                                             {% for item in usecase.d3fends.all %}
-                                                <span class="chip"><span>{{ item.code }}{% if item.name %} — {{ item.name }}{% endif %}</span></span>
+                                                <span class="chip"><span>{{ item.code }}{% if item.name %} - {{ item.name }}{% endif %}</span></span>
                                             {% empty %}
                                                 <span class="badge badge-neutral">Sin D3FEND inferido</span>
                                             {% endfor %}
                                         {% else %}
-                                            <span class="badge badge-neutral">Se calculará al guardar</span>
+                                            <span class="badge badge-neutral">Se calculara al guardar</span>
                                         {% endif %}
                                     </div>
-                                    <div class="hint">Esta sección se sincroniza al guardar el caso. No hay carga manual de D3FEND.</div>
+                                    <div class="hint">Esta seccion se sincroniza al guardar el caso. No hay carga manual de D3FEND.</div>
                                 </div>
                             </div>
                         </div>
                     </div>
 
                     <div class="tab-panel" id="tab-lifecycle">
-                        <h2 class="section-title">Validación y ciclo de vida</h2>
-                        <p class="section-help">La última validación actualiza automáticamente la próxima revisión. Las fechas propias de lifecycle quedan protegidas.</p>
+                        <h2 class="section-title">Validacion y ciclo de vida</h2>
+                        <p class="section-help">La Ultima validacion actualiza automaticamente la proxima revision. Las fechas propias de lifecycle quedan protegidas.</p>
                         <div class="grid">
                             <div class="field">
-                                <label>Última validación</label>
+                                <label>Ultima validacion</label>
                                 {{ form.last_validation_date }}
                             </div>
                             <div class="field">
@@ -1149,12 +1225,12 @@
                             <div class="field full">
                                 <div class="readonly-grid">
                                     <div class="readonly-box">
-                                        <div class="readonly-label">Última revisión</div>
-                                        <div class="readonly-value">{% if usecase and usecase.last_review_date %}{{ usecase.last_review_date }}{% else %}—{% endif %}</div>
+                                        <div class="readonly-label">Ultima revision</div>
+                                        <div class="readonly-value">{% if usecase and usecase.last_review_date %}{{ usecase.last_review_date }}{% else %}a€"{% endif %}</div>
                                     </div>
                                     <div class="readonly-box">
-                                        <div class="readonly-label">Próxima revisión</div>
-                                        <div class="readonly-value">{% if usecase and usecase.next_review_date %}{{ usecase.next_review_date }}{% else %}Se calculará al guardar{% endif %}</div>
+                                        <div class="readonly-label">Proxima revision</div>
+                                        <div class="readonly-value">{% if usecase and usecase.next_review_date %}{{ usecase.next_review_date }}{% else %}Se calculara al guardar{% endif %}</div>
                                     </div>
                                     <div class="readonly-box">
                                         <div class="readonly-label">Contador</div>
@@ -1166,18 +1242,18 @@
                     </div>
 
                     <div class="tab-panel" id="tab-notas">
-                        <h2 class="section-title">Habilitación y comentarios</h2>
-                        <p class="section-help">Si el caso queda deshabilitado, cargá el motivo para que el inventario sea auditable.</p>
+                        <h2 class="section-title">Habilitacion y comentarios</h2>
+                        <p class="section-help">Si el caso queda deshabilitado, carga el motivo para que el inventario sea auditable.</p>
                         <div class="grid">
                             <div class="field full">
                                 <label>Habilitado</label>
                                 <div class="switch-row">
                                     {{ form.is_enabled }}
-                                    <span>El caso está activo para operación y cobertura.</span>
+                                    <span>El caso esta activo para operacion y cobertura.</span>
                                 </div>
                             </div>
                             <div class="field full">
-                                <label>Motivo de deshabilitación</label>
+                                <label>Motivo de deshabilitacion</label>
                                 {{ form.disabled_reason }}
                                 <div class="hint">Obligatorio si el caso queda deshabilitado.</div>
                             </div>
@@ -1203,7 +1279,7 @@
                         </div>
                         <div class="summary-item">
                             <span class="label">Severidad</span>
-                            <span class="value">{% if usecase and usecase.severity %}{{ usecase.severity }}{% else %}—{% endif %}</span>
+                            <span class="value">{% if usecase and usecase.severity %}{{ usecase.severity }}{% else %}a€"{% endif %}</span>
                         </div>
                         <div class="summary-item">
                             <span class="label">Fuentes</span>
@@ -1220,12 +1296,12 @@
                             </span>
                         </div>
                         <div class="summary-item">
-                            <span class="label">Próxima revisión</span>
+                            <span class="label">Proxima revision</span>
                             <span class="value">{% if usecase and usecase.next_review_date %}{{ usecase.next_review_date }}<br>{{ usecase.review_countdown_label }}{% else %}Sin fecha{% endif %}</span>
                         </div>
                         <div class="summary-item">
                             <span class="label">Cobertura</span>
-                            <span class="value">ATT&amp;CK manual · D3FEND automático</span>
+                            <span class="value">ATT&amp;CK manual - D3FEND automatico</span>
                         </div>
                     </div>
                 </aside>
@@ -1240,9 +1316,307 @@
                 document.querySelectorAll('.tab-button').forEach(item => item.classList.remove('active'));
                 document.querySelectorAll('.tab-panel').forEach(panel => panel.classList.remove('active'));
                 button.classList.add('active');
-                document.getElementById('tab-' + target)?.classList.add('active');
+                document.getElementById('tab-' + target).classList.add('active');
             });
         });
+
+        function setupMultiTagInputs() {
+            document.querySelectorAll('input[data-multi-tags="true"]').forEach(sourceInput => {
+                if (sourceInput.dataset.multiTagsReady === 'true') return;
+                sourceInput.dataset.multiTagsReady = 'true';
+                sourceInput.classList.add('multi-tag-hidden');
+
+                let optionValues = [];
+                try {
+                    optionValues = JSON.parse(sourceInput.dataset.options || '[]');
+                } catch (error) {
+                    optionValues = [];
+                }
+
+                const wrap = document.createElement('div');
+                wrap.className = 'multi-tag-wrap';
+
+                const editor = document.createElement('div');
+                editor.className = 'multi-tag-editor';
+
+                const optionsBox = document.createElement('div');
+                optionsBox.className = 'multi-tag-options';
+
+                const textInput = document.createElement('input');
+                textInput.type = 'text';
+                textInput.placeholder = sourceInput.dataset.placeholder || 'Agregar valor...';
+                textInput.autocomplete = 'off';
+                let optionsOpen = false;
+
+                sourceInput.parentNode.insertBefore(wrap, sourceInput.nextSibling);
+                wrap.appendChild(editor);
+                wrap.appendChild(optionsBox);
+                editor.appendChild(textInput);
+
+                function splitValues(value) {
+                    const seen = new Set();
+                    return String(value || '')
+                        .replaceAll('\n', ',')
+                        .replaceAll(';', ',')
+                        .split(',')
+                        .map(item => item.trim().replace(/\s+/g, ' '))
+                        .filter(item => {
+                            const key = item.toLowerCase();
+                            if (!item || seen.has(key)) return false;
+                            seen.add(key);
+                            return true;
+                        });
+                }
+
+                function values() {
+                    return splitValues(sourceInput.value);
+                }
+
+                function sync(nextValues) {
+                    sourceInput.value = nextValues.join(', ');
+                    render();
+                }
+
+                function addFromText(raw) {
+                    const current = values();
+                    const currentKeys = new Set(current.map(item => item.toLowerCase()));
+                    splitValues(raw).forEach(item => {
+                        const key = item.toLowerCase();
+                        if (!currentKeys.has(key)) {
+                            current.push(item);
+                            currentKeys.add(key);
+                        }
+                    });
+                    textInput.value = '';
+                    sync(current);
+                }
+
+                function matchingOptions() {
+                    const selected = new Set(values().map(item => item.toLowerCase()));
+                    const query = textInput.value.trim().toLowerCase();
+                    return optionValues
+                        .filter(item => {
+                            const key = String(item || '').toLowerCase();
+                            return key && !selected.has(key) && (!query || key.includes(query));
+                        })
+                        .slice(0, 30);
+                }
+
+                function renderOptions() {
+                    optionsBox.innerHTML = '';
+                    if (!optionsOpen) {
+                        optionsBox.style.display = 'none';
+                        return;
+                    }
+                    matchingOptions().forEach(item => {
+                        const option = document.createElement('button');
+                        option.type = 'button';
+                        option.className = 'multi-tag-option';
+                        option.textContent = item;
+                        option.addEventListener('mousedown', event => {
+                            event.preventDefault();
+                            addFromText(item);
+                            textInput.focus();
+                        });
+                        optionsBox.appendChild(option);
+                    });
+                    optionsBox.style.display = optionsBox.children.length ? 'block' : 'none';
+                }
+
+                function hideOptions() {
+                    optionsOpen = false;
+                    window.setTimeout(() => {
+                        optionsBox.style.display = 'none';
+                    }, 120);
+                }
+
+                function showOptions() {
+                    optionsOpen = true;
+                    renderOptions();
+                }
+
+                function render() {
+                    editor.querySelectorAll('.chip').forEach(chip => chip.remove());
+                    values().forEach((item, index) => {
+                        const chip = document.createElement('div');
+                        chip.className = 'chip';
+                        const label = document.createElement('span');
+                        label.textContent = item;
+                        label.title = item;
+                        const removeBtn = document.createElement('button');
+                        removeBtn.type = 'button';
+                        removeBtn.textContent = 'x';
+                        removeBtn.addEventListener('click', () => {
+                            const nextValues = values();
+                            nextValues.splice(index, 1);
+                            sync(nextValues);
+                            textInput.focus();
+                        });
+                        chip.appendChild(label);
+                        chip.appendChild(removeBtn);
+                        editor.insertBefore(chip, textInput);
+                    });
+                    renderOptions();
+                }
+
+                textInput.addEventListener('keydown', event => {
+                    if (event.key === 'Enter' || event.key === ',' || event.key === ';') {
+                        event.preventDefault();
+                        addFromText(textInput.value);
+                    } else if (event.key === 'Backspace' && !textInput.value) {
+                        const current = values();
+                        current.pop();
+                        sync(current);
+                    }
+                });
+                textInput.addEventListener('input', showOptions);
+                textInput.addEventListener('focus', showOptions);
+                textInput.addEventListener('blur', () => {
+                    addFromText(textInput.value);
+                    hideOptions();
+                });
+                textInput.addEventListener('paste', () => {
+                    window.setTimeout(() => addFromText(textInput.value), 0);
+                });
+                editor.addEventListener('click', () => {
+                    textInput.focus();
+                    showOptions();
+                });
+                sourceInput.form?.addEventListener('submit', () => addFromText(textInput.value));
+                render();
+            });
+        }
+
+        function setupMultiSelectInputs() {
+            document.querySelectorAll('select[data-multi-select="true"]').forEach(sourceSelect => {
+                if (sourceSelect.dataset.multiSelectReady === 'true') return;
+                sourceSelect.dataset.multiSelectReady = 'true';
+                sourceSelect.classList.add('multi-tag-hidden');
+
+                const wrap = document.createElement('div');
+                wrap.className = 'multi-tag-wrap';
+
+                const editor = document.createElement('div');
+                editor.className = 'multi-tag-editor';
+
+                const optionsBox = document.createElement('div');
+                optionsBox.className = 'multi-tag-options';
+
+                const textInput = document.createElement('input');
+                textInput.type = 'text';
+                textInput.placeholder = sourceSelect.dataset.placeholder || 'Buscar...';
+                textInput.autocomplete = 'off';
+                let optionsOpen = false;
+
+                sourceSelect.parentNode.insertBefore(wrap, sourceSelect.nextSibling);
+                wrap.appendChild(editor);
+                wrap.appendChild(optionsBox);
+                editor.appendChild(textInput);
+
+                function options() {
+                    return Array.from(sourceSelect.options).filter(option => option.value);
+                }
+
+                function selectedOptions() {
+                    return options().filter(option => option.selected);
+                }
+
+                function matchingOptions() {
+                    const query = textInput.value.trim().toLowerCase();
+                    return options()
+                        .filter(option => {
+                            const label = option.textContent.toLowerCase();
+                            return !option.selected && (!query || label.includes(query));
+                        })
+                        .slice(0, 30);
+                }
+
+                function selectOption(option) {
+                    option.selected = true;
+                    textInput.value = '';
+                    render();
+                }
+
+                function renderOptions() {
+                    optionsBox.innerHTML = '';
+                    if (!optionsOpen) {
+                        optionsBox.style.display = 'none';
+                        return;
+                    }
+                    matchingOptions().forEach(option => {
+                        const row = document.createElement('button');
+                        row.type = 'button';
+                        row.className = 'multi-tag-option';
+                        row.textContent = option.textContent;
+                        row.addEventListener('mousedown', event => {
+                            event.preventDefault();
+                            selectOption(option);
+                            textInput.focus();
+                        });
+                        optionsBox.appendChild(row);
+                    });
+                    optionsBox.style.display = optionsBox.children.length ? 'block' : 'none';
+                }
+
+                function hideOptions() {
+                    optionsOpen = false;
+                    window.setTimeout(() => {
+                        optionsBox.style.display = 'none';
+                    }, 120);
+                }
+
+                function showOptions() {
+                    optionsOpen = true;
+                    renderOptions();
+                }
+
+                function render() {
+                    editor.querySelectorAll('.chip').forEach(chip => chip.remove());
+                    selectedOptions().forEach(option => {
+                        const chip = document.createElement('div');
+                        chip.className = 'chip';
+                        const label = document.createElement('span');
+                        label.textContent = option.textContent;
+                        label.title = option.textContent;
+                        const removeBtn = document.createElement('button');
+                        removeBtn.type = 'button';
+                        removeBtn.textContent = 'x';
+                        removeBtn.addEventListener('click', () => {
+                            option.selected = false;
+                            render();
+                            textInput.focus();
+                        });
+                        chip.appendChild(label);
+                        chip.appendChild(removeBtn);
+                        editor.insertBefore(chip, textInput);
+                    });
+                    renderOptions();
+                }
+
+                textInput.addEventListener('keydown', event => {
+                    if (event.key === 'Enter') {
+                        event.preventDefault();
+                        const firstOption = matchingOptions()[0];
+                        if (firstOption) selectOption(firstOption);
+                    } else if (event.key === 'Backspace' && !textInput.value) {
+                        const selected = selectedOptions();
+                        const lastOption = selected[selected.length - 1];
+                        if (lastOption) {
+                            lastOption.selected = false;
+                            render();
+                        }
+                    }
+                });
+                textInput.addEventListener('input', showOptions);
+                textInput.addEventListener('focus', showOptions);
+                textInput.addEventListener('blur', hideOptions);
+                editor.addEventListener('click', () => {
+                    textInput.focus();
+                    showOptions();
+                });
+                render();
+            });
+        }
 
         function setupRuleConditions() {
             const container = document.getElementById('condition-formset');
@@ -1261,8 +1635,8 @@
                 const positionInput = card.querySelector('input[name$="-position"]');
                 const indexBadge = card.querySelector('.condition-index');
 
-                card.classList.toggle('exclude', typeSelect?.value === 'exclude');
-                card.classList.toggle('deleted', Boolean(deleteInput?.checked));
+                card.classList.toggle('exclude', typeSelect.value === 'exclude');
+                card.classList.toggle('deleted', Boolean(deleteInput.checked));
                 if (indexBadge) indexBadge.textContent = String(index + 1).padStart(2, '0');
                 if (positionInput && !positionInput.value) positionInput.value = String(index + 1);
             }
@@ -1318,7 +1692,7 @@
 
                     const removeBtn = document.createElement('button');
                     removeBtn.type = 'button';
-                    removeBtn.textContent = '×';
+                    removeBtn.textContent = 'x';
                     removeBtn.addEventListener('click', () => {
                         opt.selected = false;
                         renderChips();
@@ -1386,6 +1760,8 @@
             chipsId: 'mitre-chips',
             url: "{% url 'mitre_attack_autocomplete' %}"
         });
+        setupMultiTagInputs();
+        setupMultiSelectInputs();
         setupRuleConditions();
     </script>
 </body>

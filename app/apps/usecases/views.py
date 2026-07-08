@@ -35,6 +35,7 @@ from .snapshots import (
     serialize_mitre as _serialize_mitre,
     snapshot_usecase as _snapshot_usecase,
 )
+from .text_utils import split_multi_value
 from openpyxl import Workbook
 
 _FORBIDDEN_MSG = "No tenes permisos para acceder a esta seccion."
@@ -42,6 +43,27 @@ PRODUCTION_STATUS = UseCase.STATUS_PRODUCTION
 
 
 # Helpers
+
+
+def _multi_value_filter(field_name, value):
+    return (
+        models.Q(**{f"{field_name}__iexact": value})
+        | models.Q(**{f"{field_name}__istartswith": f"{value},"})
+        | models.Q(**{f"{field_name}__icontains": f", {value},"})
+        | models.Q(**{f"{field_name}__iendswith": f", {value}"})
+    )
+
+
+def _distinct_multi_values(queryset, field_name):
+    values = []
+    seen = set()
+    for raw_value in queryset.exclude(**{field_name: ""}).values_list(field_name, flat=True):
+        for value in split_multi_value(raw_value):
+            key = value.casefold()
+            if key not in seen:
+                values.append(value)
+                seen.add(key)
+    return sorted(values, key=str.casefold)
 
 
 def _get_filtered_usecases(
@@ -84,7 +106,7 @@ def _get_filtered_usecases(
     if status and not production_only:
         qs = qs.filter(status__iexact=status)
     if device:
-        qs = qs.filter(device__iexact=device)
+        qs = qs.filter(_multi_value_filter("device", device))
     if source.isdigit():
         qs = qs.filter(source_links__source_id=int(source))
     if severity:
@@ -291,10 +313,7 @@ def usecase_list(request):
 
     qs = qs.order_by(sort_field, "name")
 
-    devices = (
-        UseCase.objects.exclude(device="")
-        .values_list("device", flat=True).distinct().order_by("device")
-    )
+    devices = _distinct_multi_values(UseCase.objects.all(), "device")
     sources = EventSource.objects.filter(status=EventSource.STATUS_ACTIVE).order_by("name")
     selected_source_label = (
         EventSource.objects.filter(pk=int(source)).values_list("name", flat=True).first()

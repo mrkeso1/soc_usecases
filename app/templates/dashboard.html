@@ -1,8 +1,10 @@
 {% extends "base.html" %}
+{% load static %}
 
 {% block title %}Dashboard MITRE - SOC Control Manager{% endblock %}
 
 {% block extra_css %}
+<link rel="stylesheet" href="{% static 'css/dashboard-executive.css' %}?v=20260629-1">
 <style>
     .mitre-filter-grid {
         display: grid;
@@ -835,10 +837,28 @@
                 <h1 class="page-title">Dashboard MITRE</h1>
                 <p class="page-subtitle">Vista de cobertura ATT&amp;CK y D3FEND. Por defecto se computan casos de uso en Produccion y habilitados.</p>
             </div>
-            <div class="header-actions">
-                <a href="{% url 'dashboard' %}" class="btn">Ejecutivo</a>
-            </div>
         </header>
+
+        <section class="ops-dashboard mitre-ops-bridge" aria-label="Resumen ejecutivo">
+            <header class="ops-header">
+                <div>
+                    <h2 class="ops-title">Centro de Operaciones</h2>
+                    <p class="ops-date">{{ today|date:"l, j \d\e F \d\e Y" }}</p>
+                </div>
+                <div class="header-actions">
+                    <span class="badge {% if attention_total %}warn{% else %}good{% endif %}">{{ attention_total }} puntos de atencion</span>
+                </div>
+            </header>
+
+            <nav class="ops-tabs" aria-label="Navegacion de dashboards">
+                <a class="ops-tab-link" href="{% url 'dashboard' %}">Principal</a>
+                <a class="ops-tab-link" href="{% url 'dashboard' %}?tab=casos">Casos de uso</a>
+                <a class="ops-tab-link" href="{% url 'dashboard' %}?tab=controles">Controles</a>
+                <a class="ops-tab-link" href="{% url 'dashboard' %}?tab=fuentes">Fuentes</a>
+                <a class="ops-tab-link" href="{% url 'dashboard' %}?tab=ciclo">Ciclo de vida</a>
+                <a class="ops-tab-link active" href="{% url 'dashboard_mitre' %}">MITRE</a>
+            </nav>
+        </section>
 
         <section class="filter-panel">
             <form method="get" class="mitre-filter-grid">

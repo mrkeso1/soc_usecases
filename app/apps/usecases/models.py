@@ -68,8 +68,8 @@ class UseCase(models.Model):
         ("Critical", "Critical"),
     ]
 
-    group_name = models.CharField("Grupo", max_length=100, blank=True)
-    device = models.CharField("Dispositivo", max_length=150, blank=True)
+    group_name = models.CharField("Grupo", max_length=255, blank=True)
+    device = models.CharField("Dispositivo", max_length=255, blank=True)
     case_type = models.CharField("Tipo", max_length=100, blank=True)
     objective = models.TextField("Objetivo", blank=True)
 

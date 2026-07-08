@@ -17,6 +17,13 @@ DEBUG = os.getenv("DEBUG", "0") == "1"
 ALLOWED_HOSTS = [
     host.strip()
     for host in os.getenv("ALLOWED_HOSTS", "127.0.0.1,localhost").split(",")
+    if host.strip()
+]
+
+CSRF_TRUSTED_ORIGINS = [
+    origin.strip()
+    for origin in os.getenv("CSRF_TRUSTED_ORIGINS", "").split(",")
+    if origin.strip()
 ]
 
 
@@ -136,6 +143,8 @@ AUTHENTICATION_BACKENDS = [
 ]
 
 SECURE_SSL_REDIRECT = env_bool("SECURE_SSL_REDIRECT")
+SESSION_COOKIE_AGE = int(os.getenv("SESSION_COOKIE_AGE", "1800"))
+SESSION_SAVE_EVERY_REQUEST = env_bool("SESSION_SAVE_EVERY_REQUEST", "1")
 SESSION_COOKIE_SECURE = env_bool("SESSION_COOKIE_SECURE")
 CSRF_COOKIE_SECURE = env_bool("CSRF_COOKIE_SECURE")
 SECURE_HSTS_SECONDS = int(os.getenv("SECURE_HSTS_SECONDS", "0"))

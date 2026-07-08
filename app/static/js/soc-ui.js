@@ -43,16 +43,25 @@
 
         document.querySelectorAll("[data-tabs]").forEach(function (tabs) {
             var scope = tabs.parentElement || document;
+            var selectedTab = new URLSearchParams(window.location.search).get("tab");
+            var selectedButton = selectedTab ? tabs.querySelector("[data-tab='" + selectedTab + "']") : null;
+            var activateTab = function (button) {
+                tabs.querySelectorAll("[data-tab]").forEach(function (item) {
+                    item.classList.toggle("active", item === button);
+                });
+                scope.querySelectorAll("[data-panel]").forEach(function (panel) {
+                    panel.hidden = panel.dataset.panel !== button.dataset.tab;
+                });
+            };
+
             tabs.querySelectorAll("[data-tab]").forEach(function (button) {
                 button.addEventListener("click", function () {
-                    tabs.querySelectorAll("[data-tab]").forEach(function (item) {
-                        item.classList.toggle("active", item === button);
-                    });
-                    scope.querySelectorAll("[data-panel]").forEach(function (panel) {
-                        panel.hidden = panel.dataset.panel !== button.dataset.tab;
-                    });
+                    activateTab(button);
                 });
             });
+            if (selectedButton) {
+                activateTab(selectedButton);
+            }
         });
 
         document.querySelectorAll("form[method='get'], form:not([method])").forEach(function (form) {

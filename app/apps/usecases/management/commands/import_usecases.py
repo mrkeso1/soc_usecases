@@ -45,6 +45,7 @@ DATE_FIELDS = {
 }
 
 ATTACK_ID_RE = re.compile(r"\bT\d{4}(?:\.\d{3})?\b", re.IGNORECASE)
+ATTACK_NUMERIC_ID_RE = re.compile(r"(?<![A-Z0-9])\d{4}(?:\.\d{3})?(?![A-Z0-9])", re.IGNORECASE)
 D3FEND_HEADERS = {"D3FEND", "D3F3ND"}
 
 
@@ -61,8 +62,53 @@ def normalize_key(value):
     text = normalize_text(value).lower()
     text = unicodedata.normalize("NFKD", text)
     text = "".join(char for char in text if not unicodedata.combining(char))
-    text = re.sub(r"[\s_\-./]+", "", text)
+    text = re.sub(r"[^a-z0-9]+", "", text)
     return text
+
+
+HEADER_ALIASES = {
+    **{normalize_key(header): field for header, field in COLUMN_MAP.items()},
+    "nombre": "name",
+    "nombrenetwitness": "name",
+    "casodeuso": "name",
+    "usecase": "name",
+    "estado": "status",
+    "status": "status",
+    "objetivo": "objective",
+    "tipobloqueo": "blocking_type",
+    "fechaaltajuste": "created_or_adjusted_at",
+    "fechapuestaenproduccion": "production_date",
+    "fechaproduccion": "production_date",
+    "mitre": "mitre_attack_rel",
+    "attack": "mitre_attack_rel",
+    "attck": "mitre_attack_rel",
+    "mitreattack": "mitre_attack_rel",
+    "mitreattck": "mitre_attack_rel",
+    "mitreid": "mitre_attack_rel",
+    "attackid": "mitre_attack_rel",
+    "attackids": "mitre_attack_rel",
+    "mitreattackid": "mitre_attack_rel",
+    "mitreattackids": "mitre_attack_rel",
+    "mitreattckid": "mitre_attack_rel",
+    "mitreattckids": "mitre_attack_rel",
+    "mitreattckrelacionado": "mitre_attack_rel",
+    "mitreattackrelacionado": "mitre_attack_rel",
+    "mitretecnicas": "mitre_attack_rel",
+    "mitreattcktecnicas": "mitre_attack_rel",
+    "mitreattacktecnicas": "mitre_attack_rel",
+    "mitretechniques": "mitre_attack_rel",
+    "tecnicasmitre": "mitre_attack_rel",
+    "tecnicasattack": "mitre_attack_rel",
+    "tecnicasattck": "mitre_attack_rel",
+    "fuente": "event_sources_raw",
+    "fuentes": "event_sources_raw",
+    "fuenteseventos": "event_sources_raw",
+    "fuentesdeeventos": "event_sources_raw",
+    "eventsource": "event_sources_raw",
+    "eventsources": "event_sources_raw",
+    "ultimavalidacion": "last_validation_date",
+    "fechaultimavalidacion": "last_validation_date",
+}
 
 
 def normalize_choice(value, choices, aliases=None):
@@ -196,8 +242,43 @@ def parse_date(value):
 def extract_attack_ids(value):
     if not value:
         return []
-    found = ATTACK_ID_RE.findall(str(value))
-    return sorted(set(item.upper() for item in found))
+    text = str(value)
+    found = [item.upper() for item in ATTACK_ID_RE.findall(text)]
+    found.extend(f"T{item}" for item in ATTACK_NUMERIC_ID_RE.findall(text))
+    return sorted(set(found))
+
+
+def extract_attack_ids_from_row(row):
+    found = []
+    for value in row:
+        found.extend(extract_attack_ids(value))
+    return sorted(set(found))
+
+
+def resolve_attack_objects(attack_ids):
+    if not attack_ids:
+        return [], []
+
+    attacks = list(MitreAttack.objects.filter(external_id__in=attack_ids).order_by("external_id"))
+    found_ids = {attack.external_id.upper() for attack in attacks}
+    missing_ids = [attack_id for attack_id in attack_ids if attack_id.upper() not in found_ids]
+    return attacks, missing_ids
+
+
+def find_existing_usecase(name):
+    name = normalize_text(name)
+    if not name:
+        return None
+
+    instance = UseCase.objects.filter(name__iexact=name).first()
+    if instance:
+        return instance
+
+    name_key = normalize_key(name)
+    for candidate in UseCase.objects.only("id", "name").iterator():
+        if normalize_key(candidate.name) == name_key:
+            return candidate
+    return None
 
 
 def sync_event_sources(usecase, raw_value):
@@ -263,7 +344,8 @@ class Command(BaseCommand):
             raise CommandError("La hoja está vacía.")
 
         headers = [normalize_header(h) for h in rows[0]]
-        ignored_d3fend_headers = [header for header in headers if header in D3FEND_HEADERS]
+        d3fend_header_keys = {normalize_key(item) for item in D3FEND_HEADERS}
+        ignored_d3fend_headers = [header for header in headers if normalize_key(header) in d3fend_header_keys]
         if ignored_d3fend_headers:
             self.stdout.write(self.style.WARNING(
                 "La columna D3FEND del Excel será ignorada: D3FEND se infiere automáticamente desde MITRE ATT&CK."
@@ -272,16 +354,26 @@ class Command(BaseCommand):
         mapped_indexes = {}
 
         for idx, header in enumerate(headers):
-            if header in COLUMN_MAP:
-                mapped_indexes[idx] = COLUMN_MAP[header]
+            field_name = HEADER_ALIASES.get(normalize_key(header))
+            if field_name:
+                mapped_indexes[idx] = field_name
 
         if "name" not in mapped_indexes.values():
             raise CommandError("No se encontró la columna 'NOMBRE NETWITNESS'.")
+
+        has_mitre_column = "mitre_attack_rel" in mapped_indexes.values()
+        if not has_mitre_column:
+            self.stdout.write(self.style.WARNING(
+                "No se detectó una columna MITRE ATT&CK reconocida. "
+                "Se buscarán IDs ATT&CK Txxxx en toda cada fila."
+            ))
 
         created_count = 0
         updated_count = 0
         skipped_count = 0
         error_count = 0
+        warning_count = 0
+        attack_assigned_count = 0
 
         for row_num, row in enumerate(rows[1:], start=2):
             try:
@@ -318,20 +410,38 @@ class Command(BaseCommand):
                     continue
 
                 attack_ids = extract_attack_ids(attack_raw)
-                business_errors = validate_import_business_rules(payload, attack_ids)
-                if business_errors:
-                    skipped_count += 1
-                    self.stdout.write(self.style.WARNING(
-                        f"Fila {row_num}: omitida por validación de negocio -> " + "; ".join(business_errors)
-                    ))
-                    continue
+                if not attack_ids:
+                    attack_ids = extract_attack_ids_from_row(row)
+                    if attack_ids:
+                        warning_count += 1
+                        self.stdout.write(self.style.WARNING(
+                            f"Fila {row_num}: MITRE detectado por busqueda en toda la fila -> {', '.join(attack_ids)}."
+                        ))
+                attack_objects, missing_attack_ids = resolve_attack_objects(attack_ids)
+                resolved_attack_pk_ids = [attack.pk for attack in attack_objects]
 
-                instance = UseCase.objects.filter(name=name).first()
+                if attack_ids and missing_attack_ids:
+                    warning_count += 1
+                    self.stdout.write(self.style.WARNING(
+                        f"Fila {row_num}: ATT&CK no encontrados en el catalogo -> {', '.join(missing_attack_ids)}."
+                    ))
+
+                business_warnings = validate_import_business_rules(payload, resolved_attack_pk_ids)
+                if business_warnings:
+                    warning_count += 1
+                    self.stdout.write(self.style.WARNING(
+                        f"Fila {row_num}: guardada con datos incompletos -> " + "; ".join(business_warnings)
+                    ))
+
+                instance = find_existing_usecase(name)
 
                 if instance:
                     if not allow_update:
                         skipped_count += 1
-                        self.stdout.write(self.style.WARNING(f"Fila {row_num}: ya existe '{name}', omitido."))
+                        self.stdout.write(self.style.WARNING(
+                            f"Fila {row_num}: ya existe '{instance.name}', omitido. "
+                            "Marca 'Actualizar existentes por nombre' para actualizar MITRE y datos."
+                        ))
                         continue
 
                     for field, value in payload.items():
@@ -347,12 +457,21 @@ class Command(BaseCommand):
                 if hasattr(instance, "mitre_attacks"):
                     if allow_update:
                         instance.mitre_attacks.clear()
-                    for attack_id in attack_ids:
-                        attack_obj = MitreAttack.objects.filter(external_id__iexact=attack_id).first()
-                        if attack_obj:
-                            instance.mitre_attacks.add(attack_obj)
+                    if attack_objects:
+                        instance.mitre_attacks.add(*attack_objects)
+                        attack_assigned_count += len(attack_objects)
+                        self.stdout.write(
+                            f"Fila {row_num}: MITRE asociado -> "
+                            + ", ".join(attack.external_id for attack in attack_objects)
+                        )
 
                 instance.sync_d3fends_from_attacks()
+                if attack_objects and not instance.d3fends.exists():
+                    warning_count += 1
+                    self.stdout.write(self.style.WARNING(
+                        f"Fila {row_num}: ATT&CK cargado, pero no se infirio D3FEND. "
+                        "Revisa que existan mappings D3FEND->ATT&CK cargados."
+                    ))
                 sync_event_sources(instance, sources_raw)
 
                 self.stdout.write(self.style.SUCCESS(f"Fila {row_num}: {action} '{name}'"))
@@ -367,3 +486,5 @@ class Command(BaseCommand):
         self.stdout.write(f"Actualizados: {updated_count}")
         self.stdout.write(f"Omitidos: {skipped_count}")
         self.stdout.write(f"Errores: {error_count}")
+        self.stdout.write(f"Advertencias: {warning_count}")
+        self.stdout.write(f"MITRE asociados: {attack_assigned_count}")

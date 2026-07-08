@@ -1,4 +1,5 @@
 ﻿{% extends "base.html" %}
+{% load usecase_tags %}
 
 {% block title %}Inventario de Casos de Uso - SOC Control Manager{% endblock %}
 
@@ -200,7 +201,8 @@
                                 <strong class="entity-name">{{ uc.name }}</strong>
                             </div>
                             <div class="inventory-meta">
-                                {% if uc.group_name %}<span class="badge">{{ uc.group_name }}</span>{% endif %}
+                                {% for group in uc.group_name|split_multi %}<span class="badge">{{ group }}</span>{% endfor %}
+                                {% for device in uc.device|split_multi %}<span class="badge accent">{{ device }}</span>{% endfor %}
                                 {% if uc.case_type %}<span class="badge">{{ uc.case_type }}</span>{% endif %}
                             </div>
                         </td>
