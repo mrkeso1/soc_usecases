@@ -135,6 +135,18 @@ Cadena completa:
 4. Normalizacion de codigos D3FEND.
 5. Recalculo de D3FEND inferido en casos.
 
+El matching D3FEND se calcula por familia ATT&CK, no solo por ID exacto:
+
+- si el caso tiene `T1110`, tambien considera mappings para `T1110.001`, `T1110.002`, etc.;
+- si el caso tiene `T1110.003`, tambien considera mappings para `T1110`;
+- aplica a cualquier familia `Txxxx`.
+
+Despues de cambiar mappings o esta logica, recalcular casos existentes:
+
+```bash
+docker compose exec web python manage.py sync_usecase_d3fends
+```
+
 `sync_mitre_attack_scheduled` queda disponible solo para actualizar ATT&CK, pero produccion debe usar `sync_security_frameworks_scheduled`.
 
 ## Snapshot Diario MITRE

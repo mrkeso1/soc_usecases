@@ -44,6 +44,54 @@ class UseCaseBusinessRuleTests(TestCase):
         self.assertTrue(changed)
         self.assertEqual(list(usecase.d3fends.order_by("id")), [d3fend])
 
+    def test_parent_attack_infers_d3fend_from_subtechnique_mapping(self):
+        parent = MitreAttack.objects.create(external_id="T1110", name="Brute Force")
+        subtechnique = MitreAttack.objects.create(external_id="T1110.001", name="Password Guessing")
+        d3fend = D3Fend.objects.create(code="D3-LAM", name="Local Account Monitoring")
+        d3fend.related_attacks.add(subtechnique)
+        usecase = UseCase.objects.create(name="Brute force alert")
+        usecase.mitre_attacks.add(parent)
+
+        changed = usecase.sync_d3fends_from_attacks()
+
+        self.assertTrue(changed)
+        self.assertEqual(list(usecase.d3fends.order_by("id")), [d3fend])
+
+    def test_subtechnique_attack_infers_d3fend_from_parent_mapping(self):
+        parent = MitreAttack.objects.create(external_id="T1110", name="Brute Force")
+        subtechnique = MitreAttack.objects.create(external_id="T1110.003", name="Password Spraying")
+        d3fend = D3Fend.objects.create(code="D3-ANAA", name="Account Authentication Analysis")
+        d3fend.related_attacks.add(parent)
+        usecase = UseCase.objects.create(name="Password spraying alert")
+        usecase.mitre_attacks.add(subtechnique)
+
+        changed = usecase.sync_d3fends_from_attacks()
+
+        self.assertTrue(changed)
+        self.assertEqual(list(usecase.d3fends.order_by("id")), [d3fend])
+
+    def test_attack_family_expansion_does_not_cross_unrelated_prefixes(self):
+        selected = MitreAttack.objects.create(external_id="T1110", name="Brute Force")
+        unrelated = MitreAttack.objects.create(external_id="T1111", name="Unrelated")
+        d3fend = D3Fend.objects.create(code="D3-OTHER", name="Other Defensive Technique")
+        d3fend.related_attacks.add(unrelated)
+        usecase = UseCase.objects.create(name="Brute force only")
+        usecase.mitre_attacks.add(selected)
+
+        changed = usecase.sync_d3fends_from_attacks()
+
+        self.assertFalse(changed)
+        self.assertFalse(usecase.d3fends.exists())
+
+    def test_invalid_attack_ids_do_not_infer_every_d3fend(self):
+        attack = MitreAttack.objects.create(external_id="T1059", name="Command and Scripting Interpreter")
+        d3fend = D3Fend.objects.create(code="D3-PSEP", name="Process Spawn Analysis")
+        d3fend.related_attacks.add(attack)
+
+        inferred = UseCase.inferred_d3fends_for_attack_ids_queryset([999999])
+
+        self.assertFalse(inferred.exists())
+
 
 class SeedDemoDataCommandTests(TestCase):
     def test_seed_demo_data_creates_demo_catalog_users_and_cases(self):

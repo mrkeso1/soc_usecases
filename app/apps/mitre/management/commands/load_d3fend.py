@@ -7,6 +7,7 @@ import requests
 from django.core.management.base import BaseCommand
 from django.db import transaction
 
+from apps.mitre.attack_ids import resolve_attack_from_lookup
 from apps.mitre.models import D3Fend, MitreAttack
 
 
@@ -454,12 +455,12 @@ class Command(BaseCommand):
         attack_id = str(row.get("off_tech_id") or "").strip().upper()
 
         if attack_id:
-            attack = attack_lookup.get(attack_id)
+            attack = resolve_attack_from_lookup(attack_id, attack_lookup)
             if attack:
                 return attack
 
         for fallback_attack_id in sorted(_extract_attack_ids(row)):
-            attack = attack_lookup.get(fallback_attack_id)
+            attack = resolve_attack_from_lookup(fallback_attack_id, attack_lookup)
             if attack:
                 return attack
 

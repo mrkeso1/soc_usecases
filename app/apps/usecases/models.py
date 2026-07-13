@@ -4,6 +4,7 @@ from django.conf import settings
 from django.core.exceptions import ValidationError
 from django.db import models
 
+from apps.mitre.attack_ids import attack_family_query
 from apps.mitre.models import D3Fend, MitreAttack
 
 
@@ -206,12 +207,23 @@ class UseCase(models.Model):
         if not attack_ids:
             return D3Fend.objects.none()
 
+        selected_external_ids = (
+            MitreAttack.objects
+            .filter(id__in=attack_ids)
+            .values_list("external_id", flat=True)
+        )
+        expanded_attack_ids = set(
+            MitreAttack.objects
+            .filter(attack_family_query(selected_external_ids))
+            .values_list("id", flat=True)
+        )
+
         return (
             D3Fend.objects
             .filter(
                 is_enabled=True,
                 related_attacks__is_enabled=True,
-                related_attacks__id__in=attack_ids,
+                related_attacks__id__in=expanded_attack_ids,
             )
             .prefetch_related("related_attacks")
             .distinct()

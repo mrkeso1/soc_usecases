@@ -14,10 +14,20 @@ from apps.mitre.mitre_sync import (
     load_mitre_attack_data,
     run_scheduled_mitre_attack_sync,
 )
+from apps.mitre.management.commands.load_d3fend import Command as LoadD3FendCommand
 from apps.mitre.models import D3Fend, MitreAttack, MitreAttackSyncSettings
 
 
 class MitreAttackSyncTests(TestCase):
+    def test_d3fend_mapping_resolves_subtechnique_to_parent_when_subtechnique_is_missing(self):
+        parent = MitreAttack.objects.create(external_id="T1110", name="Brute Force")
+        attack_lookup = {"T1110": parent}
+        row = {"off_tech_id": "T1110.003", "off_tech_label": "Password Spraying"}
+
+        resolved = LoadD3FendCommand()._resolve_attack_from_mapping_row(row, attack_lookup)
+
+        self.assertEqual(resolved, parent)
+
     def test_load_mitre_attack_data_creates_and_updates_catalog(self):
         MitreAttack.objects.create(external_id="T1059", name="Old name", tactic="Execution")
         data = {
