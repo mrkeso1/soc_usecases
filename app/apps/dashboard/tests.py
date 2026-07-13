@@ -5,6 +5,7 @@ from types import SimpleNamespace
 from django.contrib.auth import get_user_model
 from django.test import TestCase
 from django.test import RequestFactory
+from django.urls import reverse
 
 from apps.dashboard.dashboard import (
     build_dashboard_context,
@@ -13,6 +14,7 @@ from apps.dashboard.dashboard import (
     save_mitre_coverage_snapshot,
 )
 from apps.dashboard.reports import build_dashboard_pdf
+from apps.dashboard.models import MitreCoverageSnapshot
 from apps.mitre.models import D3Fend, MitreAttack
 from apps.usecases.models import UseCase
 
@@ -136,3 +138,18 @@ class DashboardInventoryScopeTests(TestCase):
         self.assertEqual(snapshot.coverage_score, 100)
         self.assertEqual(timeline["count"], 1)
         self.assertEqual(timeline["latest"]["score"], 100)
+
+    def test_mitre_dashboard_view_captures_today_snapshot(self):
+        attack = MitreAttack.objects.create(external_id="T1001", name="Covered", tactic="Execution")
+        d3fend = D3Fend.objects.create(code="D3-DAO", name="Decoy Object", category="Detect")
+        d3fend.related_attacks.add(attack)
+        usecase = UseCase.objects.create(name="Enabled prod", status=UseCase.STATUS_PRODUCTION, is_enabled=True)
+        usecase.mitre_attacks.add(attack)
+        usecase.d3fends.add(d3fend)
+        self.client.login(username="dashboard-user", password="pass")
+
+        response = self.client.get(reverse("dashboard_mitre"))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertTrue(MitreCoverageSnapshot.objects.filter(snapshot_date=date.today()).exists())
+        self.assertGreaterEqual(response.context["mitre_risk_overview"]["count"], 1)

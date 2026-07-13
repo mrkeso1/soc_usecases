@@ -79,7 +79,8 @@ def _get_filtered_usecases(
         qs = qs.prefetch_related("mitre_attacks", "d3fends", "source_links__source")
 
     q              = request.GET.get("q", "").strip()
-    status         = PRODUCTION_STATUS if production_only else request.GET.get("status", "").strip()
+    status_param   = request.GET.get("status")
+    status         = PRODUCTION_STATUS if production_only or status_param is None else status_param.strip()
     device         = request.GET.get("device", "").strip()
     source         = request.GET.get("source", "").strip()
     severity       = request.GET.get("severity", "").strip()

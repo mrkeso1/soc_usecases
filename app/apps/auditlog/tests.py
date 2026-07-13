@@ -8,6 +8,7 @@ from apps.usecases.models import UseCase, UseCaseChangeLog
 from .models import AuditLog
 from .middleware import _safe_post_keys
 from .service import client_ip
+from .timeline import build_audit_timeline_context
 
 
 class AuditClientIpTests(TestCase):
@@ -51,6 +52,8 @@ class AuditPermissionTests(TestCase):
         self.user = User.objects.create_user("inventory-auditor", password="pass")
         self.user.user_permissions.add(Permission.objects.get(codename="view_inventory_audit"))
         self.usecase = UseCase.objects.create(name="Audit visible use case")
+        self.usecase.case_code = "Audit visible use case"
+        self.usecase.save(update_fields=["case_code"])
         self.change = UseCaseChangeLog.objects.create(
             use_case=self.usecase,
             changed_by=self.user,
@@ -102,3 +105,12 @@ class AuditPermissionTests(TestCase):
         self.assertIn("Inventario", content)
         self.assertIn("Audit visible use case", content)
         self.assertNotIn("Inicio fallido", content)
+
+    def test_inventory_audit_uses_editable_usecase_identifier(self):
+        self.usecase.case_code = "CUSTOM-AUDIT-CODE"
+        self.usecase.save(update_fields=["case_code"])
+
+        context = build_audit_timeline_context({"area": "inventory"}, self.user, paginate=False)
+        item = next(item for item in context["items"] if item.source == "usecase_change")
+
+        self.assertEqual(item.entity_id, "CUSTOM-AUDIT-CODE")

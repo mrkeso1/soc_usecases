@@ -231,6 +231,14 @@ def _safe_reverse(name, *args):
         return ""
 
 
+def _usecase_entity_id(usecase, fallback_id=None):
+    if usecase is not None:
+        return usecase.display_code
+    if fallback_id:
+        return f"CU{fallback_id:04d}"
+    return ""
+
+
 def _auditlog_items():
     return [
         _auditlog_to_item(log)
@@ -289,7 +297,7 @@ def _usecase_change_to_item(change):
         action_label="Caso modificado",
         actor=change.changed_by,
         entity_type="Caso de uso",
-        entity_id=f"CU{change.use_case_id:04d}",
+        entity_id=_usecase_entity_id(change.use_case, change.use_case_id),
         summary=f"{change.use_case.name} - {change.field_label}",
         details=[
             ("Campo", change.field_label),
@@ -358,7 +366,7 @@ def _lifecycle_review_to_item(review):
         action_label="Revision registrada",
         actor=review.completed_by,
         entity_type="Caso de uso",
-        entity_id=f"CU{review.use_case_id:04d}",
+        entity_id=_usecase_entity_id(review.use_case, review.use_case_id),
         summary=f"{review.use_case.name} - {review.result or review.status}",
         details=[
             ("Período", review.review_type or "-"),
@@ -399,7 +407,7 @@ def _lifecycle_transition_to_item(transition):
         action_label=transition.get_transition_type_display(),
         actor=transition.actor,
         entity_type="Lifecycle",
-        entity_id=f"CU{use_case_id:04d}" if use_case_id else transition.period_key or str(transition.cycle or ""),
+        entity_id=_usecase_entity_id(transition.use_case, use_case_id) if use_case_id else transition.period_key or str(transition.cycle or ""),
         summary=f"{transition.from_state or '-'} -> {transition.to_state or '-'}",
         details=[
             ("Periodo", transition.period_key or "-"),
@@ -437,7 +445,7 @@ def _detection_metric_to_item(metric):
         action_label="Metrica de deteccion",
         actor=metric.created_by,
         entity_type="Caso de uso",
-        entity_id=f"CU{metric.use_case_id:04d}",
+        entity_id=_usecase_entity_id(metric.use_case, metric.use_case_id),
         summary=f"{metric.use_case.name} - efectividad {metric.effectiveness_score}%",
         details=[
             ("Periodo", metric.period_key or "-"),
