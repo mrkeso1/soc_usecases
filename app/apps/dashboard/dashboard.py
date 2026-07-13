@@ -4,7 +4,7 @@ The dashboard view and the PDF export both need the same coverage metrics. Keepi
 that aggregation here avoids duplicating query logic in views and report rendering.
 """
 
-from collections import Counter
+from collections import Counter, defaultdict
 from datetime import date
 import math
 
@@ -13,6 +13,7 @@ from django.db import connection
 from django.db.utils import OperationalError, ProgrammingError
 
 from apps.mitre.coverage_overrides import get_override_map, resolve_status, split_values
+from apps.mitre.attack_ids import parent_attack_id
 from apps.mitre.models import CoverageOverride, D3Fend, MitreAttack
 from apps.sources.models import EventSource, SourceType
 from apps.usecases.models import UseCase
@@ -374,6 +375,18 @@ def _build_radial_metric(
     }
 
 
+def _attack_ids_match(selected_external_id, related_external_id):
+    selected = (selected_external_id or "").upper().strip()
+    related = (related_external_id or "").upper().strip()
+    if not selected or not related:
+        return False
+    return (
+        selected == related
+        or parent_attack_id(selected) == related
+        or parent_attack_id(related) == selected
+    )
+
+
 def mitre_snapshot_payload_from_context(context):
     attack_techniques_percent = context["attack_radials"][0]["percent"]
     attack_tactics_percent = context["attack_radials"][1]["percent"]
@@ -712,7 +725,7 @@ def build_dashboard_context(request):
     base_qs = (
         UseCase.objects
         .filter(status__iexact=PRODUCTION_STATUS)
-        .prefetch_related("mitre_attacks", "d3fends", "source_links__source")
+        .prefetch_related("mitre_attacks", "d3fends__related_attacks", "source_links__source")
     )
 
     device = request.GET.get("device", "").strip()
@@ -812,6 +825,24 @@ def build_dashboard_context(request):
 
     # D3FEND coverage is inferred from D3FEND→ATT&CK relations,
     # production-covered ATT&CK and manual/external overrides.
+    covered_attack_ids_by_d3fend_id: dict[int, set[int]] = defaultdict(set)
+    for usecase in production_qs:
+        selected_attacks = [
+            attack for attack in usecase.mitre_attacks.all()
+            if attack.id in all_attack_ids
+        ]
+        if not selected_attacks:
+            continue
+        for d3fend in usecase.d3fends.all():
+            for related_attack in d3fend.related_attacks.all():
+                if related_attack.id not in all_attack_ids:
+                    continue
+                if any(
+                    _attack_ids_match(selected_attack.external_id, related_attack.external_id)
+                    for selected_attack in selected_attacks
+                ):
+                    covered_attack_ids_by_d3fend_id[d3fend.id].add(related_attack.id)
+
     d3fend_overrides = get_override_map(CoverageOverride.FRAMEWORK_D3FEND)
     d3fend_mapping_ready = _d3fend_attack_mapping_table_exists()
     d3fend_coverage_rows = []
@@ -859,7 +890,7 @@ def build_dashboard_context(request):
             manually_fulfilled = technique_status.is_fulfilled or bool(category_status and category_status.is_fulfilled)
             related_attack_ids = {attack.id for attack in d3fend.related_attacks.all() if attack.id in all_attack_ids}
             total_related = len(related_attack_ids) or (1 if manually_fulfilled else 0)
-            covered_related = len(related_attack_ids & covered_attack_ids)
+            covered_related = len(related_attack_ids & covered_attack_ids_by_d3fend_id.get(d3fend.id, set()))
             if manually_fulfilled:
                 covered_related = total_related
             coverage_ratio = (covered_related / total_related) if total_related else 0.0

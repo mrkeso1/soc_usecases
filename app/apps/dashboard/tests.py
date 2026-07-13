@@ -112,6 +112,22 @@ class DashboardInventoryScopeTests(TestCase):
         self.assertEqual(rows[0]["total"], "1")
         self.assertEqual(rows[0]["production_cases"], 1)
 
+    def test_mitre_dashboard_respects_usecase_d3fend_exclusions(self):
+        attack = MitreAttack.objects.create(external_id="T1110", name="Brute Force", tactic="Credential Access")
+        d3fend = D3Fend.objects.create(code="D3-ANAA", name="Account Authentication Analysis", category="Detect")
+        d3fend.related_attacks.add(attack)
+        usecase = UseCase.objects.create(name="VPN brute force", status=UseCase.STATUS_PRODUCTION, is_enabled=True)
+        usecase.mitre_attacks.add(attack)
+        usecase.sync_d3fends_from_attacks()
+        usecase.d3fend_exclusions.add(d3fend)
+        usecase.sync_d3fends_from_attacks()
+
+        context = build_dashboard_context(self._request("/dashboard/mitre/"))
+
+        self.assertEqual(context["attack_radials"][0]["percent"], 100)
+        self.assertEqual(context["d3fend_radials"][0]["percent"], 0)
+        self.assertEqual(context["covered_d3fend_techniques"], 0)
+
     def test_mitre_dashboard_counts_only_fully_covered_tactics(self):
         covered_attack = MitreAttack.objects.create(external_id="T1001", name="Covered", tactic="Execution")
         MitreAttack.objects.create(external_id="T1002", name="Uncovered", tactic="Execution")

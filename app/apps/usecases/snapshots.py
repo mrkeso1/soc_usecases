@@ -16,6 +16,13 @@ def serialize_d3fend(usecase) -> str:
     )
 
 
+def serialize_d3fend_exclusions(usecase) -> str:
+    return ", ".join(
+        f"{item.code} - {item.name}" if item.name else str(item.code)
+        for item in usecase.d3fend_exclusions.all().order_by("code", "name")
+    )
+
+
 def serialize_user(user) -> str:
     if not user:
         return ""
@@ -58,6 +65,7 @@ def snapshot_usecase(usecase) -> dict:
         "production_date": usecase.production_date,
         "mitre_attacks": serialize_mitre(usecase),
         "d3fends": serialize_d3fend(usecase),
+        "d3fend_exclusions": serialize_d3fend_exclusions(usecase),
         "severity": usecase.severity,
         "escalation": usecase.escalation,
         "sent_to_ho": usecase.sent_to_ho,

@@ -90,7 +90,7 @@ class UseCaseAdmin(admin.ModelAdmin):
     )
 
     autocomplete_fields = ("lifecycle_control_owner",)
-    filter_horizontal = ("mitre_attacks",)
+    filter_horizontal = ("mitre_attacks", "d3fend_exclusions")
     readonly_fields = ("d3fends_inferred_display",)
 
     fieldsets = (
@@ -119,6 +119,7 @@ class UseCaseAdmin(admin.ModelAdmin):
             {
                 "fields": (
                     "mitre_attacks",
+                    "d3fend_exclusions",
                     "d3fends_inferred_display",
                 ),
                 "description": (

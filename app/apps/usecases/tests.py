@@ -50,6 +50,22 @@ class UseCaseBusinessRuleTests(TestCase):
         self.assertTrue(changed)
         self.assertEqual(list(usecase.d3fends.order_by("id")), [d3fend])
 
+    def test_d3fend_exclusion_removes_inferred_cache_for_usecase_only(self):
+        attack = MitreAttack.objects.create(external_id="T1110", name="Brute Force")
+        d3fend = D3Fend.objects.create(code="D3-ANAA", name="Account Authentication Analysis")
+        d3fend.related_attacks.add(attack)
+        usecase = UseCase.objects.create(name="VPN brute force alert")
+        usecase.mitre_attacks.add(attack)
+        usecase.sync_d3fends_from_attacks()
+        self.assertEqual(list(usecase.d3fends.order_by("id")), [d3fend])
+        usecase.d3fend_exclusions.add(d3fend)
+
+        changed = usecase.sync_d3fends_from_attacks()
+
+        self.assertTrue(changed)
+        self.assertFalse(usecase.d3fends.exists())
+        self.assertFalse(usecase.inferred_d3fends_queryset().exists())
+
     def test_parent_attack_infers_d3fend_from_subtechnique_mapping(self):
         parent = MitreAttack.objects.create(external_id="T1110", name="Brute Force")
         subtechnique = MitreAttack.objects.create(external_id="T1110.001", name="Password Guessing")

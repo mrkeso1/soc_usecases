@@ -118,6 +118,13 @@ class UseCase(models.Model):
         verbose_name="D3FEND relacionado",
     )
 
+    d3fend_exclusions = models.ManyToManyField(
+        D3Fend,
+        blank=True,
+        related_name="excluded_from_use_cases",
+        verbose_name="D3FEND excluido para este caso",
+    )
+
     severity = models.CharField(
         "Severidad",
         max_length=20,
@@ -245,10 +252,19 @@ class UseCase(models.Model):
             .order_by("code", "name")
         )
 
-    def inferred_d3fends_queryset(self):
-        """D3FEND calculado automáticamente desde las técnicas ATT&CK del caso."""
+    def base_inferred_d3fends_queryset(self):
+        """D3FEND inferido desde ATT&CK antes de aplicar exclusiones del caso."""
         attack_ids = list(self.mitre_attacks.values_list("id", flat=True))
         return self.inferred_d3fends_for_attack_ids_queryset(attack_ids)
+
+    def inferred_d3fends_queryset(self):
+        """D3FEND calculado automáticamente desde las técnicas ATT&CK del caso."""
+        qs = self.base_inferred_d3fends_queryset()
+        if self.pk:
+            excluded_ids = list(self.d3fend_exclusions.values_list("id", flat=True))
+            if excluded_ids:
+                qs = qs.exclude(id__in=excluded_ids)
+        return qs
 
     def inferred_d3fend_ids(self):
         return set(self.inferred_d3fends_queryset().values_list("id", flat=True))
@@ -355,6 +371,7 @@ class UseCaseChangeLog(models.Model):
         "production_date": "Fecha puesta en producción",
         "mitre_attacks": "MITRE ATT&CK",
         "d3fends": "D3FEND inferido",
+        "d3fend_exclusions": "D3FEND excluido",
         "severity": "Severidad",
         "escalation": "Escalamiento",
         "sent_to_ho": "Envío HO",

@@ -3,6 +3,7 @@ import json
 from django import forms
 from django.forms import inlineformset_factory
 
+from apps.mitre.models import D3Fend
 from apps.sources.models import EventSource
 
 from .models import UseCase, UseCaseRuleCondition
@@ -53,6 +54,7 @@ class UseCaseForm(MitreAttackM2MBridgeMixin, forms.ModelForm):
             "created_or_adjusted_at",
             "production_date",
             "mitre_attacks",
+            "d3fend_exclusions",
             "severity",
             "escalation",
             "sent_to_ho",
@@ -95,6 +97,10 @@ class UseCaseForm(MitreAttackM2MBridgeMixin, forms.ModelForm):
                 attrs={"class": "form-control", "type": "date"}, format="%Y-%m-%d"
             ),
             "mitre_attacks": forms.SelectMultiple(attrs={"class": "form-control", "style": "display:none;"}),
+            "d3fend_exclusions": forms.SelectMultiple(attrs={
+                "class": "form-control",
+                "style": "display:none;",
+            }),
             "severity": forms.Select(attrs={"class": "form-control"}),
             "escalation": forms.Select(attrs={"class": "form-control"}),
             "sent_to_ho": forms.Select(attrs={"class": "form-control"}),
@@ -124,6 +130,7 @@ class UseCaseForm(MitreAttackM2MBridgeMixin, forms.ModelForm):
             "created_or_adjusted_at": "Fecha alta/ajuste",
             "production_date": "Fecha producción",
             "mitre_attacks": "MITRE ATT&CK relacionado",
+            "d3fend_exclusions": "D3FEND excluido para este caso",
             "severity": "Severidad",
             "escalation": "Escalamiento",
             "sent_to_ho": "Envío HO",
@@ -144,12 +151,14 @@ class UseCaseForm(MitreAttackM2MBridgeMixin, forms.ModelForm):
             "full_rule_text": "Pega la regla completa del SIEM/EPL/Sigma. Se usa para backups tecnicos y auditoria.",
             "functional_description": "Explica en lenguaje operativo que detecta el caso, alcance y criterio de validacion.",
             "mitre_attacks": "Busca por ID, nombre o tactica. D3FEND se infiere automaticamente.",
+            "d3fend_exclusions": "Exclui defensas inferidas que no aplican por contexto del caso, sin borrar el mapping global.",
             "disabled_reason": "Obligatorio si el caso queda deshabilitado.",
         }
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.fields["mitre_attacks"].queryset = self.fields["mitre_attacks"].queryset.filter(is_enabled=True)
+        self.fields["d3fend_exclusions"].queryset = D3Fend.objects.filter(is_enabled=True).order_by("code", "name")
         self.fields["event_sources"].queryset = EventSource.objects.order_by("name")
         self.fields["group_name"].widget.attrs["data-options"] = json.dumps(self._multi_value_options("group_name"))
         self.fields["device"].widget.attrs["data-options"] = json.dumps(self._multi_value_options("device"))

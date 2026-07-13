@@ -1030,6 +1030,18 @@
                             </div>
                         </div>
                     </div>
+                    <div class="detail-item full">
+                        <span class="detail-label">D3FEND excluido manualmente</span>
+                        <div class="detail-value">
+                            <div class="tag-list">
+                                {% for item in usecase.d3fend_exclusions.all %}
+                                    <span class="tag">{{ item.code }}{% if item.name %} â€” {{ item.name }}{% endif %}</span>
+                                {% empty %}
+                                    <span class="empty-value">Sin exclusiones contextuales.</span>
+                                {% endfor %}
+                            </div>
+                        </div>
+                    </div>
                 </div>
             </section>
 

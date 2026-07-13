@@ -76,7 +76,7 @@ def _get_filtered_usecases(
     qs = UseCase.objects.filter(status__iexact=PRODUCTION_STATUS) if production_only else UseCase.objects.all()
 
     if with_prefetch:
-        qs = qs.prefetch_related("mitre_attacks", "d3fends", "source_links__source")
+        qs = qs.prefetch_related("mitre_attacks", "d3fends", "d3fend_exclusions", "source_links__source")
 
     q              = request.GET.get("q", "").strip()
     status_param   = request.GET.get("status")
@@ -618,7 +618,7 @@ def usecase_create(request):
 @login_required
 def usecase_edit(request, pk):
     usecase = get_object_or_404(
-        UseCase.objects.prefetch_related("mitre_attacks", "d3fends", "source_links__source"), pk=pk,
+        UseCase.objects.prefetch_related("mitre_attacks", "d3fends", "d3fend_exclusions", "source_links__source"), pk=pk,
     )
     if not can_manage_usecases(request.user, usecase):
         return HttpResponseForbidden("Solo podes editar casos de uso propios.")
@@ -649,6 +649,7 @@ def usecase_edit(request, pk):
         form = UseCaseForm(instance=usecase)
         condition_formset = UseCaseRuleConditionFormSet(instance=usecase, prefix="conditions")
 
+    usecase.form_inferred_d3fends = list(usecase.base_inferred_d3fends_queryset())
     return render(
         request, "usecases/usecase_form.html",
         {
@@ -666,7 +667,7 @@ def usecase_detail(request, pk):
         return HttpResponseForbidden(_FORBIDDEN_MSG)
 
     usecase = get_object_or_404(
-        UseCase.objects.prefetch_related("mitre_attacks", "d3fends", "source_links__source", "rule_conditions"), pk=pk,
+        UseCase.objects.prefetch_related("mitre_attacks", "d3fends", "d3fend_exclusions", "source_links__source", "rule_conditions"), pk=pk,
     )
 
     usecase.inferred_d3fends = list(usecase.inferred_d3fends_queryset())
@@ -689,7 +690,7 @@ def usecase_quick_update(request, pk):
         return redirect("usecase_list")
 
     usecase = get_object_or_404(
-        UseCase.objects.prefetch_related("mitre_attacks", "d3fends"), pk=pk,
+        UseCase.objects.prefetch_related("mitre_attacks", "d3fends", "d3fend_exclusions"), pk=pk,
     )
     if not can_manage_usecases(request.user, usecase):
         return HttpResponseForbidden("Solo podes actualizar casos de uso propios.")
