@@ -44,6 +44,7 @@ class UseCaseAdmin(admin.ModelAdmin):
     inlines = (RuleConditionInline,)
 
     list_display = (
+        "case_code",
         "name",
         "group_name",
         "device",
@@ -59,6 +60,7 @@ class UseCaseAdmin(admin.ModelAdmin):
     )
 
     search_fields = (
+        "case_code",
         "name",
         "group_name",
         "device",
@@ -96,6 +98,7 @@ class UseCaseAdmin(admin.ModelAdmin):
             "Datos principales",
             {
                 "fields": (
+                    "case_code",
                     "group_name",
                     "device",
                     "case_type",

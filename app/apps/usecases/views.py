@@ -345,26 +345,12 @@ def usecase_list(request):
     paginator = Paginator(qs, 25)
     page_obj = paginator.get_page(request.GET.get("page"))
     qs = list(page_obj.object_list)
-    attack_ids = {attack.id for usecase in qs for attack in usecase.mitre_attacks.all()}
-    inferred_d3fends = list(UseCase.inferred_d3fends_for_attack_ids_queryset(attack_ids))
-    d3fend_by_attack_id: dict[int, list] = {}
-    for d3fend in inferred_d3fends:
-        for attack in d3fend.related_attacks.all():
-            if attack.is_enabled:
-                d3fend_by_attack_id.setdefault(attack.id, []).append(d3fend)
 
     # Resolve user roles once - avoids repeated group DB queries in the loop below.
     roles = resolve_user_roles(request.user)
 
     for usecase in qs:
-        seen_ids, inferred_for = set(), []
-        for attack in usecase.mitre_attacks.all():
-            for d3fend in d3fend_by_attack_id.get(attack.id, []):
-                if d3fend.id not in seen_ids:
-                    seen_ids.add(d3fend.id)
-                    inferred_for.append(d3fend)
-        inferred_for.sort(key=lambda item: (item.code, item.name))
-        usecase.inferred_d3fends   = inferred_for
+        usecase.inferred_d3fends   = list(usecase.inferred_d3fends_queryset())
         usecase.can_manage_by_user = can_manage_usecases(request.user, usecase, _roles=roles)
         usecase.can_delete_by_user = can_delete_usecases(request.user, usecase, _roles=roles)
 
@@ -423,12 +409,12 @@ def export_usecases_csv(request):
     response["Content-Disposition"] = 'attachment; filename="usecases_export.csv"'
     writer = csv.writer(response)
     writer.writerow([
-        "Nombre", "Dispositivo", "Fuentes", "Responsable desarrollo", "Estado", "Severidad",
+        "Identificador", "Nombre", "Dispositivo", "Fuentes", "Responsable desarrollo", "Estado", "Severidad",
         "Ultimo control", "Proximo control", "Habilitado", "Motivo deshabilitacion", "ATT&CK", "D3FEND",
     ])
     for uc in qs:
         writer.writerow([
-            uc.name, uc.device, _serialize_sources(uc), uc.owner_name, uc.status, uc.severity,
+            uc.display_code, uc.name, uc.device, _serialize_sources(uc), uc.owner_name, uc.status, uc.severity,
             uc.last_validation_date or "", uc.next_review_date or "",
             "Si" if uc.is_enabled else "No", uc.disabled_reason or "",
             _serialize_mitre(uc), _serialize_d3fend(uc),
@@ -449,6 +435,7 @@ def _xlsx_response(workbook, filename: str):
 
 def _append_usecase_excel_row(ws, usecase):
     ws.append([
+        usecase.display_code,
         usecase.group_name,
         usecase.device,
         usecase.case_type,
@@ -472,6 +459,7 @@ def _append_usecase_excel_row(ws, usecase):
 
 def _usecase_excel_headers():
     return [
+        "IDENTIFICADOR",
         "GRUPO",
         "DISPOSITIVO",
         "TIPO",
@@ -518,6 +506,7 @@ def download_usecase_import_template(request):
     ws.title = "Casos de uso"
     ws.append(_usecase_excel_headers())
     ws.append([
+        "Ejemplo - PowerShell sospechoso",
         "SOC",
         "SIEM",
         "Correlation",

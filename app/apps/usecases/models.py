@@ -81,6 +81,7 @@ class UseCase(models.Model):
         blank=True,
     )
 
+    case_code = models.CharField("Identificador", max_length=255, blank=True, default="", db_index=True)
     name = models.CharField("Nombre NetWitness", max_length=255)
     owner_name = models.CharField("Responsable desarrollo", max_length=150, blank=True)
     lifecycle_control_owner = models.ForeignKey(
@@ -200,6 +201,20 @@ class UseCase(models.Model):
 
     def __str__(self):
         return self.name
+
+    def save(self, *args, **kwargs):
+        if not (self.case_code or "").strip():
+            self.case_code = (self.name or "").strip()
+        super().save(*args, **kwargs)
+
+    @property
+    def display_code(self):
+        value = (self.case_code or "").strip()
+        if value:
+            return value
+        if self.pk:
+            return f"CU{self.pk:04d}"
+        return "CU----"
 
     @staticmethod
     def inferred_d3fends_for_attack_ids_queryset(attack_ids):
@@ -325,6 +340,7 @@ class UseCaseChangeLog(models.Model):
     # Campos auditados por el historial de cambios del caso de uso.
     # Mantener esta lista alineada con usecases.snapshots.snapshot_usecase().
     FIELD_LABELS = {
+        "case_code": "Identificador",
         "name": "Nombre NetWitness",
         "group_name": "Grupo",
         "device": "Dispositivo",

@@ -952,7 +952,7 @@
                 <div class="eyebrow">// INVENTARIO - EDICION</div>
                 <h1 class="page-title">{{ title|default:"Editar caso de uso" }}</h1>
                 <div class="case-name-box">
-                    {% if usecase %}{{ usecase.name }}{% else %}Nuevo caso de uso{% endif %}
+                    {% if usecase %}{{ usecase.display_code }}{% else %}Nuevo caso de uso{% endif %}
                 </div>
             </div>
             <div class="header-actions">
@@ -990,6 +990,11 @@
                         <h2 class="section-title">Datos principales</h2>
                         <p class="section-help">Informacion base del caso. El nombre debe ser legible y mantener la referencia real de NetWitness.</p>
                         <div class="grid">
+                            <div class="field full">
+                                <label>Identificador</label>
+                                {{ form.case_code }}
+                                <div class="hint">Es el valor visible en el inventario. Si lo dejas vacio, se completa con el nombre.</div>
+                            </div>
                             <div class="field full">
                                 <label>Nombre NetWitness</label>
                                 {{ form.name }}

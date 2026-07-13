@@ -19,6 +19,12 @@ from .models import UseCase, UseCaseChangeLog, UseCaseRuleCondition
 
 
 class UseCaseBusinessRuleTests(TestCase):
+    def test_case_code_defaults_to_name_when_empty(self):
+        usecase = UseCase.objects.create(name="Visible inventory name")
+
+        self.assertEqual(usecase.case_code, "Visible inventory name")
+        self.assertEqual(usecase.display_code, "Visible inventory name")
+
     def test_production_usecase_requires_mitre_mapping(self):
         usecase = UseCase(
             name="Suspicious process execution",
@@ -236,6 +242,21 @@ class UseCasePermissionTests(TestCase):
         self.assertIn("Other use case", content)
         self.assertNotIn("Draft only use case", content)
 
+    def test_inventory_list_uses_attack_family_d3fend_inference(self):
+        parent = MitreAttack.objects.create(external_id="T1110", name="Brute Force")
+        subtechnique = MitreAttack.objects.create(external_id="T1110.001", name="Password Guessing")
+        d3fend = D3Fend.objects.create(code="D3-LAM", name="Local Account Monitoring")
+        d3fend.related_attacks.add(subtechnique)
+        usecase = self._create_production_usecase("Brute family inventory case", self.analyst)
+        usecase.mitre_attacks.set([parent])
+        usecase.sync_d3fends_from_attacks()
+        self.client.login(username="analyst", password="pass")
+
+        response = self.client.get(reverse("usecase_list"), {"q": "Brute family inventory case"})
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "D3FEND 1")
+
     def test_analyst_can_export_usecases_xlsx(self):
         self.client.login(username="analyst", password="pass")
 
@@ -245,8 +266,9 @@ class UseCasePermissionTests(TestCase):
 
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response["Content-Type"], "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
-        self.assertEqual(sheet["F1"].value, "NOMBRE NETWITNESS")
-        self.assertIn("Owned use case", [cell.value for cell in sheet["F"]])
+        self.assertEqual(sheet["A1"].value, "IDENTIFICADOR")
+        self.assertEqual(sheet["G1"].value, "NOMBRE NETWITNESS")
+        self.assertIn("Owned use case", [cell.value for cell in sheet["G"]])
 
     def test_analyst_can_download_import_template(self):
         self.client.login(username="analyst", password="pass")
@@ -255,7 +277,8 @@ class UseCasePermissionTests(TestCase):
         workbook = load_workbook(BytesIO(response.content))
 
         self.assertEqual(response.status_code, 200)
-        self.assertEqual(workbook.active["F1"].value, "NOMBRE NETWITNESS")
+        self.assertEqual(workbook.active["A1"].value, "IDENTIFICADOR")
+        self.assertEqual(workbook.active["G1"].value, "NOMBRE NETWITNESS")
 
     def test_analyst_can_import_usecases_excel(self):
         d3fend = D3Fend.objects.create(code="D3-PSEP", name="Process Spawn Analysis")
@@ -315,6 +338,7 @@ class UseCasePermissionTests(TestCase):
 
         self.assertEqual(response.status_code, 302)
         imported = UseCase.objects.get(name="Imported Excel use case")
+        self.assertEqual(imported.case_code, "Imported Excel use case")
         self.assertEqual(imported.status, UseCase.STATUS_PRODUCTION)
         self.assertEqual(imported.device, "SIEM")
         self.assertEqual(list(imported.mitre_attacks.values_list("external_id", flat=True)), ["T1059"])

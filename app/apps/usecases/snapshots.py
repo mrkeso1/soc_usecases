@@ -43,6 +43,7 @@ def serialize_rule_conditions(usecase) -> str:
 
 def snapshot_usecase(usecase) -> dict:
     return {
+        "case_code": usecase.case_code,
         "name": usecase.name,
         "group_name": usecase.group_name,
         "device": usecase.device,

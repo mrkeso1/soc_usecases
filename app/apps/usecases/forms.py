@@ -40,6 +40,7 @@ class UseCaseForm(MitreAttackM2MBridgeMixin, forms.ModelForm):
     class Meta:
         model = UseCase
         fields = [
+            "case_code",
             "group_name",
             "device",
             "case_type",
@@ -82,6 +83,7 @@ class UseCaseForm(MitreAttackM2MBridgeMixin, forms.ModelForm):
             "case_type": forms.TextInput(attrs={"class": "form-control"}),
             "objective": forms.Textarea(attrs={"class": "form-control", "rows": 4}),
             "blocking_type": forms.Select(attrs={"class": "form-control"}),
+            "case_code": forms.TextInput(attrs={"class": "form-control"}),
             "name": forms.TextInput(attrs={"class": "form-control"}),
             "owner_name": forms.TextInput(attrs={"class": "form-control"}),
             "monitoring": forms.TextInput(attrs={"class": "form-control"}),
@@ -109,6 +111,7 @@ class UseCaseForm(MitreAttackM2MBridgeMixin, forms.ModelForm):
             "functional_description": forms.Textarea(attrs={"class": "form-control", "rows": 5}),
         }
         labels = {
+            "case_code": "Identificador",
             "group_name": "Grupo",
             "device": "Dispositivo",
             "case_type": "Tipo",
@@ -136,6 +139,7 @@ class UseCaseForm(MitreAttackM2MBridgeMixin, forms.ModelForm):
             "event_sources": "Fuentes de eventos",
         }
         help_texts = {
+            "case_code": "Identificador visible en inventario. Si queda vacio, se completa con el nombre del caso.",
             "event_sources": "Selecciona fuentes del catalogo normalizado; no uses el dispositivo legacy como reemplazo.",
             "full_rule_text": "Pega la regla completa del SIEM/EPL/Sigma. Se usa para backups tecnicos y auditoria.",
             "functional_description": "Explica en lenguaje operativo que detecta el caso, alcance y criterio de validacion.",

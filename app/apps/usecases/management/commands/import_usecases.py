@@ -13,6 +13,8 @@ from apps.usecases.models import UseCase
 
 
 COLUMN_MAP = {
+    "IDENTIFICADOR": "case_code",
+    "CODIGO": "case_code",
     "GRUPO": "group_name",
     "DISPOSITIVO": "device",
     "FUENTES": "event_sources_raw",
@@ -69,6 +71,10 @@ def normalize_key(value):
 HEADER_ALIASES = {
     **{normalize_key(header): field for header, field in COLUMN_MAP.items()},
     "nombre": "name",
+    "identificador": "case_code",
+    "codigo": "case_code",
+    "codigocaso": "case_code",
+    "codigocasodeuso": "case_code",
     "nombrenetwitness": "name",
     "casodeuso": "name",
     "usecase": "name",
@@ -265,7 +271,13 @@ def resolve_attack_objects(attack_ids):
     return attacks, missing_ids
 
 
-def find_existing_usecase(name):
+def find_existing_usecase(name, case_code=""):
+    case_code = normalize_text(case_code)
+    if case_code:
+        instance = UseCase.objects.filter(case_code__iexact=case_code).first()
+        if instance:
+            return instance
+
     name = normalize_text(name)
     if not name:
         return None
@@ -408,6 +420,8 @@ class Command(BaseCommand):
                     skipped_count += 1
                     self.stdout.write(self.style.WARNING(f"Fila {row_num}: omitida por no tener nombre."))
                     continue
+                if not payload.get("case_code"):
+                    payload["case_code"] = name
 
                 attack_ids = extract_attack_ids(attack_raw)
                 if not attack_ids:
@@ -433,7 +447,7 @@ class Command(BaseCommand):
                         f"Fila {row_num}: guardada con datos incompletos -> " + "; ".join(business_warnings)
                     ))
 
-                instance = find_existing_usecase(name)
+                instance = find_existing_usecase(name, payload.get("case_code", ""))
 
                 if instance:
                     if not allow_update:

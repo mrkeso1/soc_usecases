@@ -197,7 +197,9 @@
                     <tr>
                         <td>
                             <div class="inventory-primary">
-                                <code class="entity-code">CU{{ uc.pk|stringformat:"04d" }}</code>
+                                {% if uc.display_code != uc.name %}
+                                    <code class="entity-code">{{ uc.display_code }}</code>
+                                {% endif %}
                                 <strong class="entity-name">{{ uc.name }}</strong>
                             </div>
                             <div class="inventory-meta">
