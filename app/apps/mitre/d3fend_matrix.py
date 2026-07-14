@@ -1,6 +1,12 @@
 from django.db.models import Prefetch
 
-from .coverage_overrides import STATUS_FULFILLED, get_override_map, resolve_status
+from .coverage_overrides import (
+    STATUS_FULFILLED,
+    ResolvedCoverageStatus,
+    get_override_map,
+    resolve_status,
+    split_values,
+)
 from apps.usecases.models import UseCase
 
 from .models import CoverageOverride, D3Fend, MitreAttack
@@ -45,7 +51,7 @@ def build_d3fend_matrix_context(request):
     )
 
     attack_status_by_id = {}
-    for attack in MitreAttack.objects.all().only("id", "external_id", "is_enabled"):
+    for attack in MitreAttack.objects.all().only("id", "external_id", "tactic", "is_enabled"):
         status = resolve_status(
             attack_overrides,
             framework=CoverageOverride.FRAMEWORK_ATTACK,
@@ -53,8 +59,34 @@ def build_d3fend_matrix_context(request):
             object_key=attack.external_id,
             default_enabled=attack.is_enabled,
         )
-        if status.is_enabled:
-            attack_status_by_id[attack.id] = status
+        if not status.is_enabled:
+            continue
+
+        if not status.is_fulfilled:
+            tactic_status = next(
+                (
+                    resolved
+                    for tactic in split_values(attack.tactic)
+                    if (
+                        resolved := resolve_status(
+                            attack_overrides,
+                            framework=CoverageOverride.FRAMEWORK_ATTACK,
+                            object_type=CoverageOverride.OBJECT_TACTIC,
+                            object_key=tactic,
+                            default_enabled=True,
+                        )
+                    ).is_fulfilled
+                ),
+                None,
+            )
+            if tactic_status:
+                status = ResolvedCoverageStatus(
+                    STATUS_FULFILLED,
+                    tactic_status.reason,
+                    "tactic_override",
+                )
+
+        attack_status_by_id[attack.id] = status
 
     covered_attack_ids = {
         attack_id for attack_id, status in attack_status_by_id.items()
@@ -76,6 +108,8 @@ def build_d3fend_matrix_context(request):
     rows = []
     total_relations = 0
     total_covered_relations = 0
+    all_attack_ids_from_d3fend_rows: set[int] = set()
+    covered_attack_ids_from_d3fend_rows: set[int] = set()
     fully_covered = 0
     partially_covered = 0
     without_attacks = 0
@@ -111,11 +145,13 @@ def build_d3fend_matrix_context(request):
         attacks = []
         covered_count = 0
         related_attacks = [attack for attack in d3fend.related_attacks.all() if attack.id in attack_status_by_id]
+        all_attack_ids_from_d3fend_rows.update(attack.id for attack in related_attacks)
 
         for attack in related_attacks:
             covered = attack.id in covered_attack_ids or is_manually_fulfilled
             if covered:
                 covered_count += 1
+                covered_attack_ids_from_d3fend_rows.add(attack.id)
             attacks.append({
                 "id": attack.id,
                 "external_id": attack.external_id,
@@ -190,6 +226,12 @@ def build_d3fend_matrix_context(request):
         "total_relations": total_relations,
         "total_covered_relations": total_covered_relations,
         "overall_coverage_percent": _safe_percent(total_covered_relations, total_relations),
+        "overall_technique_coverage_percent": _safe_percent(
+            len(covered_attack_ids_from_d3fend_rows),
+            len(all_attack_ids_from_d3fend_rows),
+        ),
+        "unique_covered_attack_techniques": len(covered_attack_ids_from_d3fend_rows),
+        "unique_attack_techniques": len(all_attack_ids_from_d3fend_rows),
         "fully_covered": fully_covered,
         "partially_covered": partially_covered,
         "without_attacks": without_attacks,

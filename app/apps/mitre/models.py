@@ -204,6 +204,63 @@ class CoverageOverride(models.Model):
             raise ValidationError({"reason": "Indicá el motivo o evidencia para este estado."})
 
 
+class D3FendAttackRelationOverride(models.Model):
+    """Correcciones persistentes sobre relaciones D3FEND->ATT&CK oficiales."""
+
+    ACTION_EXCLUDE = "exclude"
+    ACTION_CHOICES = [
+        (ACTION_EXCLUDE, "Excluir relacion"),
+    ]
+
+    d3fend = models.ForeignKey(
+        D3Fend,
+        on_delete=models.CASCADE,
+        related_name="attack_relation_overrides",
+        verbose_name="D3FEND",
+    )
+    attack = models.ForeignKey(
+        MitreAttack,
+        on_delete=models.CASCADE,
+        related_name="d3fend_relation_overrides",
+        verbose_name="ATT&CK",
+    )
+    action = models.CharField("Accion", max_length=20, choices=ACTION_CHOICES, default=ACTION_EXCLUDE)
+    reason = models.TextField(
+        "Motivo",
+        help_text="Explica por que esta relacion oficial no aplica al modelo SOC local.",
+    )
+    updated_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name="d3fend_attack_relation_overrides_updated",
+        verbose_name="Actualizado por",
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = "usecases_d3fend_attack_relationoverride"
+        ordering = ["d3fend__code", "attack__external_id"]
+        verbose_name = "Override relacion D3FEND-ATT&CK"
+        verbose_name_plural = "Overrides relaciones D3FEND-ATT&CK"
+        constraints = [
+            models.UniqueConstraint(
+                fields=["d3fend", "attack"],
+                name="unique_d3fend_attack_relation_override",
+            )
+        ]
+
+    def __str__(self):
+        return f"{self.d3fend.code} -> {self.attack.external_id}: {self.get_action_display()}"
+
+    def clean(self):
+        super().clean()
+        if not (self.reason or "").strip():
+            raise ValidationError({"reason": "Indica el motivo para auditar esta excepcion."})
+
+
 class SingleActiveSettingsMixin(models.Model):
     is_active = models.BooleanField(default=True)
 

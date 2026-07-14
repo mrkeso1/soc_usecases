@@ -23,31 +23,20 @@ def is_subtechnique_id(value: str) -> bool:
 
 
 def attack_family_query(external_ids) -> models.Q:
-    """Build a query that matches selected ATT&CK IDs and their parent/sub-technique family."""
+    """Build a query that matches only the selected ATT&CK IDs.
+
+    Parent/sub-technique expansion caused D3FEND over-inference in use cases, so
+    matching is intentionally exact. Keep parent fallback limited to explicit
+    catalog import flows such as resolve_attack_from_lookup().
+    """
     normalized_ids = {
         normalize_attack_id(external_id)
         for external_id in external_ids or []
         if normalize_attack_id(external_id)
     }
-    query = models.Q(pk__in=[])
-
-    if normalized_ids:
-        query |= models.Q(external_id__in=normalized_ids)
-
-    parent_ids = {
-        parent_attack_id(external_id)
-        for external_id in normalized_ids
-        if is_subtechnique_id(external_id)
-    }
-    parent_ids.discard("")
-    if parent_ids:
-        query |= models.Q(external_id__in=parent_ids)
-
-    for external_id in normalized_ids:
-        if ATTACK_TECHNIQUE_ID_RE.match(external_id) and not is_subtechnique_id(external_id):
-            query |= models.Q(external_id__startswith=f"{external_id}.")
-
-    return query
+    if not normalized_ids:
+        return models.Q(pk__in=[])
+    return models.Q(external_id__in=normalized_ids)
 
 
 def resolve_attack_from_lookup(attack_id: str, attack_lookup: dict):

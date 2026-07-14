@@ -10,7 +10,7 @@
     .page-title { font-size:clamp(1.45rem, 2.2vw, 2rem); color:var(--text-strong); margin:4px 0; line-height:1.08; }
     .page-subtitle { color:var(--text-muted); max-width:900px; line-height:1.5; }
 
-    .summary-strip { display:grid; grid-template-columns:repeat(7, minmax(140px, 1fr)); gap:10px; margin:18px 0 20px; }
+    .summary-strip { display:grid; grid-template-columns:repeat(auto-fit, minmax(160px, 1fr)); gap:10px; margin:18px 0 20px; }
     .summary-card { background:var(--surface); border:1px solid var(--border); border-radius:14px; padding:14px; min-width:0; }
     .summary-label { font-family:'JetBrains Mono', monospace; color:var(--text-muted); font-size:10px; text-transform:uppercase; letter-spacing:.08em; }
     .summary-value { margin-top:8px; color:var(--text-strong); font-family:'JetBrains Mono', monospace; font-size:1.2rem; font-weight:800; white-space:nowrap; }
@@ -81,7 +81,7 @@
         <div>
             <div class="page-eyebrow">// MATRIZ D3FEND</div>
             <h1 class="page-title">Cobertura D3FEND por ATT&CK</h1>
-            <p class="page-subtitle">Cruza cada técnica D3FEND con sus ATT&CK relacionados y suma coberturas externas administradas manualmente como cumplidas por herramienta.</p>
+            <p class="page-subtitle">Cruza cada técnica D3FEND Detect con sus ATT&CK relacionados. El CSV de D3FEND es una inferencia algorítmica, no una validación humana; la cobertura por relación puede sobreponderar ATT&CK repetidos en varias defensas.</p>
         </div>
         <div class="page-actions">
             <a class="btn-secondary" href="{% url 'attack_matrix' %}">Ver ATT&CK</a>
@@ -90,7 +90,8 @@
     </div>
 
     <div class="summary-strip">
-        <div class="summary-card"><div class="summary-label">Cobertura global</div><div class="summary-value {% if overall_coverage_percent >= 80 %}good{% elif overall_coverage_percent >= 40 %}medium{% else %}bad{% endif %}">{{ overall_coverage_percent }}%</div><div class="summary-note">{{ total_covered_relations }}/{{ total_relations }} relaciones</div></div>
+        <div class="summary-card"><div class="summary-label">Cobertura relaciones</div><div class="summary-value {% if overall_coverage_percent >= 80 %}good{% elif overall_coverage_percent >= 40 %}medium{% else %}bad{% endif %}">{{ overall_coverage_percent }}%</div><div class="summary-note">{{ total_covered_relations }}/{{ total_relations }} relaciones D3FEND-ATT&CK</div></div>
+        <div class="summary-card"><div class="summary-label">Cobertura ATT&CK única</div><div class="summary-value {% if overall_technique_coverage_percent >= 80 %}good{% elif overall_technique_coverage_percent >= 40 %}medium{% else %}bad{% endif %}">{{ overall_technique_coverage_percent }}%</div><div class="summary-note">{{ unique_covered_attack_techniques }}/{{ unique_attack_techniques }} técnicas ATT&CK únicas</div></div>
         <div class="summary-card"><div class="summary-label">D3FEND visibles</div><div class="summary-value">{{ total_d3fends }}</div><div class="summary-note">según filtros aplicados</div></div>
         <div class="summary-card"><div class="summary-label">100% cubiertos</div><div class="summary-value good">{{ fully_covered }}</div><div class="summary-note">todos sus ATT&CK cubiertos</div></div>
         <div class="summary-card"><div class="summary-label">Parciales</div><div class="summary-value medium">{{ partially_covered }}</div><div class="summary-note">al menos una relación cubierta</div></div>

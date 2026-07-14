@@ -66,7 +66,7 @@ class UseCaseBusinessRuleTests(TestCase):
         self.assertFalse(usecase.d3fends.exists())
         self.assertFalse(usecase.inferred_d3fends_queryset().exists())
 
-    def test_parent_attack_infers_d3fend_from_subtechnique_mapping(self):
+    def test_parent_attack_does_not_infer_d3fend_from_subtechnique_mapping(self):
         parent = MitreAttack.objects.create(external_id="T1110", name="Brute Force")
         subtechnique = MitreAttack.objects.create(external_id="T1110.001", name="Password Guessing")
         d3fend = D3Fend.objects.create(code="D3-LAM", name="Local Account Monitoring")
@@ -76,10 +76,10 @@ class UseCaseBusinessRuleTests(TestCase):
 
         changed = usecase.sync_d3fends_from_attacks()
 
-        self.assertTrue(changed)
-        self.assertEqual(list(usecase.d3fends.order_by("id")), [d3fend])
+        self.assertFalse(changed)
+        self.assertFalse(usecase.d3fends.exists())
 
-    def test_subtechnique_attack_infers_d3fend_from_parent_mapping(self):
+    def test_subtechnique_attack_does_not_infer_d3fend_from_parent_mapping(self):
         parent = MitreAttack.objects.create(external_id="T1110", name="Brute Force")
         subtechnique = MitreAttack.objects.create(external_id="T1110.003", name="Password Spraying")
         d3fend = D3Fend.objects.create(code="D3-ANAA", name="Account Authentication Analysis")
@@ -89,8 +89,8 @@ class UseCaseBusinessRuleTests(TestCase):
 
         changed = usecase.sync_d3fends_from_attacks()
 
-        self.assertTrue(changed)
-        self.assertEqual(list(usecase.d3fends.order_by("id")), [d3fend])
+        self.assertFalse(changed)
+        self.assertFalse(usecase.d3fends.exists())
 
     def test_attack_family_expansion_does_not_cross_unrelated_prefixes(self):
         selected = MitreAttack.objects.create(external_id="T1110", name="Brute Force")
@@ -258,7 +258,7 @@ class UseCasePermissionTests(TestCase):
         self.assertIn("Other use case", content)
         self.assertNotIn("Draft only use case", content)
 
-    def test_inventory_list_uses_attack_family_d3fend_inference(self):
+    def test_inventory_list_uses_exact_attack_d3fend_inference(self):
         parent = MitreAttack.objects.create(external_id="T1110", name="Brute Force")
         subtechnique = MitreAttack.objects.create(external_id="T1110.001", name="Password Guessing")
         d3fend = D3Fend.objects.create(code="D3-LAM", name="Local Account Monitoring")
@@ -271,7 +271,7 @@ class UseCasePermissionTests(TestCase):
         response = self.client.get(reverse("usecase_list"), {"q": "Brute family inventory case"})
 
         self.assertEqual(response.status_code, 200)
-        self.assertContains(response, "D3FEND 1")
+        self.assertContains(response, "D3FEND 0")
 
     def test_analyst_can_export_usecases_xlsx(self):
         self.client.login(username="analyst", password="pass")

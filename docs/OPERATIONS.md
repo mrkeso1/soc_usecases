@@ -135,11 +135,16 @@ Cadena completa:
 4. Normalizacion de codigos D3FEND.
 5. Recalculo de D3FEND inferido en casos.
 
-El matching D3FEND se calcula por familia ATT&CK, no solo por ID exacto:
+El matching D3FEND se calcula por ID ATT&CK exacto:
 
-- si el caso tiene `T1110`, tambien considera mappings para `T1110.001`, `T1110.002`, etc.;
-- si el caso tiene `T1110.003`, tambien considera mappings para `T1110`;
-- aplica a cualquier familia `Txxxx`.
+- si el caso tiene `T1110`, solo considera mappings relacionados directamente con `T1110`;
+- si el caso tiene `T1110.003`, solo considera mappings relacionados directamente con `T1110.003`;
+- no expande automaticamente padre -> subtecnicas ni subtecnica -> padre, para evitar sobre-inferencia operativa.
+
+El CSV oficial de D3FEND debe leerse como inferencia algoritmica, no como validacion humana. Para ajustar contexto local hay dos capas:
+
+- exclusiones D3FEND por caso de uso desde el inventario;
+- overrides globales de relacion D3FEND -> ATT&CK desde Django Admin.
 
 Despues de cambiar mappings o esta logica, recalcular casos existentes:
 

@@ -6,7 +6,13 @@ from django.utils import timezone
 from django.utils.html import format_html, format_html_join
 
 from .framework_sync import run_scheduled_security_frameworks_sync
-from .models import CoverageOverride, D3Fend, MitreAttack, MitreAttackSyncSettings
+from .models import (
+    CoverageOverride,
+    D3Fend,
+    D3FendAttackRelationOverride,
+    MitreAttack,
+    MitreAttackSyncSettings,
+)
 
 
 class DisableReasonRequiredForm(forms.ModelForm):
@@ -52,6 +58,32 @@ class CoverageOverrideAdmin(admin.ModelAdmin):
     readonly_fields = ("created_at", "updated_at")
 
     @admin.display(description="Motivo / evidencia")
+    def reason_summary(self, obj):
+        return _short_text(obj.reason)
+
+
+@admin.register(D3FendAttackRelationOverride)
+class D3FendAttackRelationOverrideAdmin(admin.ModelAdmin):
+    list_display = (
+        "d3fend",
+        "attack",
+        "action",
+        "reason_summary",
+        "updated_by",
+        "updated_at",
+    )
+    list_filter = ("action", "d3fend__category", "attack__tactic")
+    search_fields = (
+        "d3fend__code",
+        "d3fend__name",
+        "attack__external_id",
+        "attack__name",
+        "reason",
+    )
+    autocomplete_fields = ("d3fend", "attack", "updated_by")
+    readonly_fields = ("created_at", "updated_at")
+
+    @admin.display(description="Motivo")
     def reason_summary(self, obj):
         return _short_text(obj.reason)
 

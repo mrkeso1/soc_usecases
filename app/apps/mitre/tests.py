@@ -4,21 +4,106 @@ from unittest.mock import patch
 
 from django.contrib.auth import get_user_model
 from django.core.management import call_command
-from django.test import TestCase
+from django.test import RequestFactory, TestCase
 from django.urls import reverse
 from django.utils import timezone
 
 from apps.mitre.framework_sync import run_scheduled_security_frameworks_sync
+from apps.mitre.d3fend_matrix import build_d3fend_matrix_context
+from apps.mitre.attack_ids import attack_family_query
 from apps.mitre.mitre_sync import (
     MitreAttackSyncResult,
     load_mitre_attack_data,
     run_scheduled_mitre_attack_sync,
 )
 from apps.mitre.management.commands.load_d3fend import Command as LoadD3FendCommand
-from apps.mitre.models import D3Fend, MitreAttack, MitreAttackSyncSettings
+from apps.mitre.models import (
+    CoverageOverride,
+    D3Fend,
+    D3FendAttackRelationOverride,
+    MitreAttack,
+    MitreAttackSyncSettings,
+)
 
 
 class MitreAttackSyncTests(TestCase):
+    def test_attack_family_query_matches_exact_ids_only(self):
+        parent = MitreAttack.objects.create(external_id="T1110", name="Brute Force")
+        MitreAttack.objects.create(external_id="T1110.001", name="Password Guessing")
+
+        matches = list(MitreAttack.objects.filter(attack_family_query(["T1110"])))
+
+        self.assertEqual(matches, [parent])
+
+    def test_d3fend_matrix_counts_attack_tactic_override_as_covered(self):
+        attack = MitreAttack.objects.create(
+            external_id="T1001",
+            name="Data Obfuscation",
+            tactic="Defense Evasion",
+        )
+        d3fend = D3Fend.objects.create(
+            code="D3-TEST",
+            name="Test Detection",
+            category="Detect",
+        )
+        d3fend.related_attacks.add(attack)
+        CoverageOverride.objects.create(
+            framework=CoverageOverride.FRAMEWORK_ATTACK,
+            object_type=CoverageOverride.OBJECT_TACTIC,
+            object_key="Defense Evasion",
+            object_name="Defense Evasion",
+            status=CoverageOverride.STATUS_FULFILLED,
+            reason="Cubierta por herramienta",
+        )
+
+        context = build_d3fend_matrix_context(RequestFactory().get("/mitre/d3fend/"))
+
+        self.assertEqual(context["total_relations"], 1)
+        self.assertEqual(context["total_covered_relations"], 1)
+        self.assertEqual(context["overall_coverage_percent"], 100.0)
+        self.assertEqual(context["overall_technique_coverage_percent"], 100.0)
+        self.assertEqual(context["rows"][0]["covered_attacks"], 1)
+
+    def test_d3fend_mapping_skips_non_detect_candidates_by_default(self):
+        row = {
+            "def_tech_label": "Network Isolation",
+            "def_tech": "https://d3fend.mitre.org/dao/artifact/d3fend.owl#D3-NI",
+            "def_tactic_label": "Harden",
+        }
+
+        d3fends, created_count, resolved_count, skipped_not_detect = (
+            LoadD3FendCommand()._resolve_or_create_d3fends_from_mapping_row(row, {})
+        )
+
+        self.assertEqual(d3fends, [])
+        self.assertEqual(created_count, 0)
+        self.assertEqual(resolved_count, 0)
+        self.assertGreater(skipped_not_detect, 0)
+        self.assertFalse(D3Fend.objects.filter(code__iexact="D3-NI").exists())
+
+    def test_d3fend_mapping_respects_relation_override_exclusion(self):
+        attack = MitreAttack.objects.create(external_id="T1001", name="Data Obfuscation")
+        d3fend = D3Fend.objects.create(code="D3-TEST", name="Test Detection", category="Detect")
+        D3FendAttackRelationOverride.objects.create(
+            d3fend=d3fend,
+            attack=attack,
+            reason="No aplica al modelo local",
+        )
+
+        class Response:
+            text = (
+                "off_tech_id,off_tech_label,def_tech_label,def_tech,def_tactic_label\n"
+                "T1001,Data Obfuscation,Test Detection,D3-TEST,Detect\n"
+            )
+
+            def raise_for_status(self):
+                return None
+
+        with patch("apps.mitre.management.commands.load_d3fend.requests.get", return_value=Response()):
+            LoadD3FendCommand()._load_attack_mappings()
+
+        self.assertFalse(d3fend.related_attacks.filter(pk=attack.pk).exists())
+
     def test_d3fend_mapping_resolves_subtechnique_to_parent_when_subtechnique_is_missing(self):
         parent = MitreAttack.objects.create(external_id="T1110", name="Brute Force")
         attack_lookup = {"T1110": parent}

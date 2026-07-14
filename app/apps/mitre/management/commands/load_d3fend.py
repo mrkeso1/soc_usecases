@@ -8,7 +8,7 @@ from django.core.management.base import BaseCommand
 from django.db import transaction
 
 from apps.mitre.attack_ids import resolve_attack_from_lookup
-from apps.mitre.models import D3Fend, MitreAttack
+from apps.mitre.models import D3Fend, D3FendAttackRelationOverride, MitreAttack
 
 
 D3FEND_CSV_URL = "https://d3fend.mitre.org/ontologies/d3fend/1.4.0/d3fend.csv"
@@ -95,6 +95,10 @@ def _extract_d3fend_codes(row: dict) -> set[str]:
     return codes
 
 
+def _is_detect_category(value: str) -> bool:
+    return str(value or "").strip().casefold() == "detect"
+
+
 def _catalog_rows_from_csv(content: str) -> list[dict]:
     """
     Wrapper simple para aislar la lectura del CSV oficial.
@@ -146,7 +150,7 @@ class Command(BaseCommand):
             self._load_d3fend_catalog(options)
 
         if not options.get("skip_mappings", False):
-            self._load_attack_mappings()
+            self._load_attack_mappings(load_all=options.get("all", False))
 
         if options.get("disable_non_detect", False):
             self._disable_non_detect()
@@ -451,6 +455,13 @@ class Command(BaseCommand):
             .exclude(external_id="")
         }
 
+    def _excluded_relation_pairs(self) -> set[tuple[int, int]]:
+        return set(
+            D3FendAttackRelationOverride.objects
+            .filter(action=D3FendAttackRelationOverride.ACTION_EXCLUDE)
+            .values_list("d3fend_id", "attack_id")
+        )
+
     def _resolve_attack_from_mapping_row(self, row: dict, attack_lookup: dict):
         attack_id = str(row.get("off_tech_id") or "").strip().upper()
 
@@ -527,16 +538,21 @@ class Command(BaseCommand):
 
         return candidates
 
-    def _resolve_or_create_d3fends_from_mapping_row(self, row: dict, d3_lookup: dict):
+    def _resolve_or_create_d3fends_from_mapping_row(self, row: dict, d3_lookup: dict, *, load_all: bool = False):
         found = []
         created = 0
         resolved_existing = 0
+        skipped_not_detect = 0
 
         for candidate in self._mapping_d3fend_candidates(row):
             label = candidate["label"]
             uri = candidate["uri"]
             fragment = candidate["fragment"]
             category = candidate["category"]
+
+            if not load_all and category and not _is_detect_category(category):
+                skipped_not_detect += 1
+                continue
 
             possible_keys = {
                 _norm(label),
@@ -562,9 +578,18 @@ class Command(BaseCommand):
                     break
 
             if d3:
+                d3_category = getattr(d3, "category", "")
+                if not load_all and not _is_detect_category(category or d3_category):
+                    skipped_not_detect += 1
+                    continue
+
                 resolved_existing += 1
                 if d3 not in found:
                     found.append(d3)
+                continue
+
+            if not load_all and not _is_detect_category(category):
+                skipped_not_detect += 1
                 continue
 
             code = self._make_safe_code(
@@ -603,10 +628,10 @@ class Command(BaseCommand):
             if d3 not in found:
                 found.append(d3)
 
-        return found, created, resolved_existing
+        return found, created, resolved_existing, skipped_not_detect
 
     @transaction.atomic
-    def _load_attack_mappings(self):
+    def _load_attack_mappings(self, *, load_all: bool = False):
         if not hasattr(D3Fend, "related_attacks"):
             self.stdout.write(
                 self.style.WARNING(
@@ -625,10 +650,12 @@ class Command(BaseCommand):
 
         d3_lookup = self._build_d3fend_lookup()
         attack_lookup = self._build_attack_lookup()
+        excluded_relation_pairs = self._excluded_relation_pairs()
 
         self.stdout.write(f"ATT&CK disponibles en DB: {len(attack_lookup)}")
         self.stdout.write(f"D3FEND disponibles antes del mapeo: {D3Fend.objects.count()}")
         self.stdout.write(f"Claves D3FEND generadas para match: {len(d3_lookup)}")
+        self.stdout.write(f"Relaciones excluidas por override: {len(excluded_relation_pairs)}")
 
         for d3fend in D3Fend.objects.iterator():
             d3fend.related_attacks.clear()
@@ -641,6 +668,8 @@ class Command(BaseCommand):
         skipped_rows = 0
         skipped_no_attack = 0
         skipped_no_d3fend = 0
+        skipped_not_detect = 0
+        skipped_relation_override = 0
         created_from_mappings = 0
         resolved_from_mappings = 0
 
@@ -663,13 +692,15 @@ class Command(BaseCommand):
 
                 continue
 
-            d3fends, created_count, resolved_count = self._resolve_or_create_d3fends_from_mapping_row(
+            d3fends, created_count, resolved_count, skipped_detect_count = self._resolve_or_create_d3fends_from_mapping_row(
                 row=row,
                 d3_lookup=d3_lookup,
+                load_all=load_all,
             )
 
             created_from_mappings += created_count
             resolved_from_mappings += resolved_count
+            skipped_not_detect += skipped_detect_count
 
             if not d3fends:
                 skipped_rows += 1
@@ -693,6 +724,10 @@ class Command(BaseCommand):
                 if pair in relation_pairs:
                     continue
 
+                if pair in excluded_relation_pairs:
+                    skipped_relation_override += 1
+                    continue
+
                 d3.related_attacks.add(attack)
                 relation_pairs.add(pair)
                 touched_d3fends.add(d3.pk)
@@ -705,6 +740,8 @@ class Command(BaseCommand):
         self.stdout.write(f"Filas de mapeo omitidas: {skipped_rows}")
         self.stdout.write(f"Omitidas sin ATT&CK en DB: {skipped_no_attack}")
         self.stdout.write(f"Omitidas sin D3FEND: {skipped_no_d3fend}")
+        self.stdout.write(f"D3FEND omitidos por no ser Detect: {skipped_not_detect}")
+        self.stdout.write(f"Relaciones omitidas por override: {skipped_relation_override}")
         self.stdout.write(f"D3FEND creados desde mappings: {created_from_mappings}")
         self.stdout.write(f"D3FEND resueltos desde mappings: {resolved_from_mappings}")
         self.stdout.write(f"D3FEND disponibles después del mapeo: {D3Fend.objects.count()}")

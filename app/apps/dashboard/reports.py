@@ -513,6 +513,14 @@ def build_dashboard_pdf(buffer, context, report_settings, generated_by):
     story.append(table)
 
     story.append(Paragraph(escape("Pendientes D3FEND por cobertura ATT&CK inferida"), section_style))
+    story.append(Paragraph(
+        escape(
+            "D3FEND se calcula desde mappings oficiales ATT&CK y puede requerir exclusiones "
+            "manuales cuando una defensa no aplica al contexto operativo del caso. "
+            "El CSV D3FEND debe leerse como inferencia algoritmica, no como validacion humana."
+        ),
+        subtitle_style,
+    ))
     d3_rows = [["Código", "Control", "Categoría"]] + _safe_table_rows(
         context.get("uncovered_d3fends", []),
         "code",
