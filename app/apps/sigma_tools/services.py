@@ -4,7 +4,7 @@ from datetime import datetime
 
 import yaml
 
-from .models import UseCaseTechnicalBackup
+from .models import SigmaConversion, UseCaseTechnicalBackup
 
 
 def _compact_epl(epl):
@@ -283,18 +283,29 @@ def rule_condition_summary(usecase):
 
 def build_inventory_rule_backup_payload(usecase):
     logic_text = (usecase.full_rule_text or "").strip()
+    sigma_text = ""
+    conversion_error = ""
     if not logic_text:
         logic_text = rule_condition_summary(usecase).strip()
+    elif logic_text:
+        try:
+            sigma_text = epl_to_sigma(logic_text).strip()
+        except Exception as exc:
+            conversion_error = str(exc)
 
     notes = "Generado automaticamente desde la regla cargada en el inventario."
+    if sigma_text:
+        notes = f"{notes}\nSigma generado automaticamente desde la regla completa."
+    elif conversion_error:
+        notes = f"{notes}\nNo se pudo convertir automaticamente a Sigma: {conversion_error}"
     if usecase.functional_description:
         notes = f"{notes}\n\nDescripcion funcional:\n{usecase.functional_description.strip()}"
 
     return {
-        "backup_type": UseCaseTechnicalBackup.TYPE_LOGIC,
+        "backup_type": UseCaseTechnicalBackup.TYPE_BOTH if sigma_text else UseCaseTechnicalBackup.TYPE_LOGIC,
         "title": "Backup desde regla de inventario",
         "logic_text": logic_text,
-        "sigma_text": "",
+        "sigma_text": sigma_text,
         "notes": notes,
     }
 
@@ -302,16 +313,31 @@ def build_inventory_rule_backup_payload(usecase):
 def sync_inventory_rule_backup(usecase, user=None):
     payload = build_inventory_rule_backup_payload(usecase)
     logic_text = payload["logic_text"].strip()
+    sigma_text = payload["sigma_text"].strip()
     if not logic_text:
         return None, False
 
     current = UseCaseTechnicalBackup.current_for_usecase(usecase)
     if current and (current.logic_text or "").strip() == logic_text:
-        return current, False
+        current_has_sigma = bool((current.sigma_text or "").strip())
+        if current_has_sigma or not sigma_text:
+            return current, False
+
+    conversion = None
+    if sigma_text:
+        conversion = SigmaConversion.objects.create(
+            use_case=usecase,
+            mode=SigmaConversion.MODE_EPL_TO_SIGMA,
+            target=SigmaConversion.TARGET_NETWITNESS,
+            input_text=logic_text,
+            output_text=sigma_text,
+            created_by=user if getattr(user, "is_authenticated", False) else None,
+        )
 
     backup = UseCaseTechnicalBackup.objects.create(
         use_case=usecase,
         created_by=user if getattr(user, "is_authenticated", False) else None,
+        source_conversion=conversion,
         **payload,
     )
     return backup, True

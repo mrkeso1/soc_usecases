@@ -6,7 +6,7 @@ from django.forms import inlineformset_factory
 from apps.mitre.models import D3Fend
 from apps.sources.models import EventSource
 
-from .models import UseCase, UseCaseRuleCondition
+from .models import UseCase, UseCaseEscalationOption, UseCaseRuleCondition
 from .text_utils import normalize_multi_text, split_multi_value
 
 
@@ -58,7 +58,6 @@ class UseCaseForm(MitreAttackM2MBridgeMixin, forms.ModelForm):
             "severity",
             "escalation",
             "sent_to_ho",
-            "ho_flag",
             "last_validation_date",
             "validation_status",
             "validation_result",
@@ -104,7 +103,6 @@ class UseCaseForm(MitreAttackM2MBridgeMixin, forms.ModelForm):
             "severity": forms.Select(attrs={"class": "form-control"}),
             "escalation": forms.Select(attrs={"class": "form-control"}),
             "sent_to_ho": forms.Select(attrs={"class": "form-control"}),
-            "ho_flag": forms.TextInput(attrs={"class": "form-control"}),
             "last_validation_date": forms.DateInput(
                 attrs={"class": "form-control", "type": "date"}, format="%Y-%m-%d"
             ),
@@ -134,7 +132,6 @@ class UseCaseForm(MitreAttackM2MBridgeMixin, forms.ModelForm):
             "severity": "Severidad",
             "escalation": "Escalamiento",
             "sent_to_ho": "Envío HO",
-            "ho_flag": "HO",
             "last_validation_date": "Última validación",
             "validation_status": "Estado validación",
             "validation_result": "Resultado",
@@ -160,10 +157,34 @@ class UseCaseForm(MitreAttackM2MBridgeMixin, forms.ModelForm):
         self.fields["mitre_attacks"].queryset = self.fields["mitre_attacks"].queryset.filter(is_enabled=True)
         self.fields["d3fend_exclusions"].queryset = D3Fend.objects.filter(is_enabled=True).order_by("code", "name")
         self.fields["event_sources"].queryset = EventSource.objects.order_by("name")
+        escalation_choices = self._escalation_choices()
+        self.fields["escalation"].choices = escalation_choices
+        self.fields["escalation"].widget.choices = escalation_choices
         self.fields["group_name"].widget.attrs["data-options"] = json.dumps(self._multi_value_options("group_name"))
         self.fields["device"].widget.attrs["data-options"] = json.dumps(self._multi_value_options("device"))
         if self.instance and self.instance.pk:
             self.fields["event_sources"].initial = self.instance.source_links.values_list("source_id", flat=True)
+
+    @staticmethod
+    def _escalation_choices():
+        values = [("", "---------")]
+        existing = {
+            str(value or "").strip()
+            for value in UseCase.objects.exclude(escalation="").values_list("escalation", flat=True)
+            if str(value or "").strip()
+        }
+        configured = list(
+            UseCaseEscalationOption.objects
+            .filter(is_active=True)
+            .values_list("name", flat=True)
+        )
+        seen = set()
+        for value in [*configured, *sorted(existing, key=str.casefold)]:
+            key = value.casefold()
+            if key not in seen:
+                values.append((value, value))
+                seen.add(key)
+        return values
 
     @staticmethod
     def _multi_value_options(field_name):

@@ -6,6 +6,7 @@ from django.urls import reverse
 from apps.usecases.models import UseCase, UseCaseRuleCondition
 
 from .models import SigmaConversion, UseCaseTechnicalBackup
+from .services import epl_to_sigma
 
 
 class TechnicalBackupTests(TestCase):
@@ -82,9 +83,31 @@ class TechnicalBackupTests(TestCase):
         self.assertRedirects(response, reverse("usecase_detail", args=[self.usecase.pk]))
         backup = UseCaseTechnicalBackup.objects.get(use_case=self.usecase)
         self.assertEqual(backup.logic_text, "SELECT * FROM Event WHERE action = 'add';")
+        self.assertEqual(backup.backup_type, UseCaseTechnicalBackup.TYPE_BOTH)
+        self.assertIn("title:", backup.sigma_text)
+        self.assertIsNotNone(backup.source_conversion)
+        self.assertEqual(backup.source_conversion.mode, SigmaConversion.MODE_EPL_TO_SIGMA)
         self.assertTrue(backup.is_current)
 
     def test_inventory_edit_does_not_duplicate_backup_when_rule_is_unchanged(self):
+        self.usecase.full_rule_text = "SELECT * FROM Event WHERE action = 'add';"
+        self.usecase.save()
+        sigma_text = epl_to_sigma(self.usecase.full_rule_text)
+        UseCaseTechnicalBackup.objects.create(
+            use_case=self.usecase,
+            backup_type=UseCaseTechnicalBackup.TYPE_BOTH,
+            logic_text=self.usecase.full_rule_text,
+            sigma_text=sigma_text,
+            created_by=self.user,
+        )
+        self.client.login(username="admin", password="pass")
+
+        response = self._post_inventory_edit(self.usecase.full_rule_text)
+
+        self.assertRedirects(response, reverse("usecase_detail", args=[self.usecase.pk]))
+        self.assertEqual(UseCaseTechnicalBackup.objects.filter(use_case=self.usecase).count(), 1)
+
+    def test_inventory_edit_enriches_old_logic_only_backup_with_sigma(self):
         self.usecase.full_rule_text = "SELECT * FROM Event WHERE action = 'add';"
         self.usecase.save()
         UseCaseTechnicalBackup.objects.create(
@@ -98,7 +121,10 @@ class TechnicalBackupTests(TestCase):
         response = self._post_inventory_edit(self.usecase.full_rule_text)
 
         self.assertRedirects(response, reverse("usecase_detail", args=[self.usecase.pk]))
-        self.assertEqual(UseCaseTechnicalBackup.objects.filter(use_case=self.usecase).count(), 1)
+        self.assertEqual(UseCaseTechnicalBackup.objects.filter(use_case=self.usecase).count(), 2)
+        current = UseCaseTechnicalBackup.current_for_usecase(self.usecase)
+        self.assertEqual(current.backup_type, UseCaseTechnicalBackup.TYPE_BOTH)
+        self.assertTrue(current.sigma_text)
 
     def test_backup_can_be_created_directly_from_inventory_rule(self):
         self.usecase.full_rule_text = "SELECT * FROM Event WHERE action = 'add';"
@@ -110,7 +136,8 @@ class TechnicalBackupTests(TestCase):
         self.assertEqual(response.status_code, 302)
         backup = UseCaseTechnicalBackup.objects.get(use_case=self.usecase)
         self.assertEqual(backup.logic_text, "SELECT * FROM Event WHERE action = 'add';")
-        self.assertEqual(backup.backup_type, UseCaseTechnicalBackup.TYPE_LOGIC)
+        self.assertEqual(backup.backup_type, UseCaseTechnicalBackup.TYPE_BOTH)
+        self.assertIn("title:", backup.sigma_text)
         self.assertTrue(backup.is_current)
         self.assertEqual(len(backup.checksum), 64)
 

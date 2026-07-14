@@ -1220,10 +1220,6 @@
                                 <label>EnvA­o HO</label>
                                 {{ form.sent_to_ho }}
                             </div>
-                            <div class="field">
-                                <label>HO</label>
-                                {{ form.ho_flag }}
-                            </div>
                         </div>
                     </div>
 
@@ -1244,7 +1240,7 @@
                             <div class="field full">
                                 <div class="d3fend-readonly">
                                     <div class="readonly-label">D3FEND inferido automaticamente</div>
-                                    <div class="chips">
+                                    <div id="d3fend-inferred-chips" class="chips" data-inference-url="{% url 'infer_d3fends_for_attacks' %}">
                                         {% if usecase %}
                                             {% for item in usecase.form_inferred_d3fends %}
                                                 <span class="chip excludable" data-d3fend-chip-id="{{ item.id }}">
@@ -1741,7 +1737,11 @@
         function setupD3FendInlineExclusions() {
             const exclusionSelect = document.getElementById('id_d3fend_exclusions');
             const exclusionChips = document.getElementById('d3fend-exclusion-chips');
+            const inferredChips = document.getElementById('d3fend-inferred-chips');
+            const attackSelect = document.getElementById('id_mitre_attacks');
             if (!exclusionSelect) return;
+            let inferredItems = [];
+            let requestSeq = 0;
 
             function options() {
                 return Array.from(exclusionSelect.options).filter(option => option.value);
@@ -1755,11 +1755,84 @@
                 return new Set(selectedOptions().map(option => option.value));
             }
 
+            function attackIds() {
+                if (!attackSelect) return [];
+                return Array.from(attackSelect.options)
+                    .filter(option => option.selected && option.value)
+                    .map(option => option.value);
+            }
+
+            function optionForD3Fend(item) {
+                const id = String(item.id);
+                let option = Array.from(exclusionSelect.options).find(candidate => candidate.value === id);
+                if (!option) {
+                    option = document.createElement('option');
+                    option.value = id;
+                    exclusionSelect.appendChild(option);
+                }
+                option.textContent = item.label || `${item.code || id}${item.name ? ' - ' + item.name : ''}`;
+                return option;
+            }
+
             function render() {
                 const excluded = selectedIds();
-                document.querySelectorAll('[data-d3fend-chip-id]').forEach(chip => {
-                    chip.classList.toggle('pending-exclusion', excluded.has(chip.dataset.d3fendChipId));
+                const inferredIds = new Set(inferredItems.map(item => String(item.id)));
+
+                selectedOptions().forEach(option => {
+                    if (!inferredIds.has(option.value)) {
+                        option.selected = false;
+                        excluded.delete(option.value);
+                    }
                 });
+
+                if (inferredChips) {
+                    inferredChips.innerHTML = '';
+
+                    if (!inferredItems.length) {
+                        const empty = document.createElement('span');
+                        empty.className = 'badge badge-neutral';
+                        empty.textContent = attackIds().length
+                            ? 'Sin D3FEND inferido para las tecnicas seleccionadas'
+                            : 'Sin D3FEND inferido';
+                        inferredChips.appendChild(empty);
+                    } else {
+                        let visibleCount = 0;
+                        inferredItems.forEach(item => {
+                            optionForD3Fend(item);
+                            const id = String(item.id);
+                            if (excluded.has(id)) return;
+
+                            visibleCount += 1;
+                            const chip = document.createElement('span');
+                            chip.className = 'chip excludable';
+                            chip.dataset.d3fendChipId = id;
+
+                            const label = document.createElement('span');
+                            label.textContent = item.label || `${item.code}${item.name ? ' - ' + item.name : ''}`;
+                            label.title = label.textContent;
+
+                            const button = document.createElement('button');
+                            button.type = 'button';
+                            button.title = 'Excluir este D3FEND del caso';
+                            button.addEventListener('click', () => {
+                                const option = optionForD3Fend(item);
+                                option.selected = true;
+                                render();
+                            });
+
+                            chip.appendChild(label);
+                            chip.appendChild(button);
+                            inferredChips.appendChild(chip);
+                        });
+
+                        if (!visibleCount) {
+                            const empty = document.createElement('span');
+                            empty.className = 'badge badge-neutral';
+                            empty.textContent = 'Todas las defensas inferidas estan excluidas';
+                            inferredChips.appendChild(empty);
+                        }
+                    }
+                }
 
                 if (!exclusionChips) return;
                 exclusionChips.innerHTML = '';
@@ -1784,17 +1857,35 @@
                 });
             }
 
-            document.querySelectorAll('[data-d3fend-exclude-id]').forEach(button => {
-                button.addEventListener('click', () => {
-                    const id = button.dataset.d3fendExcludeId;
-                    const option = Array.from(exclusionSelect.options).find(item => item.value === id);
-                    if (!option) return;
-                    option.selected = true;
+            async function refreshInferred(ids) {
+                if (!inferredChips || !inferredChips.dataset.inferenceUrl) {
                     render();
-                });
+                    return;
+                }
+
+                const seq = ++requestSeq;
+                const params = new URLSearchParams();
+                (ids || attackIds()).forEach(id => params.append('attack_ids', id));
+
+                try {
+                    const response = await fetch(`${inferredChips.dataset.inferenceUrl}?${params.toString()}`, {
+                        headers: { 'X-Requested-With': 'XMLHttpRequest' }
+                    });
+                    if (!response.ok) return;
+                    const data = await response.json();
+                    if (seq !== requestSeq) return;
+                    inferredItems = data.results || [];
+                    render();
+                } catch (error) {
+                    render();
+                }
+            }
+
+            document.addEventListener('soc:mitre-selection-changed', event => {
+                refreshInferred(event.detail && event.detail.ids ? event.detail.ids : attackIds());
             });
 
-            render();
+            refreshInferred(attackIds());
         }
 
         function setupAutocomplete(config) {
@@ -1806,6 +1897,37 @@
 
             function getSelectedOptions() {
                 return Array.from(hiddenSelect.options).filter(opt => opt.selected);
+            }
+
+            function selectOption(item) {
+                const id = String(item.id);
+                let option = Array.from(hiddenSelect.options).find(opt => opt.value === id);
+                if (!option) {
+                    option = document.createElement('option');
+                    option.value = id;
+                    hiddenSelect.appendChild(option);
+                }
+                option.text = item.label;
+                option.selected = true;
+                return option;
+            }
+
+            async function expandSubtechniques(item) {
+                if (!config.subtechniquesUrl || !item.external_id || item.external_id.includes('.')) return;
+
+                const params = new URLSearchParams();
+                params.append('attack_ids', item.id);
+
+                try {
+                    const response = await fetch(`${config.subtechniquesUrl}?${params.toString()}`, {
+                        headers: { 'X-Requested-With': 'XMLHttpRequest' }
+                    });
+                    if (!response.ok) return;
+                    const data = await response.json();
+                    (data.results || []).forEach(selectOption);
+                } catch (error) {
+                    return;
+                }
             }
 
             function renderChips() {
@@ -1829,6 +1951,9 @@
                     chip.appendChild(removeBtn);
                     chipsBox.appendChild(chip);
                 });
+                document.dispatchEvent(new CustomEvent('soc:mitre-selection-changed', {
+                    detail: { ids: getSelectedOptions().map(opt => opt.value) }
+                }));
             }
 
             async function search(term) {
@@ -1852,12 +1977,10 @@
                         const row = document.createElement('div');
                         row.className = 'autocomplete-item';
                         row.textContent = item.label;
-                        row.addEventListener('click', () => {
-                            const option = Array.from(hiddenSelect.options).find(opt => opt.value === String(item.id));
-                            if (option) {
-                                option.selected = true;
-                                renderChips();
-                            }
+                        row.addEventListener('click', async () => {
+                            selectOption(item);
+                            await expandSubtechniques(item);
+                            renderChips();
                             input.value = '';
                             resultsBox.innerHTML = '';
                             resultsBox.style.display = 'none';
@@ -1885,7 +2008,8 @@
             resultsId: 'mitre-results',
             selectId: 'id_mitre_attacks',
             chipsId: 'mitre-chips',
-            url: "{% url 'mitre_attack_autocomplete' %}"
+            url: "{% url 'mitre_attack_autocomplete' %}",
+            subtechniquesUrl: "{% url 'mitre_attack_subtechniques' %}"
         });
         setupMultiTagInputs();
         setupMultiSelectInputs();

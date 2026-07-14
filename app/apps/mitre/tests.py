@@ -104,6 +104,35 @@ class MitreAttackSyncTests(TestCase):
 
         self.assertFalse(d3fend.related_attacks.filter(pk=attack.pk).exists())
 
+    def test_inferred_d3fends_endpoint_uses_selected_attack_ids(self):
+        User = get_user_model()
+        user = User.objects.create_superuser("admin", "admin@example.test", "pass")
+        parent = MitreAttack.objects.create(external_id="T1110", name="Brute Force")
+        subtechnique = MitreAttack.objects.create(external_id="T1110.003", name="Password Spraying")
+        d3fend = D3Fend.objects.create(code="D3-ANAA", name="Administrative Network Activity Analysis", category="Detect")
+        d3fend.related_attacks.add(subtechnique)
+        self.client.force_login(user)
+
+        parent_response = self.client.get(reverse("infer_d3fends_for_attacks"), {"attack_ids": [parent.pk]})
+        subtechnique_response = self.client.get(reverse("infer_d3fends_for_attacks"), {"attack_ids": [subtechnique.pk]})
+
+        self.assertEqual(parent_response.json()["results"], [])
+        self.assertEqual(subtechnique_response.json()["results"][0]["code"], "D3-ANAA")
+
+    def test_mitre_subtechniques_endpoint_returns_children_for_parent(self):
+        User = get_user_model()
+        user = User.objects.create_superuser("admin", "admin@example.test", "pass")
+        parent = MitreAttack.objects.create(external_id="T1110", name="Brute Force")
+        MitreAttack.objects.create(external_id="T1110.001", name="Password Guessing")
+        MitreAttack.objects.create(external_id="T1110.003", name="Password Spraying")
+        MitreAttack.objects.create(external_id="T1111", name="Unrelated")
+        self.client.force_login(user)
+
+        response = self.client.get(reverse("mitre_attack_subtechniques"), {"attack_ids": [parent.pk]})
+        labels = [item["external_id"] for item in response.json()["results"]]
+
+        self.assertEqual(labels, ["T1110.001", "T1110.003"])
+
     def test_d3fend_mapping_resolves_subtechnique_to_parent_when_subtechnique_is_missing(self):
         parent = MitreAttack.objects.create(external_id="T1110", name="Brute Force")
         attack_lookup = {"T1110": parent}

@@ -15,7 +15,8 @@ from apps.mitre.coverage_admin import build_coverage_admin_context
 from apps.mitre.models import CoverageOverride, D3Fend, MitreAttack
 from apps.sources.models import EventSource, UseCaseSource
 
-from .models import UseCase, UseCaseChangeLog, UseCaseRuleCondition
+from .forms import UseCaseForm
+from .models import UseCase, UseCaseChangeLog, UseCaseEscalationOption, UseCaseRuleCondition
 
 
 class UseCaseBusinessRuleTests(TestCase):
@@ -113,6 +114,16 @@ class UseCaseBusinessRuleTests(TestCase):
         inferred = UseCase.inferred_d3fends_for_attack_ids_queryset([999999])
 
         self.assertFalse(inferred.exists())
+
+    def test_usecase_form_uses_escalation_catalog_and_hides_ho_flag(self):
+        UseCaseEscalationOption.objects.create(name="NOC", position=40)
+
+        form = UseCaseForm()
+        escalation_values = [value for value, _ in form.fields["escalation"].choices]
+
+        self.assertIn("NOC", escalation_values)
+        self.assertIn('<option value="NOC">NOC</option>', str(form["escalation"]))
+        self.assertNotIn("ho_flag", form.fields)
 
 
 class SeedDemoDataCommandTests(TestCase):

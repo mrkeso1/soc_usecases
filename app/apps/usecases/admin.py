@@ -5,6 +5,7 @@ from .forms import MitreAttackM2MBridgeMixin
 from .models import (
     UseCase,
     UseCaseChangeLog,
+    UseCaseEscalationOption,
     UseCaseRuleCondition,
 )
 
@@ -135,7 +136,6 @@ class UseCaseAdmin(admin.ModelAdmin):
                     "severity",
                     "escalation",
                     "sent_to_ho",
-                    "ho_flag",
                     "last_validation_date",
                     "validation_status",
                     "validation_result",
@@ -186,6 +186,14 @@ class UseCaseAdmin(admin.ModelAdmin):
     def save_related(self, request, form, formsets, change):
         super().save_related(request, form, formsets, change)
         form.instance.sync_d3fends_from_attacks()
+
+
+@admin.register(UseCaseEscalationOption)
+class UseCaseEscalationOptionAdmin(admin.ModelAdmin):
+    list_display = ("name", "is_active", "position", "updated_at")
+    list_filter = ("is_active",)
+    search_fields = ("name",)
+    ordering = ("position", "name")
 
 
 @admin.register(UseCaseChangeLog)

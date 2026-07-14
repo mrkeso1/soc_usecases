@@ -7,6 +7,22 @@ from django.db import models
 from apps.mitre.models import D3Fend, MitreAttack
 
 
+class UseCaseEscalationOption(models.Model):
+    name = models.CharField("Nombre", max_length=100, unique=True)
+    is_active = models.BooleanField("Activo", default=True)
+    position = models.PositiveIntegerField("Orden", default=100)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["position", "name"]
+        verbose_name = "Escalamiento"
+        verbose_name_plural = "Escalamientos"
+
+    def __str__(self):
+        return self.name
+
+
 class UseCase(models.Model):
     STATUS_TEST = "Test"
     STATUS_PRODUCTION = "Producción"
@@ -133,8 +149,7 @@ class UseCase(models.Model):
 
     escalation = models.CharField(
         "Escalamiento",
-        max_length=10,
-        choices=ESCALATION_CHOICES,
+        max_length=100,
         blank=True,
     )
 
