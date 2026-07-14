@@ -121,7 +121,8 @@
                 </div>
             </div>
             <div class="header-actions">
-                <a class="btn" href="{% url 'export_usecases_csv' %}?{{ request.GET.urlencode }}">CSV</a>
+                <a class="btn" href="{% url 'export_usecases_csv' %}?{{ request.GET.urlencode }}">CSV rapido</a>
+                <a class="btn" href="{% url 'export_usecases_full_csv' %}?{{ request.GET.urlencode }}">CSV completo</a>
                 <a class="btn" href="{% url 'export_usecases_xlsx' %}?{{ request.GET.urlencode }}">Excel</a>
                 <a class="btn" href="{% url 'import_usecases_excel' %}">Importar</a>
                 {% if can_add_usecases %}<a class="btn-primary" href="{% url 'usecase_create' %}">Nuevo Caso de Uso</a>{% endif %}

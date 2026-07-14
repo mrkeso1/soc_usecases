@@ -9,10 +9,11 @@
             <div>
                 <div class="page-eyebrow">// INVENTARIO / IMPORTACION</div>
                 <h1 class="page-title">Importar casos de uso</h1>
-                <p class="page-subtitle">Carga un Excel .xlsx con casos de uso. D3FEND se infiere automáticamente desde MITRE ATT&CK y las fuentes se vinculan desde la columna FUENTES.</p>
+                <p class="page-subtitle">Carga Excel o CSV completo. D3FEND se infiere automaticamente desde MITRE ATT&CK, y las fuentes se crean o vinculan desde la columna FUENTES.</p>
             </div>
             <div class="header-actions">
-                <a class="btn" href="{% url 'download_usecase_import_template' %}">Descargar plantilla</a>
+                <a class="btn" href="{% url 'download_usecase_import_template' %}">Plantilla Excel</a>
+                <a class="btn" href="{% url 'export_usecases_full_csv' %}">CSV completo</a>
                 <a class="btn" href="{% url 'usecase_list' %}">Volver</a>
             </div>
         </header>
@@ -23,30 +24,57 @@
             </div>
         {% endif %}
 
-        <form method="post" enctype="multipart/form-data" class="form-panel">
-            {% csrf_token %}
-            <div class="form-grid">
-                <label class="field full">
-                    <span class="field-label">Archivo Excel</span>
-                    <input type="file" name="excel_file" accept=".xlsx" required>
-                    <span class="hint">DISPOSITIVO queda como dato legacy. FUENTES crea o vincula fuentes de eventos por nombre o código.</span>
-                </label>
-                <label class="field full">
-                    <span class="field-label">Modo de importacion</span>
-                    <span style="display:flex;align-items:center;gap:8px;min-height:38px;">
-                        <input type="checkbox" name="update_existing">
-                        Actualizar existentes por nombre
-                    </span>
-                </label>
-            </div>
-            <div class="form-actions" style="margin-top:16px;">
-                <button class="btn-primary" type="submit">Importar</button>
-            </div>
-        </form>
+        <div class="form-grid two-columns">
+            <form method="post" enctype="multipart/form-data" class="form-panel">
+                {% csrf_token %}
+                <h2 class="section-title">Importar Excel</h2>
+                <p class="page-subtitle">Compatible con la plantilla .xlsx actual.</p>
+                <div class="form-grid">
+                    <label class="field full">
+                        <span class="field-label">Archivo Excel</span>
+                        <input type="file" name="excel_file" accept=".xlsx" required>
+                        <span class="hint">DISPOSITIVO queda como dato legacy. FUENTES crea o vincula fuentes por nombre o codigo.</span>
+                    </label>
+                    <label class="field full">
+                        <span class="field-label">Modo de importacion</span>
+                        <span style="display:flex;align-items:center;gap:8px;min-height:38px;">
+                            <input type="checkbox" name="update_existing">
+                            Actualizar existentes por nombre o identificador
+                        </span>
+                    </label>
+                </div>
+                <div class="form-actions" style="margin-top:16px;">
+                    <button class="btn-primary" type="submit">Importar Excel</button>
+                </div>
+            </form>
+
+            <form method="post" action="{% url 'import_usecases_csv' %}" enctype="multipart/form-data" class="form-panel">
+                {% csrf_token %}
+                <h2 class="section-title">Importar CSV completo</h2>
+                <p class="page-subtitle">Pensado para editar todo el inventario a mano y corregir mapeos ATT&CK/D3FEND.</p>
+                <div class="form-grid">
+                    <label class="field full">
+                        <span class="field-label">Archivo CSV</span>
+                        <input type="file" name="csv_file" accept=".csv" required>
+                        <span class="hint">MITRE ATT&CK asocia tecnicas. D3FEND_EXCLUIDO descuenta defensas inferidas que no aplican.</span>
+                    </label>
+                    <label class="field full">
+                        <span class="field-label">Modo de importacion</span>
+                        <span style="display:flex;align-items:center;gap:8px;min-height:38px;">
+                            <input type="checkbox" name="update_existing">
+                            Actualizar existentes por nombre o identificador
+                        </span>
+                    </label>
+                </div>
+                <div class="form-actions" style="margin-top:16px;">
+                    <button class="btn-primary" type="submit">Importar CSV</button>
+                </div>
+            </form>
+        </div>
 
         {% if import_output %}
             <div class="panel" style="margin-top:16px;">
-                <h2 class="page-title" style="font-size:1.08rem;">Resultado</h2>
+                <h2 class="section-title">Resultado</h2>
                 <pre class="detail-item" style="white-space:pre-wrap;margin-top:12px;">{{ import_output }}</pre>
             </div>
         {% endif %}

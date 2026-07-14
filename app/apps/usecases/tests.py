@@ -1,5 +1,6 @@
 ﻿from datetime import date
 from io import BytesIO, StringIO
+import csv
 
 from django.contrib.auth import get_user_model
 from django.contrib.auth.models import Group
@@ -220,9 +221,11 @@ class UseCasePermissionTests(TestCase):
         self.client.login(username="readonly", password="pass")
 
         csv_response = self.client.get(reverse("export_usecases_csv"))
+        full_csv_response = self.client.get(reverse("export_usecases_full_csv"))
         pdf_response = self.client.get(reverse("dashboard_pdf_export"))
 
         self.assertEqual(csv_response.status_code, 403)
+        self.assertEqual(full_csv_response.status_code, 403)
         self.assertEqual(pdf_response.status_code, 403)
 
     def test_analyst_can_export_dashboard_pdf(self):
@@ -297,6 +300,27 @@ class UseCasePermissionTests(TestCase):
         self.assertEqual(sheet["G1"].value, "NOMBRE NETWITNESS")
         self.assertIn("Owned use case", [cell.value for cell in sheet["G"]])
 
+    def test_analyst_can_export_full_inventory_csv(self):
+        d3fend = D3Fend.objects.create(code="D3-PSEP", name="Process Spawn Analysis")
+        d3fend.related_attacks.add(self.attack)
+        self.owned_usecase.full_rule_text = "SELECT * FROM Event;"
+        self.owned_usecase.save()
+        self.owned_usecase.sync_d3fends_from_attacks()
+        self.client.login(username="analyst", password="pass")
+
+        response = self.client.get(reverse("export_usecases_full_csv"))
+        content = response.content.decode("utf-8-sig")
+        rows = list(csv.DictReader(StringIO(content)))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertIn("D3FEND_EXCLUIDO", rows[0])
+        self.assertIn("D3FEND_INFERIDO", rows[0])
+        self.assertIn("Regla completa", rows[0])
+        owned_row = next(row for row in rows if row["NOMBRE NETWITNESS"] == "Owned use case")
+        self.assertIn("T1059", owned_row["MITRE ATT&CK"])
+        self.assertIn("D3-PSEP", owned_row["D3FEND_INFERIDO"])
+        self.assertEqual(owned_row["Regla completa"], "SELECT * FROM Event;")
+
     def test_analyst_can_download_import_template(self):
         self.client.login(username="analyst", password="pass")
 
@@ -306,6 +330,56 @@ class UseCasePermissionTests(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertEqual(workbook.active["A1"].value, "IDENTIFICADOR")
         self.assertEqual(workbook.active["G1"].value, "NOMBRE NETWITNESS")
+
+    def test_analyst_can_import_full_inventory_csv(self):
+        d3fend = D3Fend.objects.create(code="D3-PSEP", name="Process Spawn Analysis")
+        d3fend.related_attacks.add(self.attack)
+        buffer = StringIO()
+        writer = csv.writer(buffer)
+        writer.writerow([
+            "IDENTIFICADOR",
+            "NOMBRE NETWITNESS",
+            "status2",
+            "Fecha puesta en produccion",
+            "MITRE ATT&CK",
+            "D3FEND_EXCLUIDO",
+            "FUENTES",
+            "Habilitado",
+            "Regla completa",
+            "Descripcion funcional",
+        ])
+        writer.writerow([
+            "CSV-001",
+            "Imported CSV use case",
+            "Produccion",
+            "2026-01-02",
+            "T1059 - Command and Scripting Interpreter",
+            "D3-PSEP - Process Spawn Analysis",
+            "SRC-CSV - CSV Source",
+            "Si",
+            "SELECT * FROM Event;",
+            "Detecta comportamiento de prueba.",
+        ])
+        upload = SimpleUploadedFile(
+            "inventario.csv",
+            buffer.getvalue().encode("utf-8-sig"),
+            content_type="text/csv",
+        )
+        self.client.login(username="analyst", password="pass")
+
+        response = self.client.post(reverse("import_usecases_csv"), {"csv_file": upload})
+
+        self.assertEqual(response.status_code, 302)
+        imported = UseCase.objects.get(case_code="CSV-001")
+        self.assertEqual(imported.name, "Imported CSV use case")
+        self.assertEqual(imported.status, UseCase.STATUS_PRODUCTION)
+        self.assertEqual(imported.full_rule_text, "SELECT * FROM Event;")
+        self.assertEqual(imported.functional_description, "Detecta comportamiento de prueba.")
+        self.assertEqual(list(imported.mitre_attacks.values_list("external_id", flat=True)), ["T1059"])
+        self.assertEqual(list(imported.d3fend_exclusions.values_list("code", flat=True)), ["D3-PSEP"])
+        self.assertFalse(imported.d3fends.exists())
+        self.assertTrue(EventSource.objects.filter(code="SRC-CSV", name="CSV Source").exists())
+        self.assertEqual(list(imported.source_links.values_list("source__code", flat=True)), ["SRC-CSV"])
 
     def test_analyst_can_import_usecases_excel(self):
         d3fend = D3Fend.objects.create(code="D3-PSEP", name="Process Spawn Analysis")
@@ -641,10 +715,12 @@ class UseCasePermissionTests(TestCase):
         xlsx_response = self.client.get(reverse("export_usecases_xlsx"))
         template_response = self.client.get(reverse("download_usecase_import_template"))
         import_response = self.client.get(reverse("import_usecases_excel"))
+        csv_import_response = self.client.post(reverse("import_usecases_csv"))
 
         self.assertEqual(xlsx_response.status_code, 403)
         self.assertEqual(template_response.status_code, 403)
         self.assertEqual(import_response.status_code, 403)
+        self.assertEqual(csv_import_response.status_code, 403)
 
     def test_analyst_bulk_update_only_changes_owned_usecases(self):
         self.client.login(username="analyst", password="pass")

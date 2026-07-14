@@ -1,6 +1,7 @@
 from datetime import date, timedelta, datetime
 import csv
 from io import BytesIO, StringIO
+import re
 import tempfile
 from pathlib import Path
 
@@ -17,7 +18,22 @@ from django.urls import reverse
 from .bulk_updates import parse_csv_ids as _parse_csv_ids
 from .bulk_updates import parse_posted_usecase_ids, update_usecases_bulk
 from .forms import UseCaseForm, UseCaseRuleConditionFormSet
+from .management.commands.import_usecases import (
+    DATE_FIELDS,
+    extract_attack_ids,
+    find_existing_usecase,
+    normalize_blocking_type,
+    normalize_escalation,
+    normalize_key,
+    normalize_severity,
+    normalize_status,
+    normalize_text,
+    normalize_yes_no,
+    parse_date,
+    resolve_attack_objects,
+)
 from apps.mitre.models import D3Fend, MitreAttack
+from apps.sources.matching import sync_usecase_sources
 from apps.sources.models import EventSource, UseCaseSource
 from apps.sigma_tools.models import UseCaseTechnicalBackup
 from apps.sigma_tools.services import sync_inventory_rule_backup
@@ -40,6 +56,7 @@ from openpyxl import Workbook
 
 _FORBIDDEN_MSG = "No tenes permisos para acceder a esta seccion."
 PRODUCTION_STATUS = UseCase.STATUS_PRODUCTION
+D3FEND_ID_RE = re.compile(r"\bD3-[A-Z0-9]+\b", re.IGNORECASE)
 
 
 # Helpers
@@ -221,6 +238,158 @@ def _serialize_sources(usecase):
         link.source.display_name
         for link in usecase.source_links.all()
     )
+
+
+def _serialize_d3fend_exclusions(usecase):
+    return "; ".join(
+        f"{d3fend.code} - {d3fend.name}"
+        for d3fend in usecase.d3fend_exclusions.all().order_by("code", "name")
+    )
+
+
+def _serialize_inferred_d3fends(usecase):
+    queryset = (
+        usecase.d3fends.all()
+        if hasattr(usecase, "_prefetched_objects_cache") and "d3fends" in usecase._prefetched_objects_cache
+        else usecase.inferred_d3fends_queryset()
+    )
+    return "; ".join(
+        f"{d3fend.code} - {d3fend.name}"
+        for d3fend in sorted(queryset, key=lambda item: (item.code, item.name))
+    )
+
+
+def _extract_d3fend_codes(value):
+    if not value:
+        return []
+    return sorted({item.upper() for item in D3FEND_ID_RE.findall(str(value))})
+
+
+def _resolve_d3fend_objects(codes):
+    if not codes:
+        return [], []
+    d3fends = list(D3Fend.objects.filter(code__in=codes, is_enabled=True).order_by("code"))
+    found = {item.code.upper() for item in d3fends}
+    missing = [code for code in codes if code.upper() not in found]
+    return d3fends, missing
+
+
+def _format_import_lines(lines):
+    return "\n".join(lines).strip()
+
+
+def _full_csv_headers():
+    return [
+        "IDENTIFICADOR",
+        "GRUPO",
+        "DISPOSITIVO",
+        "TIPO",
+        "OBJETIVO2",
+        "Tipo_bloqueo",
+        "NOMBRE NETWITNESS",
+        "RESPONSABLE",
+        "Monitoreo",
+        "status2",
+        "Fecha alta/ajuste",
+        "Fecha puesta en produccion",
+        "MITRE ATT&CK",
+        "D3FEND_EXCLUIDO",
+        "D3FEND_INFERIDO",
+        "Severidad",
+        "Escalamiento",
+        "ENVIO.HO",
+        "FUENTES",
+        "Fecha ultima validacion",
+        "Habilitado",
+        "Motivo deshabilitacion",
+        "Comentarios",
+        "Regla completa",
+        "Descripcion funcional",
+    ]
+
+
+CSV_FULL_FIELD_ALIASES = {
+    "identificador": "case_code",
+    "codigo": "case_code",
+    "codigocaso": "case_code",
+    "grupo": "group_name",
+    "dispositivo": "device",
+    "tipo": "case_type",
+    "objetivo": "objective",
+    "objetivo2": "objective",
+    "tipobloqueo": "blocking_type",
+    "nombrenetwitness": "name",
+    "nombre": "name",
+    "casodeuso": "name",
+    "responsable": "owner_name",
+    "monitoreo": "monitoring",
+    "estado": "status",
+    "status": "status",
+    "status2": "status",
+    "fechaaltajuste": "created_or_adjusted_at",
+    "fechapuestaenproduccion": "production_date",
+    "fechaproduccion": "production_date",
+    "mitre": "mitre_attack_rel",
+    "mitreattack": "mitre_attack_rel",
+    "mitreattck": "mitre_attack_rel",
+    "mitreattckrelacionado": "mitre_attack_rel",
+    "mitreattackrelacionado": "mitre_attack_rel",
+    "mitretecnicas": "mitre_attack_rel",
+    "d3fendexcluido": "d3fend_exclusions_raw",
+    "d3fendexclusiones": "d3fend_exclusions_raw",
+    "d3fendexclusions": "d3fend_exclusions_raw",
+    "d3fendinferido": "d3fend_inferred_readonly",
+    "d3fend": "d3fend_inferred_readonly",
+    "severidad": "severity",
+    "severity": "severity",
+    "escalamiento": "escalation",
+    "envioho": "sent_to_ho",
+    "fuente": "event_sources_raw",
+    "fuentes": "event_sources_raw",
+    "fuenteseventos": "event_sources_raw",
+    "fechaultimavalidacion": "last_validation_date",
+    "ultimavalidacion": "last_validation_date",
+    "habilitado": "is_enabled",
+    "enabled": "is_enabled",
+    "motivodeshabilitacion": "disabled_reason",
+    "motivobaja": "disabled_reason",
+    "comentarios": "comments",
+    "comments": "comments",
+    "reglacompleta": "full_rule_text",
+    "fullrule": "full_rule_text",
+    "descripcionfuncional": "functional_description",
+    "description": "functional_description",
+}
+
+
+def _append_usecase_full_csv_row(writer, usecase):
+    writer.writerow([
+        usecase.display_code,
+        usecase.group_name,
+        usecase.device,
+        usecase.case_type,
+        usecase.objective,
+        usecase.blocking_type,
+        usecase.name,
+        usecase.owner_name,
+        usecase.monitoring,
+        usecase.status,
+        usecase.created_or_adjusted_at or "",
+        usecase.production_date or "",
+        _serialize_mitre(usecase),
+        _serialize_d3fend_exclusions(usecase),
+        _serialize_inferred_d3fends(usecase),
+        usecase.severity,
+        usecase.escalation,
+        usecase.sent_to_ho,
+        _serialize_sources(usecase),
+        usecase.last_validation_date or "",
+        "Si" if usecase.is_enabled else "No",
+        usecase.disabled_reason,
+        usecase.comments,
+        usecase.full_rule_text,
+        usecase.functional_description,
+    ])
 
 
 def _inventory_display_version():
@@ -421,6 +590,233 @@ def export_usecases_csv(request):
             _serialize_mitre(uc), _serialize_d3fend(uc),
         ])
     return response
+
+
+@login_required
+def export_usecases_full_csv(request):
+    if not can_access_usecases(request.user):
+        return HttpResponseForbidden(_FORBIDDEN_MSG)
+
+    qs, _ = _get_filtered_usecases(request, with_prefetch=True)
+    qs = qs.order_by("name")
+
+    response = HttpResponse(content_type="text/csv; charset=utf-8-sig")
+    response["Content-Disposition"] = 'attachment; filename="inventario_casos_uso_completo.csv"'
+    writer = csv.writer(response)
+    writer.writerow(_full_csv_headers())
+    for usecase in qs:
+        _append_usecase_full_csv_row(writer, usecase)
+    return response
+
+
+def _decode_csv_upload(uploaded_file):
+    raw_content = uploaded_file.read()
+    for encoding in ("utf-8-sig", "utf-8", "cp1252", "latin-1"):
+        try:
+            return raw_content.decode(encoding)
+        except UnicodeDecodeError:
+            continue
+    return raw_content.decode("utf-8", errors="replace")
+
+
+def _parse_csv_bool(value, default=True):
+    key = normalize_key(value)
+    if not key:
+        return default
+    if key in {"1", "si", "s", "yes", "y", "true", "x", "habilitado", "activo", "activa"}:
+        return True
+    if key in {"0", "no", "n", "false", "deshabilitado", "inhabilitado", "inactivo", "inactiva"}:
+        return False
+    return default
+
+
+def _map_full_csv_row(row):
+    payload = {}
+    attack_raw = ""
+    d3fend_exclusions_raw = ""
+    sources_raw = None
+
+    for raw_header, raw_value in row.items():
+        field_name = CSV_FULL_FIELD_ALIASES.get(normalize_key(raw_header))
+        if not field_name:
+            continue
+
+        value = normalize_text(raw_value)
+        if field_name == "mitre_attack_rel":
+            attack_raw = value
+            continue
+        if field_name == "d3fend_exclusions_raw":
+            d3fend_exclusions_raw = value
+            continue
+        if field_name == "d3fend_inferred_readonly":
+            continue
+        if field_name == "event_sources_raw":
+            sources_raw = value
+            continue
+        if field_name in DATE_FIELDS:
+            payload[field_name] = parse_date(raw_value)
+            continue
+        if field_name == "is_enabled":
+            payload[field_name] = _parse_csv_bool(raw_value)
+            continue
+        payload[field_name] = value
+
+    if "status" in payload:
+        payload["status"] = normalize_status(payload.get("status", ""))
+    if "blocking_type" in payload:
+        payload["blocking_type"] = normalize_blocking_type(payload.get("blocking_type", ""))
+    if "severity" in payload:
+        payload["severity"] = normalize_severity(payload.get("severity", ""))
+    if "escalation" in payload:
+        payload["escalation"] = normalize_escalation(payload.get("escalation", ""))
+    if "sent_to_ho" in payload:
+        payload["sent_to_ho"] = normalize_yes_no(payload.get("sent_to_ho", ""))
+
+    return payload, attack_raw, d3fend_exclusions_raw, sources_raw
+
+
+@login_required
+def import_usecases_csv(request):
+    if not can_add_usecases(request.user):
+        return HttpResponseForbidden("No tenes permisos para importar casos de uso.")
+
+    if request.method != "POST":
+        return redirect("import_usecases_excel")
+
+    uploaded_file = request.FILES.get("csv_file")
+    allow_update = request.POST.get("update_existing") == "on"
+    if not uploaded_file:
+        messages.error(request, "Selecciona un archivo CSV para importar.")
+        return redirect("import_usecases_excel")
+
+    if Path(uploaded_file.name).suffix.lower() != ".csv":
+        messages.error(request, "El archivo debe ser .csv.")
+        return redirect("import_usecases_excel")
+
+    output_lines = []
+    created_count = 0
+    updated_count = 0
+    skipped_count = 0
+    error_count = 0
+    warning_count = 0
+    attack_assigned_count = 0
+    d3fend_exclusion_count = 0
+    sources_created_count = 0
+
+    try:
+        content = _decode_csv_upload(uploaded_file)
+        reader = csv.DictReader(StringIO(content))
+        if not reader.fieldnames:
+            raise ValueError("El CSV no tiene encabezados.")
+
+        for row_num, row in enumerate(reader, start=2):
+            try:
+                payload, attack_raw, d3fend_exclusions_raw, sources_raw = _map_full_csv_row(row)
+                name = payload.get("name", "").strip()
+                if not name:
+                    skipped_count += 1
+                    output_lines.append(f"Fila {row_num}: omitida por no tener NOMBRE NETWITNESS.")
+                    continue
+                if not payload.get("case_code"):
+                    payload["case_code"] = name
+
+                attack_ids = extract_attack_ids(attack_raw)
+                attack_objects, missing_attack_ids = resolve_attack_objects(attack_ids)
+                if missing_attack_ids:
+                    warning_count += 1
+                    output_lines.append(
+                        f"Fila {row_num}: ATT&CK no encontrados en el catalogo -> {', '.join(missing_attack_ids)}."
+                    )
+
+                d3fend_codes = _extract_d3fend_codes(d3fend_exclusions_raw)
+                d3fend_exclusions, missing_d3fend_codes = _resolve_d3fend_objects(d3fend_codes)
+                if missing_d3fend_codes:
+                    warning_count += 1
+                    output_lines.append(
+                        f"Fila {row_num}: D3FEND excluidos no encontrados en el catalogo -> "
+                        + ", ".join(missing_d3fend_codes)
+                    )
+
+                instance = find_existing_usecase(name, payload.get("case_code", ""))
+                if instance and not allow_update:
+                    skipped_count += 1
+                    output_lines.append(
+                        f"Fila {row_num}: ya existe '{instance.name}', omitido. "
+                        "Activa 'Actualizar existentes' para pisar los datos."
+                    )
+                    continue
+
+                if instance:
+                    for field, value in payload.items():
+                        setattr(instance, field, value)
+                    instance.updated_by = request.user
+                    instance.save()
+                    action = "actualizado"
+                    updated_count += 1
+                else:
+                    payload.setdefault("created_by", request.user)
+                    payload.setdefault("updated_by", request.user)
+                    instance = UseCase.objects.create(**payload)
+                    action = "creado"
+                    created_count += 1
+
+                instance.mitre_attacks.set(attack_objects)
+                attack_assigned_count += len(attack_objects)
+                instance.d3fend_exclusions.set(d3fend_exclusions)
+                d3fend_exclusion_count += len(d3fend_exclusions)
+                instance.sync_d3fends_from_attacks()
+                if attack_objects and not instance.d3fends.exists():
+                    warning_count += 1
+                    output_lines.append(
+                        f"Fila {row_num}: ATT&CK cargado, pero no se infirio D3FEND. "
+                        "Revisa el sync MITRE/D3FEND o las exclusiones manuales."
+                    )
+
+                if sources_raw == "":
+                    instance.source_links.all().delete()
+                    source_result = {"created": 0, "unresolved": []}
+                else:
+                    source_result = sync_usecase_sources(
+                        instance,
+                        sources_raw,
+                        create_missing=True,
+                        defaults={"description": "Creada automaticamente desde importacion CSV de inventario."},
+                    )
+                    sources_created_count += source_result["created"]
+                    if source_result["unresolved"]:
+                        warning_count += 1
+                        output_lines.append(
+                            f"Fila {row_num}: fuentes no resueltas -> {', '.join(source_result['unresolved'])}."
+                        )
+
+                sync_inventory_rule_backup(instance, request.user)
+                output_lines.append(f"Fila {row_num}: {action} '{name}'.")
+            except Exception as exc:
+                error_count += 1
+                output_lines.append(f"Fila {row_num}: error -> {exc}")
+
+    except Exception as exc:
+        messages.error(request, f"No se pudo importar el CSV: {exc}")
+        return redirect("import_usecases_excel")
+
+    output_lines.extend([
+        "",
+        "Importacion CSV finalizada",
+        f"Creados: {created_count}",
+        f"Actualizados: {updated_count}",
+        f"Omitidos: {skipped_count}",
+        f"Errores: {error_count}",
+        f"Advertencias: {warning_count}",
+        f"MITRE asociados: {attack_assigned_count}",
+        f"D3FEND excluidos: {d3fend_exclusion_count}",
+        f"Fuentes creadas: {sources_created_count}",
+    ])
+    request.session["last_usecase_import_output"] = _format_import_lines(output_lines)
+    if error_count:
+        messages.warning(request, "Importacion CSV finalizada con errores. Revisa el resumen debajo.")
+    else:
+        messages.success(request, "Importacion CSV finalizada. Revisa el resumen debajo.")
+    return redirect("import_usecases_excel")
 
 
 def _xlsx_response(workbook, filename: str):
