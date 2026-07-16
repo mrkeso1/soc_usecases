@@ -18,7 +18,6 @@ from apps.mitre.models import CoverageOverride, D3Fend, MitreAttack
 from apps.sources.models import EventSource, SourceType
 from apps.usecases.models import UseCase
 from apps.lifecycle.lifecycle import lifecycle_state
-from apps.lifecycle.models import LifecycleReview
 from apps.controls.models import Control
 from apps.sigma_tools.models import UseCaseTechnicalBackup
 from .models import MitreCoverageSnapshot
@@ -40,6 +39,13 @@ STATUS_COLORS = {
     UseCase.STATUS_PRODUCTION: "#00e5a0",
     UseCase.STATUS_RETIRED: "#94a3b8",
 }
+
+USECASE_STATUS_ROWS = (
+    (UseCase.STATUS_PRODUCTION, UseCase.STATUS_PRODUCTION),
+    (UseCase.STATUS_TEST, UseCase.STATUS_TEST),
+    (UseCase.STATUS_DEVELOPMENT, UseCase.STATUS_DEVELOPMENT),
+    (UseCase.STATUS_RETIRED, UseCase.STATUS_RETIRED),
+)
 
 CHART_COLORS = (
     "#2d7aff",
@@ -74,6 +80,44 @@ def _metric_rows(values, colors=None, limit=None):
 def _grouped_rows(queryset, field, colors=None, limit=None):
     values = queryset.values(field).annotate(value=models.Count("id")).order_by("-value", field)
     return _metric_rows(((item[field], item["value"]) for item in values), colors, limit)
+
+
+def _fixed_choice_rows(queryset, field, choices, colors=None):
+    counts = dict(
+        queryset
+        .values(field)
+        .annotate(value=models.Count("id"))
+        .values_list(field, "value")
+    )
+    total = queryset.count()
+    rows = []
+    used_keys = set()
+
+    for index, (key, label) in enumerate(choices):
+        value = counts.get(key, 0)
+        used_keys.add(key)
+        percent = round(value / total * 100) if total else 0
+        rows.append({
+            "name": label or "Sin definir",
+            "value": value,
+            "percent": percent,
+            "bar_percent": percent,
+            "color": (colors or {}).get(key, CHART_COLORS[index % len(CHART_COLORS)]),
+        })
+
+    for key, value in counts.items():
+        if key in used_keys:
+            continue
+        percent = round(value / total * 100) if total else 0
+        rows.append({
+            "name": key or "Sin definir",
+            "value": value,
+            "percent": percent,
+            "bar_percent": percent,
+            "color": (colors or {}).get(key, CHART_COLORS[len(rows) % len(CHART_COLORS)]),
+        })
+
+    return rows
 
 
 def _donut_gradient(rows):
@@ -111,6 +155,8 @@ def build_executive_dashboard_context(request):
     conditioned_cases = operational_usecases.filter(
         models.Q(full_rule_text__gt="") | models.Q(rule_conditions__isnull=False)
     ).distinct().count()
+    without_documentation = max(total_cases - documented_cases, 0)
+    without_conditions = max(total_cases - conditioned_cases, 0)
     backup_current_cases = (
         UseCaseTechnicalBackup.objects
         .filter(use_case__in=operational_usecases, is_current=True)
@@ -118,17 +164,8 @@ def build_executive_dashboard_context(request):
         .distinct()
         .count()
     )
-    without_sources = max(total_cases - source_linked_cases, 0)
-    without_attack = max(total_cases - mitre_mapped_cases, 0)
-    without_documentation = max(total_cases - documented_cases, 0)
-    without_conditions = max(total_cases - conditioned_cases, 0)
-    lifecycle_pending = operational_usecases.filter(
-        models.Q(next_review_date__isnull=True) | models.Q(next_review_date__lt=today)
-    ).count()
-
     active_sources = sources.filter(status=EventSource.STATUS_ACTIVE).count()
     total_sources = sources.count()
-    reviewed_recently = LifecycleReview.objects.filter(checked_at__gte=today.replace(month=1, day=1)).count()
     total_controls = controls.count()
     production_controls = controls.filter(status=Control.STATUS_PRODUCTION).count()
     lifecycle = lifecycle_state(today.year, today=today)
@@ -140,9 +177,11 @@ def build_executive_dashboard_context(request):
     blocked_periods = sum(1 for item in lifecycle["periods"] if item["state"] == "Bloqueado")
     lifecycle_complete = sum(1 for item in lifecycle["periods"] if item["complete"])
     lifecycle_progress = round(lifecycle_complete / lifecycle_period_count * 100) if lifecycle_period_count else 0
+    active_period_pending = active_period.get("pending_use_cases", 0) or 0
+    overdue_period_pending = active_period_pending if active_period.get("state") == "Vencido" else 0
 
     severity_rows = _grouped_rows(operational_usecases, "severity", SEVERITY_COLORS)
-    status_rows = _grouped_rows(usecases, "status", STATUS_COLORS)
+    status_rows = _fixed_choice_rows(usecases, "status", USECASE_STATUS_ROWS, STATUS_COLORS)
     source_rows = _metric_rows(
         (
             (item["source_links__source__name"], item["value"])
@@ -211,7 +250,6 @@ def build_executive_dashboard_context(request):
         UseCase.VALIDATION_RESULT_NONE: "#94a3b8",
     })
 
-    attention_total = without_sources + without_attack + without_documentation + lifecycle_pending
     inventory_quality_rows = [
         {
             "name": "Fuentes vinculadas",
@@ -255,15 +293,12 @@ def build_executive_dashboard_context(request):
         "priority_cases": priority_cases,
         "total_sources": total_sources,
         "active_sources": active_sources,
-        "without_sources": without_sources,
-        "without_attack": without_attack,
-        "without_documentation": without_documentation,
-        "without_conditions": without_conditions,
-        "lifecycle_pending": lifecycle_pending,
-        "reviewed_recently": reviewed_recently,
         "total_controls": total_controls,
         "production_controls": production_controls,
-        "attention_total": attention_total,
+        "overdue_period_pending": overdue_period_pending,
+        "active_period_pending": active_period_pending,
+        "without_documentation": without_documentation,
+        "without_conditions": without_conditions,
         "active_period": active_period,
         "blocked_periods": blocked_periods,
         "lifecycle": lifecycle,
@@ -705,23 +740,6 @@ def build_dashboard_context(request):
     to include them through the Habilitado filter.
     """
     today = date.today()
-    operational_usecases = UseCase.objects.exclude(status__iexact=UseCase.STATUS_RETIRED)
-    operational_total_cases = operational_usecases.count()
-    operational_source_linked_cases = operational_usecases.filter(source_links__isnull=False).distinct().count()
-    operational_mitre_mapped_cases = operational_usecases.filter(mitre_attacks__isnull=False).distinct().count()
-    operational_documented_cases = operational_usecases.filter(
-        models.Q(objective__gt="") | models.Q(functional_description__gt="")
-    ).distinct().count()
-    lifecycle_pending = operational_usecases.filter(
-        models.Q(next_review_date__isnull=True) | models.Q(next_review_date__lt=today)
-    ).count()
-    attention_total = (
-        max(operational_total_cases - operational_source_linked_cases, 0)
-        + max(operational_total_cases - operational_mitre_mapped_cases, 0)
-        + max(operational_total_cases - operational_documented_cases, 0)
-        + lifecycle_pending
-    )
-
     base_qs = (
         UseCase.objects
         .filter(status__iexact=PRODUCTION_STATUS)
@@ -1139,7 +1157,6 @@ def build_dashboard_context(request):
 
     context = {
         "today": today,
-        "attention_total": attention_total,
         "production_status": PRODUCTION_STATUS,
         "coverage_scope_label": (
             "Casos de uso en Produccion y habilitados"

@@ -77,6 +77,23 @@ class DashboardInventoryScopeTests(TestCase):
         self.assertEqual(context["production_disabled_cases"], 1)
         self.assertEqual(context["retired_cases"], 1)
 
+    def test_executive_dashboard_status_rows_include_zero_statuses(self):
+        for index in range(3):
+            UseCase.objects.create(name=f"Production {index}", status=UseCase.STATUS_PRODUCTION)
+        UseCase.objects.create(name="Test case", status=UseCase.STATUS_TEST)
+
+        context = build_executive_dashboard_context(self._request("/dashboard/"))
+        rows = {item["name"]: item for item in context["status_rows"]}
+
+        self.assertEqual(rows[UseCase.STATUS_PRODUCTION]["value"], 3)
+        self.assertEqual(rows[UseCase.STATUS_PRODUCTION]["percent"], 75)
+        self.assertEqual(rows[UseCase.STATUS_TEST]["value"], 1)
+        self.assertEqual(rows[UseCase.STATUS_TEST]["percent"], 25)
+        self.assertEqual(rows[UseCase.STATUS_DEVELOPMENT]["value"], 0)
+        self.assertEqual(rows[UseCase.STATUS_DEVELOPMENT]["percent"], 0)
+        self.assertEqual(rows[UseCase.STATUS_RETIRED]["value"], 0)
+        self.assertEqual(rows[UseCase.STATUS_RETIRED]["percent"], 0)
+
     def test_mitre_dashboard_defaults_to_enabled_production(self):
         UseCase.objects.create(name="Enabled prod", status=UseCase.STATUS_PRODUCTION, is_enabled=True)
         UseCase.objects.create(

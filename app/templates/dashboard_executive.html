@@ -3,7 +3,7 @@
 {% block title %}Centro de Operaciones - SOC Control Manager{% endblock %}
 
 {% block extra_css %}
-<link rel="stylesheet" href="{% static 'css/dashboard-executive.css' %}?v=20260629-1">
+<link rel="stylesheet" href="{% static 'css/dashboard-executive.css' %}?v=20260716-3">
 {% endblock %}
 
 {% block content %}
@@ -14,9 +14,6 @@
                 
                 <h1 class="ops-title">{{ "Centro de Operaciones" }}</h1>
                 <p class="ops-date">{{ today|date:"l, j \d\e F \d\e Y" }}</p>
-            </div>
-            <div class="header-actions">
-                <span class="badge {% if attention_total %}warn{% else %}good{% endif %}">{{ attention_total }} puntos de atencion</span>
             </div>
         </header>
 
@@ -53,18 +50,62 @@
                 </article>
             </div>
 
-            <section class="ops-panel">
+            <section class="ops-panel ops-attention-panel">
                 <div class="ops-panel-title">
-                    <div><h2>Atencion requerida</h2><small>Pendientes de gobierno, documentacion y mantenimiento operativo</small></div>
-                    <span class="badge {% if attention_total %}warn{% else %}good{% endif %}">{{ attention_total }} puntos</span>
+                    <div>
+                        <h2>Atencion requerida</h2>
+                        <small>Seguimiento operativo por ciclo de vida, documentacion y calidad del inventario</small>
+                    </div>
                 </div>
                 <div class="ops-attention-grid">
-                    <article><span class="ops-icon warn">PV</span><div><strong>Pendientes vencidos</strong><small>cuatrimestre fuera de termino</small></div><b>{% if active_period.state == "Vencido" %}{{ active_period.pending_use_cases }}{% else %}0{% endif %}</b></article>
-                    <article><span class="ops-icon warn">PP</span><div><strong>Pendientes del periodo</strong><small>revision actualmente habilitada</small></div><b>{{ active_period.pending_use_cases|default:0 }}</b></article>
-                    <article><span class="ops-icon">RV</span><div><strong>Revisados</strong><small>con evidencia en el periodo</small></div><b>{{ active_period.reviewed_use_cases|default:0 }}</b></article>
-                    <article><span class="ops-icon">SC</span><div><strong>Sin condiciones</strong><small>logica o fuentes incompletas</small></div><b>{{ without_conditions }}</b></article>
-                    <article><span class="ops-icon">SD</span><div><strong>Sin documentacion</strong><small>auditoria incompleta</small></div><b>{{ without_documentation }}</b></article>
-                    <article><span class="ops-icon">PB</span><div><strong>Periodos bloqueados</strong><small>dependen del cierre anterior</small></div><b>{{ blocked_periods }}</b></article>
+                    <article class="ops-attention-card">
+                        <span class="ops-icon">PV</span>
+                        <div>
+                            <strong>Pendientes vencidos</strong>
+                            <small>Cuatrimestre fuera de termino</small>
+                        </div>
+                        <b>{{ overdue_period_pending }}</b>
+                    </article>
+                    <article class="ops-attention-card">
+                        <span class="ops-icon">PP</span>
+                        <div>
+                            <strong>Pendientes del periodo</strong>
+                            <small>Revision actualmente habilitada</small>
+                        </div>
+                        <b>{{ active_period_pending }}</b>
+                    </article>
+                    <article class="ops-attention-card">
+                        <span class="ops-icon">RV</span>
+                        <div>
+                            <strong>Revisados</strong>
+                            <small>Con evidencia en el periodo</small>
+                        </div>
+                        <b>{{ active_period.reviewed_use_cases|default:0 }}</b>
+                    </article>
+                    <article class="ops-attention-card">
+                        <span class="ops-icon">SC</span>
+                        <div>
+                            <strong>Sin condiciones</strong>
+                            <small>Logica o fuentes incompletas</small>
+                        </div>
+                        <b>{{ without_conditions }}</b>
+                    </article>
+                    <article class="ops-attention-card">
+                        <span class="ops-icon">SD</span>
+                        <div>
+                            <strong>Sin documentacion</strong>
+                            <small>Descripcion u objetivo pendiente</small>
+                        </div>
+                        <b>{{ without_documentation }}</b>
+                    </article>
+                    <article class="ops-attention-card">
+                        <span class="ops-icon">PB</span>
+                        <div>
+                            <strong>Periodos bloqueados</strong>
+                            <small>Dependen del cierre anterior</small>
+                        </div>
+                        <b>{{ blocked_periods }}</b>
+                    </article>
                 </div>
             </section>
 
@@ -81,10 +122,18 @@
                     </div>
                 </section>
                 <section class="ops-panel">
-                    <div class="ops-panel-title"><div><h2>Estado operativo</h2><small>Distribucion del inventario por etapa</small></div></div>
-                    <div class="ops-vertical-bars">
+                    <div class="ops-panel-title"><div><h2>Estado operativo</h2><small>Porcentaje de cada etapa sobre el total de casos</small></div></div>
+                    <div class="ops-status-bars vertical">
                         {% for item in status_rows %}
-                            <div class="ops-vertical-item"><strong>{{ item.value }}</strong><div><span style="height: {{ item.bar_percent }}%; --bar-color: {{ item.color }}"></span></div><small>{{ item.name }}</small></div>
+                            <div class="ops-status-row">
+                                <div class="ops-status-meta">
+                                    <span>{{ item.name }}</span>
+                                    <strong>{{ item.value }} &middot; {{ item.percent }}%</strong>
+                                </div>
+                                <div class="ops-status-column">
+                                    <span style="height: {{ item.percent }}%; --bar-color: {{ item.color }}"></span>
+                                </div>
+                            </div>
                         {% empty %}<p class="muted">Sin estados registrados.</p>{% endfor %}
                     </div>
                 </section>

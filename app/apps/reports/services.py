@@ -19,7 +19,7 @@ from .models import ReportDownload, ReportTemplateConfig
 REPORT_DEFINITIONS = {
     ReportDownload.TYPE_EXECUTIVE: {
         "title": "Reporte ejecutivo",
-        "subtitle": "Resumen general de inventario, fuentes, controles y puntos de atencion.",
+        "subtitle": "Resumen general de inventario, fuentes, controles y estado operativo.",
         "filename_prefix": "reporte-ejecutivo",
         "accent": "#22c55e",
         "code": "PR",
@@ -56,7 +56,7 @@ REPORT_DEFINITIONS = {
 
 REPORT_SECTION_CHOICES = {
     ReportDownload.TYPE_EXECUTIVE: [
-        ("indicators", "Indicadores principales", "Casos, fuentes, controles y puntos de atencion."),
+        ("indicators", "Indicadores principales", "Casos, fuentes, controles y estado operativo."),
         ("severity", "Distribucion por severidad", "Resumen por criticidad."),
         ("status", "Distribucion por estado", "Resumen por estado del inventario."),
         ("sources", "Fuentes principales", "Fuentes mas utilizadas."),
@@ -209,7 +209,6 @@ def _executive_sections(request):
                 ["Casos habilitados", ctx["enabled_cases"]],
                 ["Fuentes activas", f'{ctx["active_sources"]} / {ctx["total_sources"]}'],
                 ["Controles en producción", f'{ctx["production_controls"]} / {ctx["total_controls"]}'],
-                ["Puntos de atencion", ctx["attention_total"]],
             ],
             "widths": [260, 120],
         },
