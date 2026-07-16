@@ -1,10 +1,14 @@
 .env
+.env.*
+!.env.example
 __pycache__/
 *.py[cod]
 *$py.class
 
 .venv/
 venv/
+.idea/
+.vscode/
 
 staticfiles/
 media/
@@ -17,6 +21,25 @@ app/logs/*
 .pytest_cache/
 .coverage
 htmlcov/
+
+tmp/
+outputs/
+*.tmp
+*.bak
+*.backup
+*.orig
+*.sqlite3
+*.dump
+
+*.csv
+*.tsv
+*.xls
+*.xlsx
+*.xlsm
+*.ods
+*.pdf
+*.docx
+*.pptx
 
 soc-control-manager-django-master/
 visual-artifacts/
