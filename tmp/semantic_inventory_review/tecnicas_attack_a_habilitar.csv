@@ -1,0 +1,13 @@
+﻿attack_id,attack_name,cantidad_casos,filas,casos
+T1046,Network Service Discovery,11,6; 8; 10; 14; 15; 19; 57; 63; 65; 66; 73,[AUT][Public IP]CU115_Multiples_Detections_IPS_Checkpoint; [AUT][Public IP]CU129_Checkpoint_IPS_Detections_with_IOC; [AUT][Public IP]CU137_Checkpoint_Drop-Detect-ips_conection_with_IOC; CU005_Vertical_Port_Scan; CU006_Horizontal_Port_Scan; CU056_Multiple_critical_port_scan; CU128_FW_Forbidden_Connections_From_DMZ; CU136_NDR_single_source_multiple_destination; CU141_NDR_Critical_Severity_Events_Detected; CU142_NDR_detection_in_DCs; CU149_NDR_port_scan
+T1059.004,Unix Shell,4,5; 7; 61; 62,[AUT][Public IP]CU105_Waf_Try_path_exec_Alert; [AUT][Public IP]CU120_WAF_Detection_Bash_Usage_F5_SDK_URLs; CU134_Chroot_Command_Execution; CU135_Weblogic_exploit
+T1070,Indicator Removal,1,42,CU107_Abnormal_System_Time_Change
+T1098.004,SSH Authorized Keys,1,44,CU109_Unauthorized _modification_authorized_keys _file
+T1218,System Binary Proxy Execution,1,47,CU112_Suspicious_Regsvr32_Execution
+T1484.001,Group Policy Modification,1,40,CU104_Domain_or_Tenant_Policy_Modification
+T1489,Service Stop,2,37; 38,CU098_Detection_Usage_SC_NET_Multiple_Services_Processes; CU099_Detection_Usage_TASKKILL_Multiple_Processes
+T1555.004,Windows Credential Manager,1,16,CU025_DPAPI_attributes_accessed
+T1565,Data Manipulation,1,32,CU090_SWIFT Integrity Compromised
+T1595,Active Scanning,10,4; 6; 8; 10; 14; 15; 19; 63; 64; 73,[AUT][Public IP]CU103_Multiple_rsp_codes_4xx_5xx; [AUT][Public IP]CU115_Multiples_Detections_IPS_Checkpoint; [AUT][Public IP]CU129_Checkpoint_IPS_Detections_with_IOC; [AUT][Public IP]CU137_Checkpoint_Drop-Detect-ips_conection_with_IOC; CU005_Vertical_Port_Scan; CU006_Horizontal_Port_Scan; CU056_Multiple_critical_port_scan; CU136_NDR_single_source_multiple_destination; CU140_NDR_multiple_source_to_single_destination; CU149_NDR_port_scan
+T1595.001,Scanning IP Blocks,2,9; 63,[AUT][Public IP]CU131_Abnormal_UserAgent_Detection; CU136_NDR_single_source_multiple_destination
+T1595.002,Vulnerability Scanning,5,3; 4; 11; 12; 74,[AUT][Public IP]CU102_WAF_Successful_Connection_from_Alerted-IOC_IP; [AUT][Public IP]CU103_Multiple_rsp_codes_4xx_5xx; [AUT][Public IP]CU138_F5_iControl_REST_Suspicious_Access; [AUT][Public IP]CU139_CHECKPOINT_iControl_REST_Suspicious_Access; CU150_Tenable_Alert

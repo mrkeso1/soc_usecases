@@ -2,6 +2,7 @@ import csv
 import hashlib
 import re
 from io import StringIO
+from urllib.parse import urljoin
 
 import requests
 from django.core.management.base import BaseCommand
@@ -11,7 +12,9 @@ from apps.mitre.attack_ids import resolve_attack_from_lookup
 from apps.mitre.models import D3Fend, D3FendAttackRelationOverride, MitreAttack
 
 
-D3FEND_CSV_URL = "https://d3fend.mitre.org/ontologies/d3fend/1.4.0/d3fend.csv"
+D3FEND_ONTOLOGY_BASE_URL = "https://d3fend.mitre.org/ontologies/d3fend/"
+D3FEND_FALLBACK_VERSION = "1.4.0"
+D3FEND_CSV_URL = f"{D3FEND_ONTOLOGY_BASE_URL}{D3FEND_FALLBACK_VERSION}/d3fend.csv"
 D3FEND_ATTACK_MAPPINGS_URL = "https://d3fend.mitre.org/api/ontology/inference/d3fend-full-mappings.csv"
 
 ATTACK_ID_RE = re.compile(r"\bT\d{4}(?:\.\d{3})?\b", re.IGNORECASE)
@@ -107,6 +110,53 @@ def _catalog_rows_from_csv(content: str) -> list[dict]:
     return list(csv.DictReader(StringIO(content)))
 
 
+def _version_key(version: str) -> tuple:
+    parts = re.findall(r"\d+", str(version or ""))
+    return tuple(int(part) for part in parts)
+
+
+def resolve_latest_d3fend_version(index_url: str = D3FEND_ONTOLOGY_BASE_URL, timeout: int = 30) -> str:
+    response = requests.get(index_url, timeout=timeout)
+    response.raise_for_status()
+    versions = sorted(
+        {
+            value.strip("/")
+            for value in re.findall(r"href=[\"']([^\"']+/)[\"']", response.text or "")
+            if re.fullmatch(r"\d+(?:\.\d+)+/?", value)
+        },
+        key=_version_key,
+    )
+    if not versions:
+        raise ValueError("No se pudo resolver la ultima version D3FEND desde el indice oficial.")
+    return versions[-1]
+
+
+def build_d3fend_catalog_url(
+    *,
+    catalog_url: str = "",
+    catalog_base_url: str = D3FEND_ONTOLOGY_BASE_URL,
+    catalog_version: str = "",
+    timeout: int = 30,
+) -> tuple[str, str]:
+    catalog_url = str(catalog_url or "").strip()
+    if catalog_url:
+        match = re.search(r"/d3fend/([^/]+)/d3fend\.csv", catalog_url)
+        return catalog_url, match.group(1) if match else ""
+
+    catalog_base_url = str(catalog_base_url or D3FEND_ONTOLOGY_BASE_URL).strip()
+    if not catalog_base_url.endswith("/"):
+        catalog_base_url += "/"
+
+    catalog_version = str(catalog_version or "").strip()
+    if catalog_version.casefold() in {"", "latest", "auto"}:
+        try:
+            catalog_version = resolve_latest_d3fend_version(catalog_base_url, timeout=timeout)
+        except Exception:
+            catalog_version = D3FEND_FALLBACK_VERSION
+
+    return urljoin(catalog_base_url, f"{catalog_version}/d3fend.csv"), catalog_version
+
+
 class Command(BaseCommand):
     help = "Carga D3FEND y sincroniza relaciones D3FEND→ATT&CK usando fuentes oficiales"
 
@@ -118,8 +168,19 @@ class Command(BaseCommand):
         )
         parser.add_argument(
             "--url",
-            default=D3FEND_CSV_URL,
+            default="",
             help="URL del CSV oficial de D3FEND.",
+        )
+        parser.add_argument(
+            "--base-url",
+            default=D3FEND_ONTOLOGY_BASE_URL,
+            help="URL base donde se publican las versiones del catalogo D3FEND.",
+        )
+        parser.add_argument(
+            "--d3fend-version",
+            dest="d3fend_version",
+            default="latest",
+            help="Version D3FEND a usar, o 'latest' para resolver la ultima disponible.",
         )
         parser.add_argument(
             "--skip-catalog",
@@ -206,6 +267,8 @@ class Command(BaseCommand):
             "Technique",
             "technique",
             "D3FEND Technique",
+            "D3FEND Technique Level 1",
+            "D3FEND Technique Level 0",
             "D3FEND Technique Name",
             "label",
             "Label",
@@ -230,6 +293,7 @@ class Command(BaseCommand):
         return _first_value(row, [
             "Tactic",
             "tactic",
+            "D3FEND Tactic",
             "Category",
             "category",
             "Type",
@@ -330,8 +394,13 @@ class Command(BaseCommand):
         Usar --all para conservar también hardening/deception/eviction/etc.
         """
         load_all = options.get("all", False)
-        url = options.get("url") or D3FEND_CSV_URL
+        url, resolved_version = build_d3fend_catalog_url(
+            catalog_url=options.get("url") or "",
+            catalog_base_url=options.get("base_url") or D3FEND_ONTOLOGY_BASE_URL,
+            catalog_version=options.get("d3fend_version") or "latest",
+        )
 
+        self.stdout.write(f"Version D3FEND resuelta: {resolved_version or 'personalizada'}")
         self.stdout.write(f"Descargando catálogo D3FEND desde: {url}")
 
         response = requests.get(url, timeout=120)

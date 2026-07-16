@@ -1,0 +1,10 @@
+{
+  "rows": 74,
+  "attack_changed": 53,
+  "d3fend_changed": 74,
+  "exclusions_changed": 50,
+  "rows_with_disabled_attack": 30,
+  "rows_with_semantic_d3_not_auto": 63,
+  "corrected_csv": "C:\\Users\\Keso\\PycharmProjects\\soc_usecases\\tmp\\semantic_inventory_review\\inventario_casos_uso_completo_CORREGIDO.csv",
+  "audit_csv": "C:\\Users\\Keso\\PycharmProjects\\soc_usecases\\tmp\\semantic_inventory_review\\auditoria_correccion_mitre_d3fend.csv"
+}

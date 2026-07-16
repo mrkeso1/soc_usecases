@@ -701,6 +701,8 @@ def import_usecases_csv(request):
     warning_count = 0
     attack_assigned_count = 0
     d3fend_exclusion_count = 0
+    d3fend_no_mapping_count = 0
+    d3fend_all_excluded_count = 0
     sources_created_count = 0
 
     try:
@@ -766,11 +768,10 @@ def import_usecases_csv(request):
                 d3fend_exclusion_count += len(d3fend_exclusions)
                 instance.sync_d3fends_from_attacks()
                 if attack_objects and not instance.d3fends.exists():
-                    warning_count += 1
-                    output_lines.append(
-                        f"Fila {row_num}: ATT&CK cargado, pero no se infirio D3FEND. "
-                        "Revisa el sync MITRE/D3FEND o las exclusiones manuales."
-                    )
+                    if instance.base_inferred_d3fends_queryset().exists():
+                        d3fend_all_excluded_count += 1
+                    else:
+                        d3fend_no_mapping_count += 1
 
                 if sources_raw == "":
                     instance.source_links.all().delete()
@@ -809,6 +810,8 @@ def import_usecases_csv(request):
         f"Advertencias: {warning_count}",
         f"MITRE asociados: {attack_assigned_count}",
         f"D3FEND excluidos: {d3fend_exclusion_count}",
+        f"Casos sin mapping D3FEND oficial: {d3fend_no_mapping_count}",
+        f"Casos con D3FEND oficial totalmente excluido: {d3fend_all_excluded_count}",
         f"Fuentes creadas: {sources_created_count}",
     ])
     request.session["last_usecase_import_output"] = _format_import_lines(output_lines)

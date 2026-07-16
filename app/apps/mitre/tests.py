@@ -16,7 +16,10 @@ from apps.mitre.mitre_sync import (
     load_mitre_attack_data,
     run_scheduled_mitre_attack_sync,
 )
-from apps.mitre.management.commands.load_d3fend import Command as LoadD3FendCommand
+from apps.mitre.management.commands.load_d3fend import (
+    Command as LoadD3FendCommand,
+    build_d3fend_catalog_url,
+)
 from apps.mitre.models import (
     CoverageOverride,
     D3Fend,
@@ -80,6 +83,32 @@ class MitreAttackSyncTests(TestCase):
         self.assertEqual(resolved_count, 0)
         self.assertGreater(skipped_not_detect, 0)
         self.assertFalse(D3Fend.objects.filter(code__iexact="D3-NI").exists())
+
+    def test_d3fend_catalog_extracts_official_level_columns(self):
+        row = {
+            "ID": "D3-ANET",
+            "D3FEND Tactic": "Detect",
+            "D3FEND Technique": "",
+            "D3FEND Technique Level 0": "Authentication Event Thresholding",
+            "D3FEND Technique Level 1": "",
+            "Definition": "Collecting authentication events and building a baseline.",
+        }
+        command = LoadD3FendCommand()
+
+        self.assertEqual(command._extract_official_code(row), "D3-ANET")
+        self.assertEqual(command._extract_name(row), "Authentication Event Thresholding")
+        self.assertEqual(command._extract_category(row), "Detect")
+        self.assertEqual(command._extract_description(row), "Collecting authentication events and building a baseline.")
+
+    def test_d3fend_catalog_url_resolves_latest_version(self):
+        with patch(
+            "apps.mitre.management.commands.load_d3fend.resolve_latest_d3fend_version",
+            return_value="1.5.0",
+        ):
+            url, version = build_d3fend_catalog_url(catalog_version="latest")
+
+        self.assertEqual(version, "1.5.0")
+        self.assertEqual(url, "https://d3fend.mitre.org/ontologies/d3fend/1.5.0/d3fend.csv")
 
     def test_d3fend_mapping_respects_relation_override_exclusion(self):
         attack = MitreAttack.objects.create(external_id="T1001", name="Data Obfuscation")
@@ -170,6 +199,32 @@ class MitreAttackSyncTests(TestCase):
         self.assertEqual(MitreAttack.objects.get(external_id="T1059").name, "Command and Scripting Interpreter")
         self.assertEqual(MitreAttack.objects.get(external_id="T1078").tactic, "Defense Evasion")
 
+    def test_load_mitre_attack_data_disables_revoked_catalog_entries(self):
+        revoked = MitreAttack.objects.create(external_id="T1562", name="Impair Defenses", is_enabled=True)
+        data = {
+            "objects": [
+                {
+                    "type": "attack-pattern",
+                    "name": "Command and Scripting Interpreter",
+                    "external_references": [{"source_name": "mitre-attack", "external_id": "T1059"}],
+                    "kill_chain_phases": [{"kill_chain_name": "mitre-attack", "phase_name": "execution"}],
+                },
+                {
+                    "type": "attack-pattern",
+                    "name": "Impair Defenses",
+                    "revoked": True,
+                    "external_references": [{"source_name": "mitre-attack", "external_id": "T1562"}],
+                },
+            ]
+        }
+
+        result = load_mitre_attack_data(data)
+
+        revoked.refresh_from_db()
+        self.assertFalse(revoked.is_enabled)
+        self.assertIn("revocada o deprecada", revoked.disabled_reason)
+        self.assertEqual(result.skipped, 1)
+
     def test_scheduled_sync_skips_until_interval_is_due(self):
         settings = MitreAttackSyncSettings.objects.create(
             name="Hourly",
@@ -248,9 +303,26 @@ class MitreAttackSyncTests(TestCase):
         self.assertEqual(
             calls,
             [
-                ("load_d3fend", "--disable-non-detect"),
+                (
+                    "load_d3fend",
+                    "--all",
+                    "--disable-non-detect",
+                    "--base-url",
+                    "https://d3fend.mitre.org/ontologies/d3fend/",
+                    "--d3fend-version",
+                    "latest",
+                ),
                 ("normalize_d3fend_codes",),
-                ("load_d3fend", "--mappings-only", "--disable-non-detect"),
+                (
+                    "load_d3fend",
+                    "--mappings-only",
+                    "--all",
+                    "--disable-non-detect",
+                    "--base-url",
+                    "https://d3fend.mitre.org/ontologies/d3fend/",
+                    "--d3fend-version",
+                    "latest",
+                ),
                 ("sync_usecase_d3fends",),
             ],
         )

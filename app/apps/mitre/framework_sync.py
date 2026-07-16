@@ -82,16 +82,27 @@ def run_scheduled_security_frameworks_sync(
         d3fend_normalize_output = ""
         d3fend_mapping_output = ""
         usecase_sync_output = ""
+        d3fend_source_args = [
+            "--all",
+            "--disable-non-detect",
+            "--base-url",
+            getattr(settings, "d3fend_catalog_base_url", "") or "https://d3fend.mitre.org/ontologies/d3fend/",
+            "--d3fend-version",
+            getattr(settings, "d3fend_catalog_version", "") or "latest",
+        ]
+        d3fend_catalog_url = (getattr(settings, "d3fend_catalog_url", "") or "").strip()
+        if d3fend_catalog_url:
+            d3fend_source_args.extend(["--url", d3fend_catalog_url])
 
         logger.info("framework_sync_stage_start stage=d3fend_load")
-        d3fend_load_output = _run_command_capture("load_d3fend", "--disable-non-detect")
+        d3fend_load_output = _run_command_capture("load_d3fend", *d3fend_source_args)
 
         if not skip_normalize:
             logger.info("framework_sync_stage_start stage=d3fend_normalize")
             d3fend_normalize_output = _run_command_capture("normalize_d3fend_codes", sleep=0)
 
             logger.info("framework_sync_stage_start stage=d3fend_mappings_refresh")
-            d3fend_mapping_output = _run_command_capture("load_d3fend", "--mappings-only", "--disable-non-detect")
+            d3fend_mapping_output = _run_command_capture("load_d3fend", "--mappings-only", *d3fend_source_args)
 
         if not skip_usecases:
             logger.info("framework_sync_stage_start stage=usecase_d3fend_sync")

@@ -381,6 +381,44 @@ class UseCasePermissionTests(TestCase):
         self.assertTrue(EventSource.objects.filter(code="SRC-CSV", name="CSV Source").exists())
         self.assertEqual(list(imported.source_links.values_list("source__code", flat=True)), ["SRC-CSV"])
 
+    def test_full_inventory_csv_ignores_d3fend_inferred_column(self):
+        curated = D3Fend.objects.create(code="D3-NTSA", name="Network Traffic Signature Analysis")
+        official = D3Fend.objects.create(code="D3-PSEP", name="Process Spawn Analysis")
+        official.related_attacks.add(self.attack)
+        buffer = StringIO()
+        writer = csv.writer(buffer)
+        writer.writerow([
+            "IDENTIFICADOR",
+            "NOMBRE NETWITNESS",
+            "status2",
+            "MITRE ATT&CK",
+            "D3FEND_INFERIDO",
+        ])
+        writer.writerow([
+            "CSV-002",
+            "Imported curated D3FEND case",
+            "Produccion",
+            "T1059 - Command and Scripting Interpreter",
+            "D3-NTSA - Network Traffic Signature Analysis",
+        ])
+        upload = SimpleUploadedFile(
+            "inventario.csv",
+            buffer.getvalue().encode("utf-8-sig"),
+            content_type="text/csv",
+        )
+        self.client.login(username="analyst", password="pass")
+
+        response = self.client.post(reverse("import_usecases_csv"), {"csv_file": upload})
+
+        self.assertEqual(response.status_code, 302)
+        imported = UseCase.objects.get(case_code="CSV-002")
+        self.assertEqual(list(imported.mitre_attacks.values_list("external_id", flat=True)), ["T1059"])
+        self.assertEqual(list(imported.d3fends.values_list("code", flat=True)), [official.code])
+        self.assertNotIn(curated, imported.d3fends.all())
+        output = self.client.session.get("last_usecase_import_output", "")
+        self.assertNotIn("D3FEND curados desde CSV", output)
+        self.assertNotIn("no se infirio D3FEND", output)
+
     def test_analyst_can_import_usecases_excel(self):
         d3fend = D3Fend.objects.create(code="D3-PSEP", name="Process Spawn Analysis")
         d3fend.related_attacks.add(self.attack)

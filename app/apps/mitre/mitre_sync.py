@@ -41,29 +41,48 @@ def load_mitre_attack_data(data: dict) -> MitreAttackSyncResult:
     created = 0
     updated = 0
     skipped = 0
+    active_ids = set()
+    inactive_ids = set()
 
     for obj in data.get("objects", []):
         if obj.get("type") != "attack-pattern":
             continue
-        if obj.get("revoked") is True or obj.get("x_mitre_deprecated") is True:
-            continue
-
         attack_id = _attack_external_id(obj)
         if not attack_id:
             skipped += 1
             continue
+        if obj.get("revoked") is True or obj.get("x_mitre_deprecated") is True:
+            inactive_ids.add(attack_id)
+            continue
+
+        active_ids.add(attack_id)
 
         _, was_created = MitreAttack.objects.update_or_create(
             external_id=attack_id,
             defaults={
                 "name": obj.get("name", "").strip(),
                 "tactic": _attack_tactics(obj),
+                "is_enabled": True,
+                "disabled_reason": "",
             },
         )
         if was_created:
             created += 1
         else:
             updated += 1
+
+    if not active_ids:
+        raise ValueError("El dataset MITRE ATT&CK no contiene tecnicas activas para sincronizar.")
+
+    disabled_inactive = MitreAttack.objects.filter(external_id__in=inactive_ids).update(
+        is_enabled=False,
+        disabled_reason="Deshabilitada automaticamente: tecnica revocada o deprecada en el STIX oficial MITRE ATT&CK Enterprise.",
+    )
+    disabled_removed = MitreAttack.objects.exclude(external_id__in=active_ids | inactive_ids).update(
+        is_enabled=False,
+        disabled_reason="Deshabilitada automaticamente: no aparece como tecnica activa en el STIX oficial MITRE ATT&CK Enterprise.",
+    )
+    skipped += disabled_removed + disabled_inactive
 
     result = MitreAttackSyncResult(
         created=created,

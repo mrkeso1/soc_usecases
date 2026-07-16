@@ -298,6 +298,27 @@ class MitreAttackSyncSettings(SingleActiveSettingsMixin):
     name = models.CharField(max_length=100, default="Sincronizacion MITRE principal", unique=True)
     interval_value = models.PositiveIntegerField("Intervalo", default=24)
     interval_unit = models.CharField("Unidad", max_length=10, choices=UNIT_CHOICES, default=UNIT_HOURS)
+    d3fend_catalog_base_url = models.URLField(
+        "URL base catalogo D3FEND",
+        max_length=500,
+        blank=True,
+        default="https://d3fend.mitre.org/ontologies/d3fend/",
+        help_text="Indice oficial donde MITRE publica las versiones del catalogo D3FEND.",
+    )
+    d3fend_catalog_version = models.CharField(
+        "Version catalogo D3FEND",
+        max_length=40,
+        blank=True,
+        default="latest",
+        help_text="Usa 'latest' para resolver automaticamente la ultima version publicada.",
+    )
+    d3fend_catalog_url = models.URLField(
+        "URL CSV catalogo D3FEND",
+        max_length=500,
+        blank=True,
+        default="",
+        help_text="Opcional. Si se completa, se usa esta URL exacta y no se resuelve version.",
+    )
     last_run_at = models.DateTimeField("Última ejecución", null=True, blank=True)
     last_success_at = models.DateTimeField("Última ejecución OK", null=True, blank=True)
     last_status = models.CharField("Ultimo estado", max_length=20, choices=STATUS_CHOICES, default=STATUS_NEVER)

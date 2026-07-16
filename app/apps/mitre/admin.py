@@ -179,6 +179,13 @@ class MitreAttackSyncSettingsAdmin(admin.ModelAdmin):
                 "si ya corresponde sincronizar ATT&CK, D3FEND, mappings y casos."
             ),
         }),
+        ("Fuente D3FEND", {
+            "fields": ("d3fend_catalog_base_url", "d3fend_catalog_version", "d3fend_catalog_url"),
+            "description": (
+                "Usa version 'latest' para resolver automaticamente la ultima version oficial. "
+                "Completa URL CSV solo si queres fijar una fuente exacta."
+            ),
+        }),
         ("Ultima ejecucion", {
             "fields": (
                 "last_status",

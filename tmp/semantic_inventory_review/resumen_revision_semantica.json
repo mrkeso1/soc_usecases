@@ -1,0 +1,10 @@
+{
+  "filas": 74,
+  "ok": 19,
+  "ajustar": 45,
+  "revisar": 10,
+  "cambia_attack": 53,
+  "cambia_d3fend": 74,
+  "review": "C:\\Users\\Keso\\PycharmProjects\\soc_usecases\\tmp\\semantic_inventory_review\\reporte_revision_semantica.csv",
+  "proposal": "C:\\Users\\Keso\\PycharmProjects\\soc_usecases\\tmp\\semantic_inventory_review\\inventario_revision_semantica_propuesta.csv"
+}
