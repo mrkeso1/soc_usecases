@@ -9,10 +9,27 @@ from .coverage_overrides import (
 )
 from apps.usecases.models import UseCase
 
-from .models import CoverageOverride, MitreAttack
+from .models import CoverageOverride, MitreAttack, MitreAttackTactic
 
 
 PRODUCTION_STATUS = UseCase.STATUS_PRODUCTION
+
+TACTIC_NAMES_ES = {
+    "Reconnaissance": "Reconocimiento",
+    "Resource Development": "Desarrollo de recursos",
+    "Initial Access": "Acceso inicial",
+    "Execution": "Ejecución",
+    "Persistence": "Persistencia",
+    "Privilege Escalation": "Escalada de privilegios",
+    "Defense Evasion": "Evasión de defensas",
+    "Credential Access": "Acceso a credenciales",
+    "Discovery": "Descubrimiento",
+    "Lateral Movement": "Movimiento lateral",
+    "Collection": "Recolección",
+    "Command And Control": "Comando y control",
+    "Exfiltration": "Exfiltración",
+    "Impact": "Impacto",
+}
 
 
 def _safe_percent(part: int, total: int) -> float:
@@ -83,6 +100,10 @@ def build_attack_matrix_context(request):
     )
 
     overrides = get_override_map(CoverageOverride.FRAMEWORK_ATTACK)
+    tactic_details = {
+        tactic.name: tactic
+        for tactic in MitreAttackTactic.objects.only("external_id", "name", "description", "translated_description")
+    }
 
     # We load every ATT&CK row. The effective state is resolved through the
     # override layer, so an item disabled in the catalog can still be explicitly
@@ -152,6 +173,9 @@ def build_attack_matrix_context(request):
                 "id": attack.id,
                 "external_id": attack.external_id,
                 "name": attack.name,
+                "description": attack.translated_description or attack.description,
+                "original_description": attack.description,
+                "translated_description": attack.translated_description,
                 "covered": covered,
                 "manual_fulfilled": manually_fulfilled,
                 "coverage_source": coverage_source,
@@ -197,8 +221,14 @@ def build_attack_matrix_context(request):
             status = "empty"
             empty_tactics += 1
 
+        tactic_detail = tactic_details.get(tactic)
         rows.append({
             "name": tactic,
+            "display_name": TACTIC_NAMES_ES.get(tactic, tactic),
+            "external_id": tactic_detail.external_id if tactic_detail else "",
+            "description": (tactic_detail.translated_description or tactic_detail.description) if tactic_detail else "",
+            "original_description": tactic_detail.description if tactic_detail else "",
+            "translated_description": tactic_detail.translated_description if tactic_detail else "",
             "techniques": techniques,
             "covered_techniques": covered_count,
             "total_techniques": total_count,

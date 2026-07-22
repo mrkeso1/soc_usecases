@@ -1,7 +1,7 @@
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.db.models import Q
-from django.http import HttpResponseForbidden, JsonResponse
+from django.http import HttpResponse, HttpResponseForbidden, JsonResponse
 from django.shortcuts import redirect, render
 from django.urls import reverse
 
@@ -10,6 +10,7 @@ from apps.mitre.coverage_admin import build_coverage_admin_context
 from apps.mitre.coverage_overrides import update_coverage_override_from_post
 from apps.mitre.d3fend_matrix import build_d3fend_matrix_context
 from .models import D3Fend, MitreAttack
+from .translation_catalog import export_translation_catalog, import_translation_catalog
 from apps.usecases.permissions import can_access_usecases, can_manage_usecases
 from apps.usecases.models import UseCase
 
@@ -20,14 +21,52 @@ _FORBIDDEN_MSG = "No tenes permisos para acceder a esta seccion."
 def attack_matrix_view(request):
     if not can_access_usecases(request.user):
         return HttpResponseForbidden(_FORBIDDEN_MSG)
-    return render(request, "usecases/attack_matrix.html", build_attack_matrix_context(request))
+    context = build_attack_matrix_context(request)
+    context["can_manage_mitre"] = can_manage_usecases(request.user, None)
+    return render(request, "usecases/attack_matrix.html", context)
 
 
 @login_required
 def d3fend_matrix_view(request):
     if not can_access_usecases(request.user):
         return HttpResponseForbidden(_FORBIDDEN_MSG)
-    return render(request, "usecases/d3fend_matrix.html", build_d3fend_matrix_context(request))
+    context = build_d3fend_matrix_context(request)
+    context["can_manage_mitre"] = can_manage_usecases(request.user, None)
+    return render(request, "usecases/d3fend_matrix.html", context)
+
+
+@login_required
+def translation_catalog_export(request):
+    if not can_access_usecases(request.user):
+        return HttpResponseForbidden(_FORBIDDEN_MSG)
+    response = HttpResponse("\ufeff" + export_translation_catalog(), content_type="text/csv; charset=utf-8")
+    response["Content-Disposition"] = 'attachment; filename="mitre_descripciones_castellano.csv"'
+    return response
+
+
+@login_required
+def translation_catalog_import(request):
+    if request.method != "POST":
+        return redirect("attack_matrix")
+    if not can_manage_usecases(request.user, None):
+        return HttpResponseForbidden(_FORBIDDEN_MSG)
+    next_view = request.POST.get("next")
+    next_view = next_view if next_view in {"attack_matrix", "d3fend_matrix"} else "attack_matrix"
+    uploaded_file = request.FILES.get("translation_file")
+    if not uploaded_file:
+        messages.error(request, "Seleccioná el catálogo CSV traducido.")
+        return redirect(next_view)
+    try:
+        result = import_translation_catalog(uploaded_file)
+    except ValueError as exc:
+        messages.error(request, str(exc))
+    else:
+        messages.success(
+            request,
+            f"Traducciones importadas: {result.updated} actualizadas, "
+            f"{result.unchanged} sin cambios y {result.unknown} IDs desconocidos.",
+        )
+    return redirect(next_view)
 
 
 @login_required

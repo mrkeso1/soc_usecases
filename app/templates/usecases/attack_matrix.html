@@ -9,6 +9,8 @@
     .page-title { font-size:clamp(1.45rem, 2.2vw, 2rem); color:var(--text-strong); margin:4px 0; line-height:1.08; }
     .page-subtitle { color:var(--text-muted); max-width:900px; line-height:1.5; }
     .page-actions { display:flex; gap:8px; flex-wrap:wrap; justify-content:flex-end; }
+    .translation-upload { display:inline-flex; }
+    .translation-upload input { position:absolute; width:1px; height:1px; opacity:0; pointer-events:none; }
 
     .summary-strip { display:grid; grid-template-columns:repeat(7, minmax(140px, 1fr)); gap:10px; margin:18px 0 20px; }
     .summary-card { background:var(--surface); border:1px solid var(--border); border-radius:14px; padding:14px; min-width:0; }
@@ -85,6 +87,8 @@
             <p class="page-subtitle">Calcula cuánto de cada táctica ATT&CK está cubierto por casos productivos habilitados y por coberturas externas administradas manualmente.</p>
         </div>
         <div class="page-actions">
+            <a class="btn-secondary" href="{% url 'mitre_translation_export' %}">Descargar traducciones</a>
+            {% if can_manage_mitre %}<form class="translation-upload" method="post" action="{% url 'mitre_translation_import' %}" enctype="multipart/form-data">{% csrf_token %}<input type="hidden" name="next" value="attack_matrix"><label class="btn-secondary" for="attack-translation-file">Subir traducciones</label><input id="attack-translation-file" name="translation_file" type="file" accept=".csv,text/csv" onchange="this.form.submit()"></form>{% endif %}
             <a class="btn-secondary" href="{% url 'd3fend_matrix' %}">Ver D3FEND</a>
             <a class="btn-secondary" href="{% url 'coverage_admin' %}?tab=ATTACK&scope=technique">Admin cobertura</a>
         </div>
@@ -148,6 +152,7 @@
         <span><strong>Verde:</strong> cubierta por al menos un caso productivo.</span>
         <span><strong>Azul:</strong> cumplida por herramienta o por táctica administrada.</span>
         <span><strong>Rojo:</strong> sin caso productivo ni cobertura externa.</span>
+        <span><strong>Clic derecho:</strong> ver descripción y contexto MITRE.</span>
     </div>
 
     <div class="matrix-wrap">
@@ -173,7 +178,7 @@
                                 {% else %}
                                     <span class="status-chip bad">Sin cobertura</span>
                                 {% endif %}
-                                <div class="entity-name">{{ row.name }}</div>
+                                <div class="entity-name mitre-context-target" tabindex="0" data-context-kind="Táctica ATT&amp;CK{% if row.external_id %} · {{ row.external_id }}{% endif %}" data-context-title="{{ row.display_name }}" data-context-description="{{ row.description }}" data-context-original="{{ row.original_description }}" data-context-translation="{{ row.translated_description }}">{{ row.display_name }}</div>
                                 <div class="entity-meta">{{ row.covered_subtechnique_count }}/{{ row.subtechnique_count }} subtécnicas cubiertas</div>
                             </td>
                             <td class="coverage-cell">
@@ -190,7 +195,7 @@
                             <td>
                                 <div class="chip-grid">
                                     {% for technique in row.techniques %}
-                                        <a class="matrix-chip {% if technique.manual_fulfilled %}fulfilled{% elif technique.covered %}covered{% else %}missing{% endif %}" href="{% url 'usecase_list' %}?mitre_id={{ technique.id }}" title="{{ technique.external_id }} - {{ technique.name }}{% if technique.production_cases_count %} · {{ technique.production_cases_count }} caso(s){% endif %}{% if technique.coverage_label %} · {{ technique.coverage_label }}{% endif %}{% if technique.coverage_note %}: {{ technique.coverage_note }}{% endif %}">
+                                        <a class="matrix-chip mitre-context-target {% if technique.manual_fulfilled %}fulfilled{% elif technique.covered %}covered{% else %}missing{% endif %}" data-context-kind="{% if technique.is_subtechnique %}Subtécnica{% else %}Técnica{% endif %} ATT&amp;CK · {{ technique.external_id }}" data-context-title="{{ technique.name }}" data-context-description="{{ technique.description }}" data-context-original="{{ technique.original_description }}" data-context-translation="{{ technique.translated_description }}" href="{% url 'usecase_list' %}?mitre_id={{ technique.id }}" title="{{ technique.external_id }} - {{ technique.name }}{% if technique.production_cases_count %} · {{ technique.production_cases_count }} caso(s){% endif %}{% if technique.coverage_label %} · {{ technique.coverage_label }}{% endif %}{% if technique.coverage_note %}: {{ technique.coverage_note }}{% endif %}">
                                             {{ technique.external_id }} · {{ technique.name }}
                                         </a>
                                     {% endfor %}
@@ -205,4 +210,5 @@
         {% endif %}
     </div>
 </div>
+{% include "includes/mitre_context_card.html" %}
 {% endblock %}

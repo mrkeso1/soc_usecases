@@ -8,10 +8,45 @@ from apps.usecases.models import UseCase
 
 from .forms import EventSourceForm, SourceCategoryForm, SourceSubcategoryForm, SourceTypeForm
 from .matching import resolve_event_source, sync_usecase_sources
-from .models import EventSource, SourceAlias, SourceCategory, SourceType
+from .models import EventSource, SourceAlias, SourceCategory, SourceDeliveryMethod, SourceType
 
 
 class SourceTaxonomyTests(TestCase):
+    def test_source_list_filters_each_ingestion_field(self):
+        admin_group = Group.objects.create(name="Admin")
+        user = get_user_model().objects.create_user("source-filter-admin", password="pass")
+        user.groups.add(admin_group)
+        syslog = SourceDeliveryMethod.objects.create(code="syslog_test", name="Syslog Test")
+        EventSource.objects.create(
+            name="Fuente coincidente",
+            delivery_method=syslog,
+            port=6514,
+            protocol="TCP/TLS",
+            service_account="svc_siem_prod",
+            host="logs.internal.example",
+        )
+        EventSource.objects.create(name="Fuente no coincidente", port=514, protocol="UDP", host="other.example")
+        self.client.login(username="source-filter-admin", password="pass")
+
+        response = self.client.get(reverse("source_list"), {
+            "delivery_method": syslog.pk,
+            "port": "6514",
+            "protocol": "TCP/TLS",
+            "service_account": "siem",
+            "host": "internal",
+        })
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual([item.name for item in response.context["sources"].object_list], ["Fuente coincidente"])
+        self.assertContains(response, "Método de envío")
+        self.assertContains(response, "Cuenta de servicio")
+        self.assertContains(response, "Host / endpoint")
+
+        sorted_response = self.client.get(reverse("source_list"), {"sort": "port", "direction": "desc"})
+        sorted_names = [item.name for item in sorted_response.context["sources"].object_list]
+        self.assertEqual(sorted_names[:2], ["Fuente coincidente", "Fuente no coincidente"])
+        self.assertContains(sorted_response, "direction=asc")
+
     def test_event_source_form_uses_managed_taxonomy(self):
         category, _ = SourceCategory.objects.get_or_create(name="Endpoint", parent=None)
         subcategory, _ = SourceCategory.objects.get_or_create(name="EDR", parent=category)

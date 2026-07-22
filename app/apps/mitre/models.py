@@ -11,6 +11,8 @@ class MitreAttack(models.Model):
     external_id = models.CharField("ID ATT&CK", max_length=20, unique=True)
     name = models.CharField("Nombre", max_length=255)
     tactic = models.CharField("Táctica", max_length=100, blank=True)
+    description = models.TextField("Descripción", blank=True, default="")
+    translated_description = models.TextField("Descripción en castellano", blank=True, default="")
     is_enabled = models.BooleanField("Habilitada", default=True)
     disabled_reason = models.TextField(
         "Motivo de deshabilitación",
@@ -67,6 +69,22 @@ class MitreAttack(models.Model):
         return ", ".join(values)
 
 
+class MitreAttackTactic(models.Model):
+    external_id = models.CharField("ID ATT&CK", max_length=20, unique=True)
+    short_name = models.CharField("Nombre corto", max_length=100, unique=True)
+    name = models.CharField("Nombre", max_length=255)
+    description = models.TextField("Descripción", blank=True, default="")
+    translated_description = models.TextField("Descripción en castellano", blank=True, default="")
+
+    class Meta:
+        ordering = ["external_id"]
+        verbose_name = "Táctica MITRE ATT&CK"
+        verbose_name_plural = "Tácticas MITRE ATT&CK"
+
+    def __str__(self):
+        return f"{self.external_id} - {self.name}"
+
+
 class D3Fend(models.Model):
     code = models.CharField("Código D3FEND", max_length=120, unique=True)
     name = models.CharField("Nombre", max_length=255, blank=True)
@@ -85,6 +103,12 @@ class D3Fend(models.Model):
         blank=True,
         default="",
         help_text="Descripción de la técnica D3FEND.",
+    )
+    translated_description = models.TextField(
+        "Descripción en castellano",
+        blank=True,
+        default="",
+        help_text="Traducción local importada. No es sobrescrita por la sincronización oficial.",
     )
     disabled_reason = models.TextField(
         "Motivo de deshabilitación",

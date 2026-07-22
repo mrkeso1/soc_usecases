@@ -9,6 +9,8 @@ from .views import (
     inferred_d3fends_for_attacks,
     mitre_attack_autocomplete,
     mitre_attack_subtechniques,
+    translation_catalog_export,
+    translation_catalog_import,
 )
 
 
@@ -21,4 +23,6 @@ urlpatterns = [
     path("autocomplete/mitre/subtechniques/", mitre_attack_subtechniques, name="mitre_attack_subtechniques"),
     path("autocomplete/d3fend/", d3fend_autocomplete, name="d3fend_autocomplete"),
     path("infer-d3fends/", inferred_d3fends_for_attacks, name="infer_d3fends_for_attacks"),
+    path("translations/export/", translation_catalog_export, name="mitre_translation_export"),
+    path("translations/import/", translation_catalog_import, name="mitre_translation_import"),
 ]

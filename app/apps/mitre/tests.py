@@ -4,6 +4,7 @@ from unittest.mock import patch
 
 from django.contrib.auth import get_user_model
 from django.core.management import call_command
+from django.core.files.uploadedfile import SimpleUploadedFile
 from django.test import RequestFactory, TestCase
 from django.urls import reverse
 from django.utils import timezone
@@ -26,10 +27,43 @@ from apps.mitre.models import (
     D3FendAttackRelationOverride,
     MitreAttack,
     MitreAttackSyncSettings,
+    MitreAttackTactic,
 )
+from apps.mitre.translation_catalog import export_translation_catalog, import_translation_catalog
 
 
 class MitreAttackSyncTests(TestCase):
+    def test_translation_catalog_updates_only_spanish_description(self):
+        attack = MitreAttack.objects.create(
+            external_id="T1114.001",
+            name="Local Email Collection",
+            description="Official English description.",
+        )
+        exported = export_translation_catalog()
+        translated = exported.replace(
+            "Official English description.;",
+            "Official English description.;Descripción oficial en castellano.",
+        )
+        uploaded = SimpleUploadedFile(
+            "mitre_descripciones_castellano.csv",
+            translated.encode("utf-8-sig"),
+            content_type="text/csv",
+        )
+
+        result = import_translation_catalog(uploaded)
+
+        attack.refresh_from_db()
+        self.assertEqual(result.updated, 1)
+        self.assertEqual(attack.description, "Official English description.")
+        self.assertEqual(attack.name, "Local Email Collection")
+        self.assertEqual(attack.translated_description, "Descripción oficial en castellano.")
+
+    def test_translation_catalog_rejects_changed_headers(self):
+        uploaded = SimpleUploadedFile("bad.csv", b"id;descripcion\nT1001;texto", content_type="text/csv")
+
+        with self.assertRaisesMessage(ValueError, "columnas"):
+            import_translation_catalog(uploaded)
+
     def test_attack_family_query_matches_exact_ids_only(self):
         parent = MitreAttack.objects.create(external_id="T1110", name="Brute Force")
         MitreAttack.objects.create(external_id="T1110.001", name="Password Guessing")
@@ -178,6 +212,7 @@ class MitreAttackSyncTests(TestCase):
                 {
                     "type": "attack-pattern",
                     "name": "Command and Scripting Interpreter",
+                    "description": "Adversaries may abuse command interpreters.",
                     "external_references": [{"source_name": "mitre-attack", "external_id": "T1059"}],
                     "kill_chain_phases": [{"kill_chain_name": "mitre-attack", "phase_name": "execution"}],
                 },
@@ -197,7 +232,35 @@ class MitreAttackSyncTests(TestCase):
         self.assertEqual(result.updated, 1)
         self.assertEqual(result.skipped, 1)
         self.assertEqual(MitreAttack.objects.get(external_id="T1059").name, "Command and Scripting Interpreter")
+        self.assertEqual(MitreAttack.objects.get(external_id="T1059").description, "Adversaries may abuse command interpreters.")
         self.assertEqual(MitreAttack.objects.get(external_id="T1078").tactic, "Defense Evasion")
+
+    def test_load_mitre_attack_data_stores_tactic_context(self):
+        from apps.mitre.models import MitreAttackTactic
+
+        data = {
+            "objects": [
+                {
+                    "type": "x-mitre-tactic",
+                    "name": "Execution",
+                    "description": "The adversary is trying to run malicious code.",
+                    "x_mitre_shortname": "execution",
+                    "external_references": [{"source_name": "mitre-attack", "external_id": "TA0002"}],
+                },
+                {
+                    "type": "attack-pattern",
+                    "name": "Command and Scripting Interpreter",
+                    "external_references": [{"source_name": "mitre-attack", "external_id": "T1059"}],
+                    "kill_chain_phases": [{"kill_chain_name": "mitre-attack", "phase_name": "execution"}],
+                },
+            ]
+        }
+
+        load_mitre_attack_data(data)
+
+        tactic = MitreAttackTactic.objects.get(external_id="TA0002")
+        self.assertEqual(tactic.name, "Execution")
+        self.assertIn("malicious code", tactic.description)
 
     def test_load_mitre_attack_data_disables_revoked_catalog_entries(self):
         revoked = MitreAttack.objects.create(external_id="T1562", name="Impair Defenses", is_enabled=True)

@@ -33,6 +33,30 @@ def source_list(request):
     status = request.GET.get("status", "").strip()
     source_type = request.GET.get("source_type", "").strip()
     category = request.GET.get("category", "").strip()
+    delivery_method = request.GET.get("delivery_method", "").strip()
+    port = request.GET.get("port", "").strip()
+    protocol = request.GET.get("protocol", "").strip()
+    service_account = request.GET.get("service_account", "").strip()
+    host = request.GET.get("host", "").strip()
+    sort = request.GET.get("sort", "source").strip()
+    direction = request.GET.get("direction", "asc").strip()
+    sort_fields = {
+        "source": "name",
+        "protection": "protection",
+        "type": "source_type",
+        "taxonomy": "category_ref__name",
+        "delivery_method": "delivery_method__name",
+        "port": "port",
+        "protocol": "protocol",
+        "service_account": "service_account",
+        "host": "host",
+        "status": "status",
+        "cases": "usecase_count",
+    }
+    if sort not in sort_fields:
+        sort = "source"
+    if direction not in {"asc", "desc"}:
+        direction = "asc"
 
     qs = EventSource.objects.select_related("category_ref", "subcategory_ref", "delivery_method").annotate(
         usecase_count=Count("use_case_links", distinct=True)
@@ -44,6 +68,9 @@ def source_list(request):
             | Q(vendor__icontains=q)
             | Q(product__icontains=q)
             | Q(host__icontains=q)
+            | Q(protocol__icontains=q)
+            | Q(service_account__icontains=q)
+            | Q(delivery_method__name__icontains=q)
             | Q(owner__icontains=q)
             | Q(category_ref__name__icontains=q)
             | Q(subcategory_ref__name__icontains=q)
@@ -54,8 +81,21 @@ def source_list(request):
         qs = qs.filter(source_type=source_type)
     if category.isdigit():
         qs = qs.filter(Q(category_ref_id=int(category)) | Q(subcategory_ref_id=int(category)))
+    if delivery_method.isdigit():
+        qs = qs.filter(delivery_method_id=int(delivery_method))
+    if port.isdigit():
+        qs = qs.filter(port=int(port))
+    if protocol:
+        qs = qs.filter(protocol__iexact=protocol)
+    if service_account:
+        qs = qs.filter(service_account__icontains=service_account)
+    if host:
+        qs = qs.filter(host__icontains=host)
 
-    paginator = Paginator(qs.order_by("name"), 25)
+    order_field = sort_fields[sort]
+    if direction == "desc":
+        order_field = f"-{order_field}"
+    paginator = Paginator(qs.order_by(order_field, "name"), 25)
     page = paginator.get_page(request.GET.get("page"))
 
     return render(request, "sources/source_list.html", {
@@ -64,9 +104,18 @@ def source_list(request):
         "selected_status": status,
         "selected_source_type": source_type,
         "selected_category": category,
+        "selected_delivery_method": delivery_method,
+        "selected_port": port,
+        "selected_protocol": protocol,
+        "selected_service_account": service_account,
+        "selected_host": host,
+        "selected_sort": sort,
+        "selected_direction": direction,
         "status_choices": EventSource.STATUS_CHOICES,
         "type_choices": SourceType.objects.filter(is_active=True).order_by("name").values_list("code", "name"),
         "category_choices": SourceCategory.objects.filter(is_active=True).select_related("parent").order_by("parent__name", "name"),
+        "delivery_method_choices": SourceDeliveryMethod.objects.filter(is_active=True).order_by("name"),
+        "protocol_choices": EventSource.objects.exclude(protocol="").order_by("protocol").values_list("protocol", flat=True).distinct(),
         "total_sources": EventSource.objects.count(),
         "active_sources": EventSource.objects.filter(status=EventSource.STATUS_ACTIVE).count(),
         "linked_sources": EventSource.objects.filter(use_case_links__isnull=False).distinct().count(),

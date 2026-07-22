@@ -1,6 +1,21 @@
 {% extends "base.html" %}
+{% load source_tags %}
 
 {% block title %}Fuentes - SOC Control Manager{% endblock %}
+
+{% block extra_css %}
+<style>
+    .source-filter-grid { grid-template-columns:repeat(5, minmax(150px, 1fr)); }
+    .source-table { min-width:1540px; }
+    .source-table th, .source-table td { vertical-align:middle; }
+    .source-table .technical-value { max-width:230px; overflow-wrap:anywhere; }
+    .source-sort { display:inline-flex; align-items:center; gap:6px; border:0; background:transparent; color:inherit; font:inherit; font-weight:inherit; text-transform:inherit; letter-spacing:inherit; text-decoration:none; white-space:nowrap; }
+    .source-sort:hover, .source-sort:focus { color:var(--accent); outline:none; }
+    .source-sort-arrow { color:var(--accent); font-size:.9rem; }
+    @media (max-width:1100px) { .source-filter-grid { grid-template-columns:repeat(2, minmax(0, 1fr)); } }
+    @media (max-width:680px) { .source-filter-grid { grid-template-columns:1fr; } }
+</style>
+{% endblock %}
 
 {% block content %}
 <main class="container">
@@ -34,7 +49,7 @@
         </section>
 
         <section class="filter-panel">
-            <form method="get" class="filter-grid">
+            <form method="get" class="filter-grid source-filter-grid">
                 <div class="field">
                     <label>Buscar</label>
                     <input type="text" name="q" value="{{ q }}" placeholder="Nombre, código, vendor, host">
@@ -66,22 +81,40 @@
                         {% endfor %}
                     </select>
                 </div>
+                <div class="field">
+                    <label>Método de envío</label>
+                    <select name="delivery_method">
+                        <option value="">Todos</option>
+                        {% for item in delivery_method_choices %}<option value="{{ item.pk }}" {% if selected_delivery_method == item.pk|stringformat:"s" %}selected{% endif %}>{{ item.name }}</option>{% endfor %}
+                    </select>
+                </div>
+                <div class="field"><label>Puerto</label><input type="number" min="1" max="65535" name="port" value="{{ selected_port }}" placeholder="Ej. 514"></div>
+                <div class="field">
+                    <label>Protocolo</label>
+                    <select name="protocol"><option value="">Todos</option>{% for item in protocol_choices %}<option value="{{ item }}" {% if selected_protocol == item %}selected{% endif %}>{{ item }}</option>{% endfor %}</select>
+                </div>
+                <div class="field"><label>Cuenta de servicio</label><input type="text" name="service_account" value="{{ selected_service_account }}" placeholder="Nombre o parte de la cuenta"></div>
+                <div class="field"><label>Host / endpoint</label><input type="text" name="host" value="{{ selected_host }}" placeholder="Host, IP o URL"></div>
                 <button class="btn-primary" type="submit">Filtrar</button>
                 <a class="btn" href="{% url 'source_list' %}">Limpiar</a>
             </form>
         </section>
 
         <section class="table-panel" style="margin-top:14px;">
-            <table class="data-table">
+            <table class="data-table source-table">
                 <thead>
                     <tr>
-                        <th>Fuente</th>
-                        <th>Proteccion</th>
-                        <th>Tipo</th>
-                        <th>Taxonomia</th>
-                        <th>Ingesta</th>
-                        <th>Estado</th>
-                        <th>Casos</th>
+                        <th><a class="source-sort" href="{% source_sort_url request 'source' %}">Fuente <span class="source-sort-arrow">{% source_sort_indicator request 'source' %}</span></a></th>
+                        <th><a class="source-sort" href="{% source_sort_url request 'protection' %}">Protección <span class="source-sort-arrow">{% source_sort_indicator request 'protection' %}</span></a></th>
+                        <th><a class="source-sort" href="{% source_sort_url request 'type' %}">Tipo <span class="source-sort-arrow">{% source_sort_indicator request 'type' %}</span></a></th>
+                        <th><a class="source-sort" href="{% source_sort_url request 'taxonomy' %}">Taxonomía <span class="source-sort-arrow">{% source_sort_indicator request 'taxonomy' %}</span></a></th>
+                        <th><a class="source-sort" href="{% source_sort_url request 'delivery_method' %}">Método de envío <span class="source-sort-arrow">{% source_sort_indicator request 'delivery_method' %}</span></a></th>
+                        <th><a class="source-sort" href="{% source_sort_url request 'port' %}">Puerto <span class="source-sort-arrow">{% source_sort_indicator request 'port' %}</span></a></th>
+                        <th><a class="source-sort" href="{% source_sort_url request 'protocol' %}">Protocolo <span class="source-sort-arrow">{% source_sort_indicator request 'protocol' %}</span></a></th>
+                        <th><a class="source-sort" href="{% source_sort_url request 'service_account' %}">Cuenta de servicio <span class="source-sort-arrow">{% source_sort_indicator request 'service_account' %}</span></a></th>
+                        <th><a class="source-sort" href="{% source_sort_url request 'host' %}">Host / endpoint <span class="source-sort-arrow">{% source_sort_indicator request 'host' %}</span></a></th>
+                        <th><a class="source-sort" href="{% source_sort_url request 'status' %}">Estado <span class="source-sort-arrow">{% source_sort_indicator request 'status' %}</span></a></th>
+                        <th><a class="source-sort" href="{% source_sort_url request 'cases' %}">Casos <span class="source-sort-arrow">{% source_sort_indicator request 'cases' %}</span></a></th>
                     </tr>
                 </thead>
                 <tbody>
@@ -95,16 +128,16 @@
                             <td><span class="badge accent">{{ source.get_protection_display }}</span></td>
                             <td><span class="badge accent">{{ source.source_type_label }}</span></td>
                             <td>{{ source.taxonomy_label|default:"-" }}</td>
-                            <td>
-                                {{ source.host|default:"-" }}
-                                {% if source.ingestion_label %}<div class="muted">{{ source.ingestion_label }}</div>{% endif %}
-                                {% if source.service_account %}<div class="muted">Cuenta {{ source.service_account }}</div>{% endif %}
-                            </td>
+                            <td>{{ source.delivery_method|default:"-" }}</td>
+                            <td>{{ source.port|default:"-" }}</td>
+                            <td>{{ source.protocol|default:"-" }}</td>
+                            <td class="technical-value">{{ source.service_account|default:"-" }}</td>
+                            <td class="technical-value">{{ source.host|default:"-" }}</td>
                             <td><span class="badge {% if source.status == 'active' %}good{% elif source.status == 'planned' %}warn{% elif source.status == 'retired' %}bad{% endif %}">{{ source.get_status_display }}</span></td>
                             <td>{{ source.usecase_count }}</td>
                         </tr>
                     {% empty %}
-                        <tr><td colspan="7" class="muted">No hay fuentes para los filtros seleccionados.</td></tr>
+                        <tr><td colspan="11" class="muted">No hay fuentes para los filtros seleccionados.</td></tr>
                     {% endfor %}
                 </tbody>
             </table>
@@ -112,9 +145,9 @@
 
         {% if sources.paginator.num_pages > 1 %}
             <nav class="pagination">
-                {% if sources.has_previous %}<a class="btn" href="?page={{ sources.previous_page_number }}&q={{ q|urlencode }}&source_type={{ selected_source_type }}&status={{ selected_status }}&category={{ selected_category }}">Anterior</a>{% endif %}
+                {% if sources.has_previous %}<a class="btn" href="{% source_page_url request sources.previous_page_number %}">Anterior</a>{% endif %}
                 <span class="btn">Pagina {{ sources.number }} / {{ sources.paginator.num_pages }}</span>
-                {% if sources.has_next %}<a class="btn" href="?page={{ sources.next_page_number }}&q={{ q|urlencode }}&source_type={{ selected_source_type }}&status={{ selected_status }}&category={{ selected_category }}">Siguiente</a>{% endif %}
+                {% if sources.has_next %}<a class="btn" href="{% source_page_url request sources.next_page_number %}">Siguiente</a>{% endif %}
             </nav>
         {% endif %}
     </div>

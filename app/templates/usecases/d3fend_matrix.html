@@ -6,6 +6,8 @@
 <style>
     .page-header { display:flex; justify-content:space-between; align-items:flex-end; gap:18px; margin-bottom:22px; }
     .page-actions { display:flex; gap:8px; flex-wrap:wrap; justify-content:flex-end; }
+    .translation-upload { display:inline-flex; }
+    .translation-upload input { position:absolute; width:1px; height:1px; opacity:0; pointer-events:none; }
     .page-eyebrow { font-family:'JetBrains Mono', monospace; font-size:11px; color:var(--accent); letter-spacing:.12em; text-transform:uppercase; }
     .page-title { font-size:clamp(1.45rem, 2.2vw, 2rem); color:var(--text-strong); margin:4px 0; line-height:1.08; }
     .page-subtitle { color:var(--text-muted); max-width:900px; line-height:1.5; }
@@ -84,6 +86,8 @@
             <p class="page-subtitle">Cruza cada técnica D3FEND Detect con sus ATT&CK relacionados. El CSV de D3FEND es una inferencia algorítmica, no una validación humana; la cobertura por relación puede sobreponderar ATT&CK repetidos en varias defensas.</p>
         </div>
         <div class="page-actions">
+            <a class="btn-secondary" href="{% url 'mitre_translation_export' %}">Descargar traducciones</a>
+            {% if can_manage_mitre %}<form class="translation-upload" method="post" action="{% url 'mitre_translation_import' %}" enctype="multipart/form-data">{% csrf_token %}<input type="hidden" name="next" value="d3fend_matrix"><label class="btn-secondary" for="d3fend-translation-file">Subir traducciones</label><input id="d3fend-translation-file" name="translation_file" type="file" accept=".csv,text/csv" onchange="this.form.submit()"></form>{% endif %}
             <a class="btn-secondary" href="{% url 'attack_matrix' %}">Ver ATT&CK</a>
             <a class="btn-secondary" href="{% url 'coverage_admin' %}?tab=D3FEND&scope=category">Admin cobertura</a>
         </div>
@@ -138,6 +142,7 @@
         <span><strong>Verde:</strong> ATT&CK cubierto por caso productivo.</span>
         <span><strong>Azul:</strong> D3FEND cumplido por herramienta.</span>
         <span><strong>Rojo:</strong> relación ATT&CK sin cobertura.</span>
+        <span><strong>Clic derecho:</strong> ver descripción y contexto MITRE.</span>
     </div>
 
     <div class="matrix-wrap">
@@ -160,7 +165,7 @@
                                 {% else %}
                                     <span class="status-chip enabled">Activa</span>
                                 {% endif %}
-                                <div class="entity-name">{{ row.d3fend.name|default:"Sin nombre" }}</div>
+                                <div class="entity-name mitre-context-target" data-context-kind="Técnica D3FEND · {{ row.d3fend.code }}" data-context-title="{{ row.d3fend.name|default:'Sin nombre' }}" data-context-description="{{ row.d3fend.translated_description|default:row.d3fend.description }}" data-context-original="{{ row.d3fend.description }}" data-context-translation="{{ row.d3fend.translated_description }}">{{ row.d3fend.name|default:"Sin nombre" }}</div>
                                 {% if row.d3fend.category %}<div class="entity-meta">{{ row.d3fend.category }}</div>{% endif %}
                                 {% if row.override_reason %}<div class="entity-meta">{{ row.override_source }}: {{ row.override_reason }}</div>{% endif %}
                             </td>
@@ -175,7 +180,7 @@
                                 {% if row.attacks %}
                                     <div class="chip-grid">
                                         {% for attack in row.attacks %}
-                                            <span class="matrix-chip {% if row.manual_fulfilled %}fulfilled{% elif attack.covered %}covered{% else %}missing{% endif %}" title="{{ attack.external_id }} - {{ attack.name }}">{{ attack.external_id }} · {{ attack.name }}</span>
+                                            <span class="matrix-chip mitre-context-target {% if row.manual_fulfilled %}fulfilled{% elif attack.covered %}covered{% else %}missing{% endif %}" data-context-kind="Técnica ATT&amp;CK · {{ attack.external_id }}" data-context-title="{{ attack.name }}" data-context-description="{{ attack.description }}" data-context-original="{{ attack.original_description }}" data-context-translation="{{ attack.translated_description }}" title="{{ attack.external_id }} - {{ attack.name }}">{{ attack.external_id }} · {{ attack.name }}</span>
                                         {% endfor %}
                                     </div>
                                 {% else %}
@@ -191,4 +196,5 @@
         {% endif %}
     </div>
 </div>
+{% include "includes/mitre_context_card.html" %}
 {% endblock %}

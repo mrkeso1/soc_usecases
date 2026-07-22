@@ -9,7 +9,7 @@ from typing import Callable
 import requests
 from django.utils import timezone
 
-from .models import MitreAttack, MitreAttackSyncSettings
+from .models import MitreAttack, MitreAttackSyncSettings, MitreAttackTactic
 
 
 ATTACK_ENTERPRISE_URL = (
@@ -45,6 +45,21 @@ def load_mitre_attack_data(data: dict) -> MitreAttackSyncResult:
     inactive_ids = set()
 
     for obj in data.get("objects", []):
+        if obj.get("type") != "x-mitre-tactic" or obj.get("revoked") is True or obj.get("x_mitre_deprecated") is True:
+            continue
+        tactic_id = _attack_external_id(obj)
+        short_name = (obj.get("x_mitre_shortname") or "").strip()
+        if tactic_id and short_name:
+            MitreAttackTactic.objects.update_or_create(
+                external_id=tactic_id,
+                defaults={
+                    "short_name": short_name,
+                    "name": (obj.get("name") or "").strip(),
+                    "description": (obj.get("description") or "").strip(),
+                },
+            )
+
+    for obj in data.get("objects", []):
         if obj.get("type") != "attack-pattern":
             continue
         attack_id = _attack_external_id(obj)
@@ -62,6 +77,7 @@ def load_mitre_attack_data(data: dict) -> MitreAttackSyncResult:
             defaults={
                 "name": obj.get("name", "").strip(),
                 "tactic": _attack_tactics(obj),
+                "description": (obj.get("description") or "").strip(),
                 "is_enabled": True,
                 "disabled_reason": "",
             },

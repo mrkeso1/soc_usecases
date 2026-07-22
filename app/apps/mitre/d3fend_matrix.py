@@ -156,6 +156,9 @@ def build_d3fend_matrix_context(request):
                 "id": attack.id,
                 "external_id": attack.external_id,
                 "name": attack.name,
+                "description": attack.translated_description or attack.description,
+                "original_description": attack.description,
+                "translated_description": attack.translated_description,
                 "covered": covered,
             })
 
