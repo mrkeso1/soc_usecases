@@ -58,7 +58,7 @@ CHART_COLORS = (
 )
 
 
-def _metric_rows(values, colors=None, limit=None):
+def _metric_rows(values, colors=None, limit=None, denominator=None):
     ordered = sorted(values, key=lambda item: (-item[1], str(item[0] or "")))
     total = sum(value for _, value in ordered)
     maximum = max((value for _, value in ordered), default=0)
@@ -67,19 +67,20 @@ def _metric_rows(values, colors=None, limit=None):
     rows = []
     for index, (name, value) in enumerate(ordered):
         label = name or "Sin definir"
+        percent = round(value / denominator * 100) if denominator else (round(value / total * 100) if total else 0)
         rows.append({
             "name": label,
             "value": value,
-            "percent": round(value / total * 100) if total else 0,
-            "bar_percent": round(value / maximum * 100) if maximum else 0,
+            "percent": percent,
+            "bar_percent": percent if denominator is not None else (round(value / maximum * 100) if maximum else 0),
             "color": (colors or {}).get(label, CHART_COLORS[index % len(CHART_COLORS)]),
         })
     return rows
 
 
-def _grouped_rows(queryset, field, colors=None, limit=None):
+def _grouped_rows(queryset, field, colors=None, limit=None, denominator=None):
     values = queryset.values(field).annotate(value=models.Count("id")).order_by("-value", field)
-    return _metric_rows(((item[field], item["value"]) for item in values), colors, limit)
+    return _metric_rows(((item[field], item["value"]) for item in values), colors, limit, denominator)
 
 
 def _fixed_choice_rows(queryset, field, choices, colors=None):
@@ -143,19 +144,20 @@ def build_executive_dashboard_context(request):
     production_disabled_cases = operational_usecases.filter(status__iexact=PRODUCTION_STATUS, is_enabled=False).count()
     total_inventory_cases = usecases.count()
     retired_cases = usecases.filter(status__iexact=UseCase.STATUS_RETIRED).count()
+    test_cases = usecases.filter(status__iexact=UseCase.STATUS_TEST).count()
     total_cases = operational_usecases.count()
     production_cases = production_qs.count()
     enabled_cases = operational_usecases.filter(is_enabled=True).count()
     priority_cases = operational_usecases.filter(severity__in=["High", "Critical"]).count()
     source_linked_cases = operational_usecases.filter(source_links__isnull=False).distinct().count()
     mitre_mapped_cases = operational_usecases.filter(mitre_attacks__isnull=False).distinct().count()
-    documented_cases = operational_usecases.filter(
+    documented_cases = production_qs.filter(
         models.Q(objective__gt="") | models.Q(functional_description__gt="")
     ).distinct().count()
     conditioned_cases = operational_usecases.filter(
         models.Q(full_rule_text__gt="") | models.Q(rule_conditions__isnull=False)
     ).distinct().count()
-    without_documentation = max(total_cases - documented_cases, 0)
+    without_documentation = max(production_cases - documented_cases, 0)
     without_conditions = max(total_cases - conditioned_cases, 0)
     backup_current_cases = (
         UseCaseTechnicalBackup.objects
@@ -191,6 +193,7 @@ def build_executive_dashboard_context(request):
             .order_by("-value")
         ),
         limit=8,
+        denominator=total_cases,
     )
     source_type_labels = dict(SourceType.objects.values_list("code", "name"))
     source_type_values = (
@@ -240,9 +243,9 @@ def build_executive_dashboard_context(request):
         ),
         limit=12,
     )
-    owner_rows = _grouped_rows(operational_usecases.exclude(owner_name=""), "owner_name", limit=8)
-    treatment_rows = _grouped_rows(operational_usecases.exclude(blocking_type=""), "blocking_type", limit=8)
-    escalation_rows = _grouped_rows(operational_usecases.exclude(escalation=""), "escalation", limit=8)
+    owner_rows = _grouped_rows(operational_usecases.exclude(owner_name=""), "owner_name", limit=8, denominator=total_cases)
+    treatment_rows = _grouped_rows(operational_usecases.exclude(blocking_type=""), "blocking_type", limit=8, denominator=total_cases)
+    escalation_rows = _grouped_rows(operational_usecases.exclude(escalation=""), "escalation", limit=8, denominator=total_cases)
     health_rows = _grouped_rows(operational_usecases.exclude(validation_result=""), "validation_result", {
         UseCase.VALIDATION_RESULT_OK: "#00e5a0",
         UseCase.VALIDATION_RESULT_WARNING: "#f5a623",
@@ -250,33 +253,47 @@ def build_executive_dashboard_context(request):
         UseCase.VALIDATION_RESULT_NONE: "#94a3b8",
     })
 
+    quality_production_qs = operational_usecases.filter(status__iexact=PRODUCTION_STATUS)
+    quality_source_linked_cases = quality_production_qs.filter(source_links__isnull=False).distinct().count()
+    quality_mitre_mapped_cases = quality_production_qs.filter(mitre_attacks__isnull=False).distinct().count()
+    quality_conditioned_cases = quality_production_qs.filter(
+        models.Q(full_rule_text__gt="") | models.Q(rule_conditions__isnull=False)
+    ).distinct().count()
+    quality_backup_current_cases = (
+        UseCaseTechnicalBackup.objects
+        .filter(use_case__in=quality_production_qs, is_current=True)
+        .values("use_case_id")
+        .distinct()
+        .count()
+    )
+
     inventory_quality_rows = [
         {
             "name": "Fuentes vinculadas",
-            "value": source_linked_cases,
-            "total": total_cases,
-            "percent": _safe_percent(source_linked_cases, total_cases),
+            "value": quality_source_linked_cases,
+            "total": production_total_cases,
+            "percent": _safe_percent(quality_source_linked_cases, production_total_cases),
             "color": "#00e5a0",
         },
         {
             "name": "MITRE asociado",
-            "value": mitre_mapped_cases,
-            "total": total_cases,
-            "percent": _safe_percent(mitre_mapped_cases, total_cases),
+            "value": quality_mitre_mapped_cases,
+            "total": production_total_cases,
+            "percent": _safe_percent(quality_mitre_mapped_cases, production_total_cases),
             "color": "#2d7aff",
         },
         {
             "name": "Regla / logica",
-            "value": conditioned_cases,
-            "total": total_cases,
-            "percent": _safe_percent(conditioned_cases, total_cases),
+            "value": quality_conditioned_cases,
+            "total": production_total_cases,
+            "percent": _safe_percent(quality_conditioned_cases, production_total_cases),
             "color": "#a78bfa",
         },
         {
             "name": "Backup vigente",
-            "value": backup_current_cases,
-            "total": total_cases,
-            "percent": _safe_percent(backup_current_cases, total_cases),
+            "value": quality_backup_current_cases,
+            "total": production_total_cases,
+            "percent": _safe_percent(quality_backup_current_cases, production_total_cases),
             "color": "#f5a623",
         },
     ]
@@ -286,6 +303,7 @@ def build_executive_dashboard_context(request):
         "total_cases": total_cases,
         "total_inventory_cases": total_inventory_cases,
         "retired_cases": retired_cases,
+        "test_cases": test_cases,
         "production_cases": production_cases,
         "production_total_cases": production_total_cases,
         "production_disabled_cases": production_disabled_cases,
@@ -314,7 +332,7 @@ def build_executive_dashboard_context(request):
         "production_percentage": _safe_percent(production_cases, total_cases),
         "enabled_percentage": _safe_percent(enabled_cases, total_cases),
         "priority_percentage": _safe_percent(priority_cases, total_cases),
-        "documentation_percentage": _safe_percent(documented_cases, total_cases),
+        "documentation_percentage": _safe_percent(documented_cases, production_cases),
         "conditions_percentage": _safe_percent(conditioned_cases, total_cases),
         "source_link_percentage": _safe_percent(source_linked_cases, total_cases),
         "mitre_mapping_percentage": _safe_percent(mitre_mapped_cases, total_cases),

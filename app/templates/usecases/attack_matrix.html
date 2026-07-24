@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% load l10n %}
 
 {% block title %}Matriz ATT&CK - SOC Use Cases Manager{% endblock %}
 
@@ -186,7 +187,7 @@
                                     <span class="coverage-percent">{{ row.coverage_label }}%</span>
                                     <span class="coverage-count">{{ row.covered_techniques }}/{{ row.total_techniques }}</span>
                                 </div>
-                                <div class="bar"><div class="bar-fill {{ row.level }}" style="width: {{ row.coverage_width }}%;"></div></div>
+                                <div class="bar"><div class="bar-fill {{ row.level }}" style="width: {{ row.coverage_width|unlocalize }}%;"></div></div>
                             </td>
                             <td>
                                 <div class="entity-meta">{{ row.production_cases_count }} caso(s) productivo(s)</div>

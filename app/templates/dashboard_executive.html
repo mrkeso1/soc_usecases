@@ -1,9 +1,14 @@
 {% extends "base.html" %}
-{% load static %}
+{% load static l10n %}
 {% block title %}Centro de Operaciones - SOC Control Manager{% endblock %}
 
 {% block extra_css %}
 <link rel="stylesheet" href="{% static 'css/dashboard-executive.css' %}?v=20260716-3">
+<style>
+    .ops-kpi-grid.case-summary-grid { grid-template-columns:repeat(5, minmax(0, 1fr)); }
+    @media(max-width:1100px) { .ops-kpi-grid.case-summary-grid { grid-template-columns:repeat(2, minmax(0, 1fr)); } }
+    @media(max-width:760px) { .ops-kpi-grid.case-summary-grid { grid-template-columns:1fr; } }
+</style>
 {% endblock %}
 
 {% block content %}
@@ -31,7 +36,7 @@
                 <article class="ops-card">
                     <span class="ops-icon">CU</span>
                     <div><span class="ops-card-label">Casos de uso</span><strong>{{ total_cases }}</strong><small>{{ production_percentage }}% productivos habilitados · {{ retired_cases }} en baja</small></div>
-                    <div class="ops-spark"><span style="width: {{ production_percentage }}%"></span></div>
+                    <div class="ops-spark"><span style="width: {{ production_percentage|unlocalize }}%"></span></div>
                 </article>
                 <article class="ops-card">
                     <span class="ops-icon">CT</span>
@@ -41,12 +46,12 @@
                 <article class="ops-card">
                     <span class="ops-icon">FE</span>
                     <div><span class="ops-card-label">Fuentes activas</span><strong>{{ active_sources }}/{{ total_sources }}</strong><small>{{ source_percentage }}% disponibles</small></div>
-                    <div class="ops-spark"><span style="width: {{ source_percentage }}%"></span></div>
+                    <div class="ops-spark"><span style="width: {{ source_percentage|unlocalize }}%"></span></div>
                 </article>
                 <article class="ops-card">
                     <span class="ops-icon warn">HC</span>
                     <div><span class="ops-card-label">High / Critical</span><strong>{{ priority_cases }}</strong><small>prioridad operativa</small></div>
-                    <div class="ops-spark"><span style="width: {{ priority_percentage }}%; --bar-color: var(--medium)"></span></div>
+                    <div class="ops-spark"><span style="width: {{ priority_percentage|unlocalize }}%; --bar-color: var(--medium)"></span></div>
                 </article>
             </div>
 
@@ -116,7 +121,7 @@
                         <div class="ops-donut" style="--donut: {{ severity_gradient }}"><div><strong>{{ total_cases }}</strong><small>Operativos</small></div></div>
                         <div class="ops-legend">
                             {% for item in severity_rows %}
-                                <div class="ops-row"><span>{{ item.name }}</span><strong>{{ item.value }} · {{ item.percent }}%</strong><div class="ops-progress"><span style="width: {{ item.percent }}%; --bar-color: {{ item.color }}"></span></div></div>
+                                <div class="ops-row"><span>{{ item.name }}</span><strong>{{ item.value }} · {{ item.percent }}%</strong><div class="ops-progress"><span style="width: {{ item.percent|unlocalize }}%; --bar-color: {{ item.color }}"></span></div></div>
                             {% empty %}<p class="muted">Sin severidades cargadas.</p>{% endfor %}
                         </div>
                     </div>
@@ -131,7 +136,7 @@
                                     <strong>{{ item.value }} &middot; {{ item.percent }}%</strong>
                                 </div>
                                 <div class="ops-status-column">
-                                    <span style="height: {{ item.percent }}%; --bar-color: {{ item.color }}"></span>
+                                    <span style="height: {{ item.percent|unlocalize }}%; --bar-color: {{ item.color }}"></span>
                                 </div>
                             </div>
                         {% empty %}<p class="muted">Sin estados registrados.</p>{% endfor %}
@@ -141,7 +146,7 @@
                     <div class="ops-panel-title"><div><h2>Cobertura de proteccion</h2><small>Distribucion interna y perimetral</small></div></div>
                     <div class="ops-progress-list">
                         {% for item in source_protection_rows %}
-                            <div class="ops-row"><span>{{ item.name|cut:"Proteccion " }}</span><strong>{{ item.value }}</strong><div class="ops-progress"><span style="width: {{ item.percent }}%; --bar-color: {{ item.color }}"></span></div><small>{{ item.percent }}% de fuentes</small></div>
+                            <div class="ops-row"><span>{{ item.name|cut:"Proteccion " }}</span><strong>{{ item.value }}</strong><div class="ops-progress"><span style="width: {{ item.percent|unlocalize }}%; --bar-color: {{ item.color }}"></span></div><small>{{ item.percent }}% de fuentes</small></div>
                         {% empty %}<p class="muted">Sin clasificacion registrada.</p>{% endfor %}
                     </div>
                     <div class="ops-summary-grid" style="margin-top:12px; grid-template-columns: repeat(2, minmax(0, 1fr));">
@@ -153,29 +158,30 @@
         </section>
 
         <section class="ops-tab-panel" data-panel="casos" hidden>
-            <div class="ops-kpi-grid">
-                <article class="ops-card"><span class="ops-icon">TT</span><div><span class="ops-card-label">Operativos</span><strong>{{ total_cases }}</strong><small>{{ total_inventory_cases }} en inventario total</small></div></article>
-                <article class="ops-card"><span class="ops-icon">PR</span><div><span class="ops-card-label">Produccion habilitada</span><strong>{{ production_cases }}</strong><small>{{ production_disabled_cases }} productivos deshabilitados</small></div></article>
-                <article class="ops-card"><span class="ops-icon">DC</span><div><span class="ops-card-label">Documentados</span><strong>{{ documented_cases }}</strong><small>{{ documentation_percentage }}% con objetivo o descripcion</small></div></article>
+            <div class="ops-kpi-grid case-summary-grid">
+                <article class="ops-card"><span class="ops-icon">TT</span><div><span class="ops-card-label">Casos de uso total</span><strong>{{ total_inventory_cases }}</strong><small>inventario completo</small></div></article>
+                <article class="ops-card"><span class="ops-icon">PR</span><div><span class="ops-card-label">Habilitados en Producción</span><strong>{{ production_cases }}</strong><small>{{ production_disabled_cases }} productivos deshabilitados</small></div></article>
+                <article class="ops-card"><span class="ops-icon">DC</span><div><span class="ops-card-label">Documentados (solo Producción)</span><strong>{{ documented_cases }}</strong><small>{{ documentation_percentage|floatformat:1 }}% con objetivo o descripción</small></div></article>
                 <article class="ops-card"><span class="ops-icon warn">BJ</span><div><span class="ops-card-label">En baja</span><strong>{{ retired_cases }}</strong><small>fuera del tablero operativo</small></div></article>
+                <article class="ops-card"><span class="ops-icon warn">TS</span><div><span class="ops-card-label">En Test</span><strong>{{ test_cases }}</strong><small>casos en validación</small></div></article>
             </div>
             <div class="ops-split-grid">
                 <section class="ops-panel">
                     <div class="ops-panel-title"><div><h2>Cobertura por fuente</h2><small>Fuentes con mayor cantidad de casos asociados</small></div><span class="badge">{{ source_rows|length }} fuentes</span></div>
                     <div class="ops-bars">
                         {% for item in source_rows %}
-                            <div class="ops-horizontal-row"><span title="{{ item.name }}">{{ item.name }}</span><div class="ops-progress"><span style="width: {{ item.bar_percent }}%; --bar-color: {{ item.color }}"></span></div><strong>{{ item.value }}</strong></div>
+                            <div class="ops-horizontal-row"><span title="{{ item.name }}">{{ item.name }}</span><div class="ops-progress"><span style="width: {{ item.percent|unlocalize }}%; --bar-color: {{ item.color }}"></span></div><strong>{{ item.value }} · {{ item.percent }}%</strong></div>
                         {% empty %}<p class="muted">No hay fuentes asociadas.</p>{% endfor %}
                     </div>
                 </section>
                 <section class="ops-panel">
-                    <div class="ops-panel-title"><div><h2>Calidad documental</h2><small>Preparacion para auditoria</small></div></div>
+                    <div class="ops-panel-title"><div><h2>Calidad documental</h2><small>Todos los casos en Producción · porcentaje sobre {{ production_total_cases }}</small></div></div>
                     <div class="ops-progress-list">
                         {% for item in inventory_quality_rows %}
                             <div class="ops-row">
                                 <span>{{ item.name }}</span>
                                 <strong>{{ item.value }}/{{ item.total }} · {{ item.percent }}%</strong>
-                                <div class="ops-progress"><span style="width: {{ item.percent }}%; --bar-color: {{ item.color }}"></span></div>
+                                <div class="ops-progress"><span style="width: {{ item.percent|unlocalize }}%; --bar-color: {{ item.color }}"></span></div>
                             </div>
                         {% empty %}
                             <p class="muted">Sin inventario operativo para medir calidad.</p>
@@ -184,9 +190,9 @@
                 </section>
             </div>
             <div class="ops-chart-grid">
-                <section class="ops-panel"><div class="ops-panel-title"><div><h2>Tratamiento</h2><small>Automatico y manual</small></div></div><div class="ops-progress-list">{% for item in treatment_rows %}<div class="ops-row"><span>{{ item.name }}</span><strong>{{ item.value }}</strong><div class="ops-progress"><span style="width: {{ item.percent }}%; --bar-color: {{ item.color }}"></span></div></div>{% empty %}<p class="muted">Sin datos.</p>{% endfor %}</div></section>
-                <section class="ops-panel"><div class="ops-panel-title"><div><h2>Escalamiento</h2><small>Distribucion por nivel</small></div></div><div class="ops-progress-list">{% for item in escalation_rows %}<div class="ops-row"><span>{{ item.name }}</span><strong>{{ item.value }}</strong><div class="ops-progress"><span style="width: {{ item.percent }}%; --bar-color: {{ item.color }}"></span></div></div>{% empty %}<p class="muted">Sin datos.</p>{% endfor %}</div></section>
-                <section class="ops-panel"><div class="ops-panel-title"><div><h2>Responsables</h2><small>Distribucion operativa</small></div></div><div class="ops-progress-list">{% for item in owner_rows %}<div class="ops-row"><span>{{ item.name }}</span><strong>{{ item.value }}</strong><div class="ops-progress"><span style="width: {{ item.bar_percent }}%; --bar-color: {{ item.color }}"></span></div></div>{% empty %}<p class="muted">Sin responsables cargados.</p>{% endfor %}</div></section>
+                <section class="ops-panel"><div class="ops-panel-title"><div><h2>Tratamiento</h2><small>Automatico y manual</small></div></div><div class="ops-progress-list">{% for item in treatment_rows %}<div class="ops-row"><span>{{ item.name }}</span><strong>{{ item.value }} · {{ item.percent }}%</strong><div class="ops-progress"><span style="width: {{ item.percent|unlocalize }}%; --bar-color: {{ item.color }}"></span></div></div>{% empty %}<p class="muted">Sin datos.</p>{% endfor %}</div></section>
+                <section class="ops-panel"><div class="ops-panel-title"><div><h2>Escalamiento</h2><small>Distribucion por nivel</small></div></div><div class="ops-progress-list">{% for item in escalation_rows %}<div class="ops-row"><span>{{ item.name }}</span><strong>{{ item.value }} · {{ item.percent }}%</strong><div class="ops-progress"><span style="width: {{ item.percent|unlocalize }}%; --bar-color: {{ item.color }}"></span></div></div>{% empty %}<p class="muted">Sin datos.</p>{% endfor %}</div></section>
+                <section class="ops-panel"><div class="ops-panel-title"><div><h2>Responsables</h2><small>Distribucion operativa</small></div></div><div class="ops-progress-list">{% for item in owner_rows %}<div class="ops-row"><span>{{ item.name }}</span><strong>{{ item.value }} · {{ item.percent }}%</strong><div class="ops-progress"><span style="width: {{ item.percent|unlocalize }}%; --bar-color: {{ item.color }}"></span></div></div>{% empty %}<p class="muted">Sin responsables cargados.</p>{% endfor %}</div></section>
             </div>
         </section>
 
@@ -198,8 +204,8 @@
                 <article class="ops-card"><span class="ops-icon">FE</span><div><span class="ops-card-label">Fuentes cubiertas</span><strong>{{ control_source_rows|length }}</strong><small>dependencias configuradas</small></div></article>
             </div>
             <div class="ops-split-grid">
-                <section class="ops-panel"><div class="ops-panel-title"><div><h2>Controles por estado</h2><small>Distribucion del inventario de gobierno</small></div></div><div class="ops-vertical-bars">{% for item in control_status_rows %}<div class="ops-vertical-item"><strong>{{ item.value }}</strong><div><span style="height: {{ item.bar_percent }}%; --bar-color: {{ item.color }}"></span></div><small>{{ item.name }}</small></div>{% empty %}<p class="muted">No hay controles registrados.</p>{% endfor %}</div></section>
-                <section class="ops-panel"><div class="ops-panel-title"><div><h2>Dependencia por fuente</h2><small>Fuentes que sostienen controles</small></div></div><div class="ops-bars">{% for item in control_source_rows %}<div class="ops-horizontal-row"><span>{{ item.name }}</span><div class="ops-progress"><span style="width: {{ item.bar_percent }}%; --bar-color: {{ item.color }}"></span></div><strong>{{ item.value }}</strong></div>{% empty %}<p class="muted">Sin dependencias registradas.</p>{% endfor %}</div></section>
+                <section class="ops-panel"><div class="ops-panel-title"><div><h2>Controles por estado</h2><small>Distribucion del inventario de gobierno</small></div></div><div class="ops-vertical-bars">{% for item in control_status_rows %}<div class="ops-vertical-item"><strong>{{ item.value }}</strong><div><span style="height: {{ item.bar_percent|unlocalize }}%; --bar-color: {{ item.color }}"></span></div><small>{{ item.name }}</small></div>{% empty %}<p class="muted">No hay controles registrados.</p>{% endfor %}</div></section>
+                <section class="ops-panel"><div class="ops-panel-title"><div><h2>Dependencia por fuente</h2><small>Fuentes que sostienen controles</small></div></div><div class="ops-bars">{% for item in control_source_rows %}<div class="ops-horizontal-row"><span>{{ item.name }}</span><div class="ops-progress"><span style="width: {{ item.bar_percent|unlocalize }}%; --bar-color: {{ item.color }}"></span></div><strong>{{ item.value }}</strong></div>{% empty %}<p class="muted">Sin dependencias registradas.</p>{% endfor %}</div></section>
             </div>
         </section>
 
@@ -211,12 +217,12 @@
                 <article class="ops-card"><span class="ops-icon">PR</span><div><span class="ops-card-label">Protocolos</span><strong>{{ source_protocol_rows|length }}</strong><small>metodos de conexion</small></div></article>
             </div>
             <div class="ops-chart-grid">
-                <section class="ops-panel"><div class="ops-panel-title"><div><h2>Disponibilidad</h2><small>Estado actual de las fuentes</small></div></div><div class="ops-donut-layout"><div class="ops-donut" style="--donut: {{ source_status_gradient }}"><div><strong>{{ total_sources }}</strong><small>Total</small></div></div><div class="ops-legend">{% for item in source_status_rows %}<div class="ops-row"><span>{{ item.name }}</span><strong>{{ item.value }} · {{ item.percent }}%</strong><div class="ops-progress"><span style="width: {{ item.percent }}%; --bar-color: {{ item.color }}"></span></div></div>{% empty %}<p class="muted">Sin fuentes.</p>{% endfor %}</div></div></section>
-                <section class="ops-panel"><div class="ops-panel-title"><div><h2>Taxonomia</h2><small>Fuentes por categoria</small></div></div><div class="ops-progress-list">{% for item in source_category_rows %}<div class="ops-row"><span>{{ item.name }}</span><strong>{{ item.value }}</strong><div class="ops-progress"><span style="width: {{ item.percent }}%; --bar-color: {{ item.color }}"></span></div></div>{% empty %}<p class="muted">Sin categorias.</p>{% endfor %}</div></section>
-                <section class="ops-panel"><div class="ops-panel-title"><div><h2>Proteccion</h2><small>Clasificacion operativa</small></div></div><div class="ops-progress-list">{% for item in source_protection_rows %}<div class="ops-row"><span>{{ item.name|cut:"Proteccion " }}</span><strong>{{ item.value }}</strong><div class="ops-progress"><span style="width: {{ item.percent }}%; --bar-color: {{ item.color }}"></span></div></div>{% empty %}<p class="muted">Sin clasificacion.</p>{% endfor %}</div></section>
+                <section class="ops-panel"><div class="ops-panel-title"><div><h2>Disponibilidad</h2><small>Estado actual de las fuentes</small></div></div><div class="ops-donut-layout"><div class="ops-donut" style="--donut: {{ source_status_gradient }}"><div><strong>{{ total_sources }}</strong><small>Total</small></div></div><div class="ops-legend">{% for item in source_status_rows %}<div class="ops-row"><span>{{ item.name }}</span><strong>{{ item.value }} · {{ item.percent }}%</strong><div class="ops-progress"><span style="width: {{ item.percent|unlocalize }}%; --bar-color: {{ item.color }}"></span></div></div>{% empty %}<p class="muted">Sin fuentes.</p>{% endfor %}</div></div></section>
+                <section class="ops-panel"><div class="ops-panel-title"><div><h2>Taxonomia</h2><small>Fuentes por categoria</small></div></div><div class="ops-progress-list">{% for item in source_category_rows %}<div class="ops-row"><span>{{ item.name }}</span><strong>{{ item.value }}</strong><div class="ops-progress"><span style="width: {{ item.percent|unlocalize }}%; --bar-color: {{ item.color }}"></span></div></div>{% empty %}<p class="muted">Sin categorias.</p>{% endfor %}</div></section>
+                <section class="ops-panel"><div class="ops-panel-title"><div><h2>Proteccion</h2><small>Clasificacion operativa</small></div></div><div class="ops-progress-list">{% for item in source_protection_rows %}<div class="ops-row"><span>{{ item.name|cut:"Proteccion " }}</span><strong>{{ item.value }}</strong><div class="ops-progress"><span style="width: {{ item.percent|unlocalize }}%; --bar-color: {{ item.color }}"></span></div></div>{% empty %}<p class="muted">Sin clasificacion.</p>{% endfor %}</div></section>
             </div>
             <div class="ops-split-grid">
-                <section class="ops-panel"><div class="ops-panel-title"><div><h2>Subcategorias</h2><small>Tipos de fuente con mayor presencia</small></div></div><div class="ops-bars">{% for item in source_subcategory_rows %}<div class="ops-horizontal-row"><span>{{ item.name }}</span><div class="ops-progress"><span style="width: {{ item.bar_percent }}%; --bar-color: {{ item.color }}"></span></div><strong>{{ item.value }}</strong></div>{% empty %}<p class="muted">Sin subcategorias.</p>{% endfor %}</div></section>
+                <section class="ops-panel"><div class="ops-panel-title"><div><h2>Subcategorias</h2><small>Tipos de fuente con mayor presencia</small></div></div><div class="ops-bars">{% for item in source_subcategory_rows %}<div class="ops-horizontal-row"><span>{{ item.name }}</span><div class="ops-progress"><span style="width: {{ item.bar_percent|unlocalize }}%; --bar-color: {{ item.color }}"></span></div><strong>{{ item.value }}</strong></div>{% empty %}<p class="muted">Sin subcategorias.</p>{% endfor %}</div></section>
                 <section class="ops-panel"><div class="ops-panel-title"><div><h2>Protocolos</h2><small>Conectividad configurada</small></div></div><div class="ops-tag-cloud">{% for item in source_protocol_rows %}<span style="--tag-color: {{ item.color }}">{{ item.name }} <strong>{{ item.value }}</strong></span>{% empty %}<p class="muted">Sin protocolos.</p>{% endfor %}</div></section>
             </div>
         </section>
@@ -230,7 +236,7 @@
             </div>
             <section class="ops-panel">
                 <div class="ops-panel-title"><div><h2>Cierre anual {{ lifecycle.year }}</h2><small>Los periodos se habilitan de forma secuencial</small></div><span class="badge {% if lifecycle.annual_ready %}good{% else %}warn{% endif %}">{{ lifecycle_progress }}% completado</span></div>
-                <div class="ops-progress" style="margin-bottom:12px;"><span style="width: {{ lifecycle_progress }}%"></span></div>
+                <div class="ops-progress" style="margin-bottom:12px;"><span style="width: {{ lifecycle_progress|unlocalize }}%"></span></div>
                 <div class="ops-period-grid">
                     {% for period in lifecycle.periods %}
                         <article><small>C{{ period.period }}</small><h3 style="margin:6px 0;color:var(--text-strong);font-size:1rem;">{{ period.label }}</h3><span class="badge {% if period.complete %}good{% elif period.state == 'Vencido' %}bad{% elif period.enabled %}warn{% endif %}">{{ period.state }}</span><strong>{{ period.progress }}%</strong><small>{{ period.reviewed_use_cases }} revisados · {{ period.pending_use_cases }} pendientes · {{ period.total_reviews }} registros</small></article>
@@ -238,7 +244,7 @@
                 </div>
             </section>
             <div class="ops-split-grid">
-                <section class="ops-panel"><div class="ops-panel-title"><div><h2>Salud de detecciones</h2><small>Actividad reciente de las reglas inventariadas</small></div></div><div class="ops-progress-list">{% for item in health_rows %}<div class="ops-row"><span>{{ item.name }}</span><strong>{{ item.value }} · {{ item.percent }}%</strong><div class="ops-progress"><span style="width: {{ item.percent }}%; --bar-color: {{ item.color }}"></span></div></div>{% empty %}<p class="muted">No hay metricas de salud registradas.</p>{% endfor %}</div></section>
+                <section class="ops-panel"><div class="ops-panel-title"><div><h2>Salud de detecciones</h2><small>Actividad reciente de las reglas inventariadas</small></div></div><div class="ops-progress-list">{% for item in health_rows %}<div class="ops-row"><span>{{ item.name }}</span><strong>{{ item.value }} · {{ item.percent }}%</strong><div class="ops-progress"><span style="width: {{ item.percent|unlocalize }}%; --bar-color: {{ item.color }}"></span></div></div>{% empty %}<p class="muted">No hay metricas de salud registradas.</p>{% endfor %}</div></section>
                 <section class="ops-panel"><div class="ops-panel-title"><div><h2>Trabajo operativo</h2><small>Foco del periodo activo</small></div></div><div class="ops-summary-grid"><article><small>Revisados</small><strong>{{ active_period.reviewed_use_cases|default:0 }}</strong></article><article><small>Pendientes</small><strong>{{ active_period.pending_use_cases|default:0 }}</strong></article><article><small>Estado</small><strong>{{ active_period.state|default:"-" }}</strong></article></div></section>
             </div>
         </section>

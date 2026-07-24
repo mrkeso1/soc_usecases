@@ -107,7 +107,7 @@
                         <th><a class="source-sort" href="{% source_sort_url request 'source' %}">Fuente <span class="source-sort-arrow">{% source_sort_indicator request 'source' %}</span></a></th>
                         <th><a class="source-sort" href="{% source_sort_url request 'protection' %}">Protección <span class="source-sort-arrow">{% source_sort_indicator request 'protection' %}</span></a></th>
                         <th><a class="source-sort" href="{% source_sort_url request 'type' %}">Tipo <span class="source-sort-arrow">{% source_sort_indicator request 'type' %}</span></a></th>
-                        <th><a class="source-sort" href="{% source_sort_url request 'taxonomy' %}">Taxonomía <span class="source-sort-arrow">{% source_sort_indicator request 'taxonomy' %}</span></a></th>
+                        <th><a class="source-sort" href="{% source_sort_url request 'owner' %}">Responsable <span class="source-sort-arrow">{% source_sort_indicator request 'owner' %}</span></a></th>
                         <th><a class="source-sort" href="{% source_sort_url request 'delivery_method' %}">Método de envío <span class="source-sort-arrow">{% source_sort_indicator request 'delivery_method' %}</span></a></th>
                         <th><a class="source-sort" href="{% source_sort_url request 'port' %}">Puerto <span class="source-sort-arrow">{% source_sort_indicator request 'port' %}</span></a></th>
                         <th><a class="source-sort" href="{% source_sort_url request 'protocol' %}">Protocolo <span class="source-sort-arrow">{% source_sort_indicator request 'protocol' %}</span></a></th>
@@ -121,13 +121,13 @@
                     {% for source in sources %}
                         <tr>
                             <td>
-                                <span class="entity-code">{{ source.code|default:"FUENTE" }}</span>
+                                {% if source.code %}<span class="entity-code">{{ source.code }}</span>{% endif %}
                                 <a class="entity-link" href="{% url 'source_detail' source.pk %}">{{ source.name }}</a>
-                                {% if source.owner %}<div class="entity-subtitle">{{ source.owner }}</div>{% endif %}
+                                <div class="entity-subtitle">{{ source.taxonomy_label|default:"Sin taxonomía" }}</div>
                             </td>
                             <td><span class="badge accent">{{ source.get_protection_display }}</span></td>
                             <td><span class="badge accent">{{ source.source_type_label }}</span></td>
-                            <td>{{ source.taxonomy_label|default:"-" }}</td>
+                            <td>{{ source.owner|default:"-" }}</td>
                             <td>{{ source.delivery_method|default:"-" }}</td>
                             <td>{{ source.port|default:"-" }}</td>
                             <td>{{ source.protocol|default:"-" }}</td>

@@ -45,6 +45,7 @@ def source_list(request):
         "protection": "protection",
         "type": "source_type",
         "taxonomy": "category_ref__name",
+        "owner": "owner",
         "delivery_method": "delivery_method__name",
         "port": "port",
         "protocol": "protocol",

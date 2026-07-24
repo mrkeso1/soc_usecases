@@ -50,6 +50,7 @@ INSTALLED_APPS = [
     "apps.controls.apps.ControlsConfig",
     "apps.reports.apps.ReportsConfig",
     "apps.auditlog.apps.AuditlogConfig",
+    "apps.server_heatmap.apps.ServerHeatmapConfig",
 ]
 
 MIDDLEWARE = [
@@ -153,6 +154,16 @@ SECURE_HSTS_PRELOAD = env_bool("SECURE_HSTS_PRELOAD")
 SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https") if env_bool("USE_X_FORWARDED_PROTO") else None
 USE_X_FORWARDED_FOR = env_bool("USE_X_FORWARDED_FOR")
 ENABLE_LEGACY_USECASE_REDIRECTS = env_bool("ENABLE_LEGACY_USECASE_REDIRECTS", "1")
+
+# Inventario de servidores. Las credenciales se inyectan por entorno y no se guardan en la DB.
+SERVER_INVENTORY_SIEM_URL = os.getenv("SERVER_INVENTORY_SIEM_URL", "")
+SERVER_INVENTORY_AD_SERVER = os.getenv("SERVER_INVENTORY_AD_SERVER", "")
+SERVER_INVENTORY_AD_USER = os.getenv("SERVER_INVENTORY_AD_USER", "")
+SERVER_INVENTORY_AD_PASSWORD = os.getenv("SERVER_INVENTORY_AD_PASSWORD", "")
+SERVER_INVENTORY_AD_BASE_DN = os.getenv("SERVER_INVENTORY_AD_BASE_DN", "")
+SERVER_INVENTORY_AD_USE_SSL = env_bool("SERVER_INVENTORY_AD_USE_SSL", "1")
+SERVER_INVENTORY_AD_RESOLVE_IP = env_bool("SERVER_INVENTORY_AD_RESOLVE_IP", "0")
+SERVER_INVENTORY_CONNECT_TIMEOUT = int(os.getenv("SERVER_INVENTORY_CONNECT_TIMEOUT", "30"))
 
 LOGGING = {
     "version": 1,

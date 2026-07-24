@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% load static %}
+{% load static l10n %}
 
 {% block title %}Dashboard MITRE - SOC Control Manager{% endblock %}
 
@@ -971,7 +971,7 @@
                                     <strong>{{ item.score_label }}%</strong>
                                 </div>
                                 <div class="risk-current-track">
-                                    <span style="width: {{ item.score_width }}%; background: {{ item.color }};"></span>
+                                    <span style="width: {{ item.score_width|unlocalize }}%; background: {{ item.color }};"></span>
                                 </div>
                             </article>
                         {% endfor %}
@@ -1021,7 +1021,7 @@
                                 <strong>{{ mitre_risk_overview.score_label }}/100</strong>
                             </div>
                             <div class="risk-single-track">
-                                <span style="width: {{ mitre_risk_overview.score_width }}%;"></span>
+                                <span style="width: {{ mitre_risk_overview.score_width|unlocalize }}%;"></span>
                             </div>
                         </div>
                     {% else %}

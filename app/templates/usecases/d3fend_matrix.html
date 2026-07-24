@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% load l10n %}
 
 {% block title %}Matriz D3FEND - SOC Use Cases Manager{% endblock %}
 
@@ -174,7 +175,7 @@
                                     <span class="coverage-percent">{{ row.coverage_label }}%</span>
                                     <span class="coverage-count">{{ row.covered_attacks }}/{{ row.total_attacks }}</span>
                                 </div>
-                                <div class="bar"><div class="bar-fill {{ row.level }}" style="width: {{ row.coverage_width }}%;"></div></div>
+                                <div class="bar"><div class="bar-fill {{ row.level }}" style="width: {{ row.coverage_width|unlocalize }}%;"></div></div>
                             </td>
                             <td>
                                 {% if row.attacks %}

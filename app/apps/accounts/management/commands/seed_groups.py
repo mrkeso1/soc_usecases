@@ -12,6 +12,12 @@ ANALYST_PERMISSIONS = {
     "usecases.add_lifecyclereview",
     "usecases.view_mitreattack",
     "usecases.view_d3fend",
+    "server_heatmap.view_serverasset",
+    "server_heatmap.view_servernamingrule",
+    "server_heatmap.view_inventorysyncrun",
+    "server_heatmap.view_inventoryobservation",
+    "server_heatmap.view_assetidentifier",
+    "server_heatmap.view_reconciliationissue",
 }
 
 

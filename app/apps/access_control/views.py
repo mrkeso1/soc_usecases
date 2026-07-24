@@ -40,6 +40,13 @@ def admin_console(request):
             "badge": "Fuentes",
         },
         {
+            "eyebrow": "Inventario",
+            "title": "Servidores y nomenclatura",
+            "description": "Equipos AD/SIEM, habilitación y reglas para clasificar OS y función.",
+            "url": reverse("admin:server_heatmap_serverasset_changelist"),
+            "badge": "Heatmap",
+        },
+        {
             "eyebrow": "Lifecycle",
             "title": "Periodos de control",
             "description": "Fechas manuales de inicio y cierre para los controles de ciclo de vida.",

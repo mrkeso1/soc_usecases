@@ -61,7 +61,7 @@ class DashboardInventoryScopeTests(TestCase):
         return request
 
     def test_executive_dashboard_counts_enabled_production_separately(self):
-        UseCase.objects.create(name="Enabled prod", status=UseCase.STATUS_PRODUCTION, is_enabled=True)
+        UseCase.objects.create(name="Enabled prod", status=UseCase.STATUS_PRODUCTION, is_enabled=True, objective="Documentado")
         UseCase.objects.create(
             name="Disabled prod",
             status=UseCase.STATUS_PRODUCTION,
@@ -69,6 +69,7 @@ class DashboardInventoryScopeTests(TestCase):
             disabled_reason="Baja operativa",
         )
         UseCase.objects.create(name="Retired", status=UseCase.STATUS_RETIRED, is_enabled=True)
+        UseCase.objects.create(name="Test documented", status=UseCase.STATUS_TEST, is_enabled=True, objective="No debe sumar")
 
         context = build_executive_dashboard_context(self._request("/dashboard/"))
 
@@ -76,6 +77,10 @@ class DashboardInventoryScopeTests(TestCase):
         self.assertEqual(context["production_total_cases"], 2)
         self.assertEqual(context["production_disabled_cases"], 1)
         self.assertEqual(context["retired_cases"], 1)
+        self.assertEqual(context["test_cases"], 1)
+        self.assertEqual(context["total_inventory_cases"], 4)
+        self.assertEqual(context["documented_cases"], 1)
+        self.assertEqual(context["documentation_percentage"], 100.0)
 
     def test_executive_dashboard_status_rows_include_zero_statuses(self):
         for index in range(3):
@@ -93,6 +98,47 @@ class DashboardInventoryScopeTests(TestCase):
         self.assertEqual(rows[UseCase.STATUS_DEVELOPMENT]["percent"], 0)
         self.assertEqual(rows[UseCase.STATUS_RETIRED]["value"], 0)
         self.assertEqual(rows[UseCase.STATUS_RETIRED]["percent"], 0)
+
+    def test_executive_distribution_bars_use_total_cases_as_one_hundred_percent(self):
+        UseCase.objects.create(name="ICBC 1", status=UseCase.STATUS_PRODUCTION, owner_name="ICBC")
+        UseCase.objects.create(name="ICBC 2", status=UseCase.STATUS_PRODUCTION, owner_name="ICBC")
+        UseCase.objects.create(name="Other", status=UseCase.STATUS_PRODUCTION, owner_name="Otro")
+
+        context = build_executive_dashboard_context(self._request("/dashboard/"))
+        owners = {item["name"]: item for item in context["owner_rows"]}
+
+        self.assertEqual(owners["ICBC"]["value"], 2)
+        self.assertEqual(owners["ICBC"]["percent"], 67)
+        self.assertEqual(owners["ICBC"]["bar_percent"], 67)
+
+    def test_inventory_quality_uses_all_production_cases_regardless_of_enabled_state(self):
+        UseCase.objects.create(
+            name="Production with rule",
+            status=UseCase.STATUS_PRODUCTION,
+            is_enabled=True,
+            full_rule_text="regla",
+        )
+        UseCase.objects.create(name="Production without rule", status=UseCase.STATUS_PRODUCTION, is_enabled=True)
+        UseCase.objects.create(
+            name="Disabled production with rule",
+            status=UseCase.STATUS_PRODUCTION,
+            is_enabled=False,
+            disabled_reason="Deshabilitado para prueba",
+            full_rule_text="también debe sumar",
+        )
+        UseCase.objects.create(
+            name="Test with rule",
+            status=UseCase.STATUS_TEST,
+            is_enabled=True,
+            full_rule_text="no debe sumar",
+        )
+
+        context = build_executive_dashboard_context(self._request("/dashboard/"))
+        quality = {item["name"]: item for item in context["inventory_quality_rows"]}
+
+        self.assertEqual(quality["Regla / logica"]["value"], 2)
+        self.assertEqual(quality["Regla / logica"]["total"], 3)
+        self.assertEqual(quality["Regla / logica"]["percent"], 66.7)
 
     def test_mitre_dashboard_defaults_to_enabled_production(self):
         UseCase.objects.create(name="Enabled prod", status=UseCase.STATUS_PRODUCTION, is_enabled=True)

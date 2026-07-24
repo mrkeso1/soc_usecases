@@ -17,8 +17,11 @@ class SourceTaxonomyTests(TestCase):
         user = get_user_model().objects.create_user("source-filter-admin", password="pass")
         user.groups.add(admin_group)
         syslog = SourceDeliveryMethod.objects.create(code="syslog_test", name="Syslog Test")
+        taxonomy = SourceCategory.objects.create(name="Correo")
         EventSource.objects.create(
             name="Fuente coincidente",
+            category_ref=taxonomy,
+            owner="Equipo SOC",
             delivery_method=syslog,
             port=6514,
             protocol="TCP/TLS",
@@ -41,6 +44,10 @@ class SourceTaxonomyTests(TestCase):
         self.assertContains(response, "Método de envío")
         self.assertContains(response, "Cuenta de servicio")
         self.assertContains(response, "Host / endpoint")
+        self.assertContains(response, "Responsable")
+        self.assertContains(response, "Equipo SOC")
+        self.assertContains(response, '<div class="entity-subtitle">Correo</div>', html=True)
+        self.assertNotContains(response, '<span class="entity-code">FUENTE</span>', html=True)
 
         sorted_response = self.client.get(reverse("source_list"), {"sort": "port", "direction": "desc"})
         sorted_names = [item.name for item in sorted_response.context["sources"].object_list]

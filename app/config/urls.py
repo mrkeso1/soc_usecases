@@ -33,6 +33,7 @@ urlpatterns = [
     path("controls/", include("apps.controls.urls")),
     path("reports/", include("apps.reports.urls")),
     path("audit/", include("apps.auditlog.urls")),
+    path("servers/", include("apps.server_heatmap.urls")),
     path("", root_redirect, name="home"),
 ]
 
