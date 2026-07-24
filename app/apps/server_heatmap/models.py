@@ -297,11 +297,24 @@ class ReconciliationIssue(models.Model):
 
 
 class ServerNamingRule(models.Model):
+    MATCH_WILDCARD = "wildcard"
+    MATCH_REGEX = "regex"
+    MATCH_TYPE_CHOICES = [
+        (MATCH_WILDCARD, "Comodín simple (* y ?)"),
+        (MATCH_REGEX, "Expresión regular avanzada"),
+    ]
+
     name = models.CharField("Nombre", max_length=120, unique=True)
     pattern = models.CharField(
-        "Expresión regular",
+        "Patrón del nombre",
         max_length=255,
-        help_text="Se evalúa sin distinguir mayúsculas. Ejemplo: (^|[-_])DB([0-9]|[-_]|$)",
+        help_text="No distingue mayúsculas. Ejemplo con comodín: arpads*",
+    )
+    match_type = models.CharField(
+        "Tipo de patrón",
+        max_length=20,
+        choices=MATCH_TYPE_CHOICES,
+        default=MATCH_WILDCARD,
     )
     os_family = models.CharField("Sistema operativo sugerido", max_length=20, choices=ServerAsset.OS_CHOICES, blank=True)
     server_type = models.CharField("Tipo sugerido", max_length=30, choices=ServerAsset.SERVER_TYPE_CHOICES, blank=True)
@@ -318,3 +331,34 @@ class ServerNamingRule(models.Model):
 
     def __str__(self):
         return f"{self.priority} - {self.name}"
+
+
+class ServerInventoryConfiguration(models.Model):
+    ad_active_days = models.PositiveSmallIntegerField(
+        "Actividad máxima en AD (días)",
+        default=60,
+        help_text=(
+            "Solo se importan equipos habilitados cuya última actividad en Active Directory "
+            "esté dentro de este período. Use 0 para no filtrar por fecha."
+        ),
+    )
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name = "Configuración del inventario"
+        verbose_name_plural = "Configuración del inventario"
+
+    def save(self, *args, **kwargs):
+        self.pk = 1
+        super().save(*args, **kwargs)
+
+    def delete(self, *args, **kwargs):
+        return None
+
+    def __str__(self):
+        return "Configuración general"
+
+    @classmethod
+    def load(cls):
+        configuration, _ = cls.objects.get_or_create(pk=1)
+        return configuration

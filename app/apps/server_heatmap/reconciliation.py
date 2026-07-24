@@ -30,6 +30,43 @@ def normalize_ip(value):
         return ""
 
 
+def normalize_external_id(value):
+    return (value or "").strip().lower().rstrip(".")
+
+
+def _record_quality(record):
+    return sum(
+        bool(value)
+        for value in (
+            record.hostname,
+            record.fqdn,
+            record.ip_address,
+            record.os_name,
+            record.organizational_unit,
+            record.environment,
+            record.groups,
+            record.server_type_hint,
+            record.observed_at,
+        )
+    )
+
+
+def _deduplicate_records(records):
+    unique_records = {}
+    duplicate_count = 0
+    for position, record in enumerate(records):
+        external_id = normalize_external_id(record.external_id)
+        key = external_id or f"__missing_external_id_{position}"
+        existing = unique_records.get(key)
+        if existing is None:
+            unique_records[key] = record
+            continue
+        duplicate_count += 1
+        if _record_quality(record) > _record_quality(existing):
+            unique_records[key] = record
+    return list(unique_records.values()), duplicate_count
+
+
 def os_family_from_name(value):
     normalized = (value or "").lower()
     if "windows" in normalized:
@@ -177,7 +214,8 @@ def reconcile_observation(observation, record):
 def synchronize_inventory(source, connector, *, metadata=None):
     run = InventorySyncRun.objects.create(source=source, metadata=metadata or {})
     try:
-        records = connector.collect()
+        collected_records = connector.collect()
+        records, duplicate_count = _deduplicate_records(collected_records)
         with transaction.atomic():
             if source == InventorySyncRun.SOURCE_AD:
                 ServerAsset.objects.update(in_active_directory=False)
@@ -190,7 +228,7 @@ def synchronize_inventory(source, connector, *, metadata=None):
                 observation = InventoryObservation.objects.create(
                     sync_run=run,
                     source=source,
-                    external_id=record.external_id,
+                    external_id=normalize_external_id(record.external_id),
                     hostname=record.hostname,
                     fqdn=record.fqdn,
                     ip_address=normalize_ip(record.ip_address) or None,
@@ -210,10 +248,15 @@ def synchronize_inventory(source, connector, *, metadata=None):
 
             run.status = InventorySyncRun.STATUS_SUCCESS
             run.finished_at = timezone.now()
-            run.records_read = len(records)
+            run.records_read = len(collected_records)
             run.assets_created = len(created_ids)
             run.assets_updated = len(updated_ids)
             run.issues_count = run.issues.count()
+            run.metadata = {
+                **run.metadata,
+                "unique_records": len(records),
+                "duplicate_records": duplicate_count,
+            }
             run.save()
         return run
     except Exception as exc:

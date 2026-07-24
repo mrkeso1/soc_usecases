@@ -7,6 +7,7 @@ from .models import (
     InventorySyncRun,
     ReconciliationIssue,
     ServerAsset,
+    ServerInventoryConfiguration,
     ServerNamingRule,
 )
 
@@ -82,11 +83,36 @@ class ServerAssetAdmin(admin.ModelAdmin):
 
 @admin.register(ServerNamingRule)
 class ServerNamingRuleAdmin(admin.ModelAdmin):
-    list_display = ("priority", "name", "pattern", "os_family", "server_type", "is_active")
-    list_filter = ("is_active", "os_family", "server_type")
+    list_display = (
+        "priority", "name", "pattern", "match_type", "os_family", "server_type", "is_active",
+    )
+    list_filter = ("is_active", "match_type", "os_family", "server_type")
     search_fields = ("name", "pattern", "notes")
     ordering = ("priority", "name")
     readonly_fields = ("created_at", "updated_at")
+    actions = ("reclassify_with_active_rules",)
+
+    @admin.action(description="Reclasificar todos los equipos automáticos")
+    def reclassify_with_active_rules(self, request, queryset):
+        updated = 0
+        for asset in ServerAsset.objects.filter(
+            classification_source=ServerAsset.CLASSIFICATION_AUTO,
+        ):
+            apply_automatic_classification(asset)
+            updated += 1
+        messages.success(request, f"{updated} equipo(s) reclasificado(s) con las reglas activas.")
+
+
+@admin.register(ServerInventoryConfiguration)
+class ServerInventoryConfigurationAdmin(admin.ModelAdmin):
+    list_display = ("__str__", "ad_active_days", "updated_at")
+    readonly_fields = ("updated_at",)
+
+    def has_add_permission(self, request):
+        return not ServerInventoryConfiguration.objects.exists()
+
+    def has_delete_permission(self, request, obj=None):
+        return False
 
 
 @admin.register(InventorySyncRun)

@@ -1,6 +1,6 @@
 import ipaddress
 import socket
-from datetime import datetime, timezone as dt_timezone
+from datetime import datetime, timedelta, timezone as dt_timezone
 
 from ldap3 import ALL, SUBTREE, Connection, Server
 
@@ -32,6 +32,20 @@ def _last_logon(value):
     return None
 
 
+def _active_computer_filter(active_days, now=None):
+    enabled_computer = (
+        "(&(objectCategory=computer)"
+        "(!(userAccountControl:1.2.840.113556.1.4.803:=2))"
+    )
+    if active_days <= 0:
+        return f"{enabled_computer})"
+    cutoff = (now or datetime.now(dt_timezone.utc)) - timedelta(days=active_days)
+    # Active Directory almacena lastLogonTimestamp como intervalos de 100 ns
+    # transcurridos desde el 1 de enero de 1601 UTC.
+    windows_filetime = int((cutoff.timestamp() + 11644473600) * 10_000_000)
+    return f"{enabled_computer}(lastLogonTimestamp>={windows_filetime}))"
+
+
 class ActiveDirectoryConnector:
     def __init__(
         self,
@@ -43,6 +57,7 @@ class ActiveDirectoryConnector:
         use_ssl=True,
         connect_timeout=15,
         resolve_ip=False,
+        active_days=60,
     ):
         if not all((server_uri, bind_user, bind_password, search_base)):
             raise ValueError("Falta configuración obligatoria para Active Directory.")
@@ -53,6 +68,7 @@ class ActiveDirectoryConnector:
         self.use_ssl = use_ssl
         self.connect_timeout = connect_timeout
         self.resolve_ip = resolve_ip
+        self.active_days = active_days
 
     def collect(self):
         server = Server(
@@ -71,7 +87,7 @@ class ActiveDirectoryConnector:
         try:
             connection.search(
                 search_base=self.search_base,
-                search_filter="(objectCategory=computer)",
+                search_filter=_active_computer_filter(self.active_days),
                 search_scope=SUBTREE,
                 attributes=[
                     "cn",

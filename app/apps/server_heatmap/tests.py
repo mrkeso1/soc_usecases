@@ -1,4 +1,5 @@
 import tempfile
+from datetime import datetime, timezone
 from pathlib import Path
 from unittest.mock import patch
 
@@ -6,18 +7,94 @@ from django.contrib.auth import get_user_model
 from django.contrib.auth.models import Group
 from django.core.management import call_command
 from django.core.files.uploadedfile import SimpleUploadedFile
+from django.test import override_settings
 from django.test import RequestFactory, TestCase
 from django.urls import reverse
 
 from .classification import apply_automatic_classification
+from .connectors.ad import _active_computer_filter
 from .connectors.base import InventoryRecord
-from .models import InventoryObservation, InventorySyncRun, ServerAsset
+from .models import (
+    InventoryObservation,
+    InventorySyncRun,
+    ServerAsset,
+    ServerInventoryConfiguration,
+    ServerNamingRule,
+)
 from .network_diagnostics import diagnose_asset, diagnose_ingestion_gaps
 from .reconciliation import synchronize_inventory
+from apps.accounts.models import LDAPSettings
+from .management.commands.sync_server_inventory import (
+    _domain_base_from_dn,
+    build_ad_connector,
+)
 from .views import build_server_heatmap_context
 
 
 class ServerHeatmapTests(TestCase):
+    def test_simple_wildcard_rule_classifies_domain_controllers(self):
+        ServerNamingRule.objects.create(
+            name="Controladores ARPADS",
+            pattern="arpads*",
+            match_type=ServerNamingRule.MATCH_WILDCARD,
+            server_type=ServerAsset.TYPE_AD,
+            priority=1,
+        )
+        asset = ServerAsset.objects.create(hostname="ARPADS12")
+
+        apply_automatic_classification(asset)
+
+        asset.refresh_from_db()
+        self.assertEqual(asset.server_type, ServerAsset.TYPE_AD)
+
+    def test_inventory_configuration_is_singleton(self):
+        configuration = ServerInventoryConfiguration.load()
+        configuration.ad_active_days = 45
+        configuration.save()
+
+        self.assertEqual(ServerInventoryConfiguration.load().ad_active_days, 45)
+        self.assertEqual(ServerInventoryConfiguration.objects.count(), 1)
+
+    def test_ad_filter_only_includes_enabled_computers_active_in_period(self):
+        search_filter = _active_computer_filter(
+            60,
+            now=datetime(2026, 7, 24, tzinfo=timezone.utc),
+        )
+
+        self.assertIn("(objectCategory=computer)", search_filter)
+        self.assertIn("(!(userAccountControl:1.2.840.113556.1.4.803:=2))", search_filter)
+        self.assertIn("(lastLogonTimestamp>=", search_filter)
+
+    def test_domain_base_is_derived_from_existing_ldap_search_dn(self):
+        self.assertEqual(
+            _domain_base_from_dn("OU=Users,DC=example,DC=local"),
+            "DC=example,DC=local",
+        )
+
+    @override_settings(
+        SERVER_INVENTORY_AD_SERVER="",
+        SERVER_INVENTORY_AD_USER="",
+        SERVER_INVENTORY_AD_PASSWORD="",
+        SERVER_INVENTORY_AD_BASE_DN="",
+    )
+    def test_ad_connector_reuses_active_admin_ldap_configuration(self):
+        LDAPSettings.objects.create(
+            name="LDAP inventario",
+            is_enabled=True,
+            server_uri="ldap://ldap.example.local:389",
+            use_ssl=False,
+            bind_dn="CN=soc-bind,OU=Services,DC=example,DC=local",
+            bind_password="secret",
+            user_search_base="OU=Users,DC=example,DC=local",
+        )
+
+        connector = build_ad_connector()
+
+        self.assertEqual(connector.server_uri, "ldap://ldap.example.local:389")
+        self.assertEqual(connector.bind_user, "CN=soc-bind,OU=Services,DC=example,DC=local")
+        self.assertEqual(connector.bind_password, "secret")
+        self.assertEqual(connector.search_base, "DC=example,DC=local")
+
     def test_generic_naming_rules_classify_os_and_server_type(self):
         asset = ServerAsset.objects.create(hostname="AR-LNX-DB01")
 
@@ -172,6 +249,35 @@ class ServerHeatmapTests(TestCase):
         self.assertTrue(asset.in_active_directory)
         self.assertTrue(asset.in_siem)
         self.assertEqual(asset.organizational_unit, "Appl > PROD")
+
+    def test_ad_sync_consolidates_duplicate_external_ids(self):
+        class Connector:
+            def collect(self):
+                return [
+                    InventoryRecord(
+                        external_id="NICEAPP.ARDP.LOCAL",
+                        hostname="NICEAPP",
+                        fqdn="niceapp.ardp.local",
+                    ),
+                    InventoryRecord(
+                        external_id="niceapp.ardp.local.",
+                        hostname="NICEAPP",
+                        fqdn="niceapp.ardp.local",
+                        os_name="Windows Server 2022",
+                        organizational_unit="Applications > PROD",
+                    ),
+                ]
+
+        run = synchronize_inventory(InventorySyncRun.SOURCE_AD, Connector())
+
+        self.assertEqual(run.status, InventorySyncRun.STATUS_SUCCESS)
+        self.assertEqual(run.records_read, 2)
+        self.assertEqual(run.metadata["unique_records"], 1)
+        self.assertEqual(run.metadata["duplicate_records"], 1)
+        self.assertEqual(InventoryObservation.objects.filter(sync_run=run).count(), 1)
+        asset = ServerAsset.objects.get(hostname="niceapp")
+        self.assertEqual(asset.os_name, "Windows Server 2022")
+        self.assertEqual(asset.organizational_unit, "Applications > PROD")
 
     def test_upload_siem_csv_compares_against_ad_inventory(self):
         ServerAsset.objects.create(

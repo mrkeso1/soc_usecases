@@ -1,3 +1,4 @@
+import fnmatch
 import re
 
 from .models import ServerAsset, ServerNamingRule
@@ -6,10 +7,13 @@ from .models import ServerAsset, ServerNamingRule
 def classify_hostname(hostname: str) -> dict:
     result = {"os_family": ServerAsset.OS_UNKNOWN, "server_type": ServerAsset.TYPE_UNKNOWN, "matched_rules": []}
     for rule in ServerNamingRule.objects.filter(is_active=True).order_by("priority", "name"):
-        try:
-            matched = re.search(rule.pattern, hostname or "", flags=re.IGNORECASE)
-        except re.error:
-            continue
+        if rule.match_type == ServerNamingRule.MATCH_WILDCARD:
+            matched = fnmatch.fnmatch((hostname or "").lower(), rule.pattern.lower())
+        else:
+            try:
+                matched = re.search(rule.pattern, hostname or "", flags=re.IGNORECASE)
+            except re.error:
+                continue
         if not matched:
             continue
         result["matched_rules"].append(rule.name)
