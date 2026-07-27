@@ -44,7 +44,7 @@ class ServerAsset(models.Model):
     TYPE_OTHER = "other"
     TYPE_UNKNOWN = "unknown"
     SERVER_TYPE_CHOICES = [
-        (TYPE_AD, "Active Directory"),
+        (TYPE_AD, "Domain Controllers"),
         (TYPE_APPLICATION, "Aplicaciones"),
         (TYPE_DATABASE, "Base de datos"),
         (TYPE_FILESERVER, "File server"),
@@ -69,6 +69,14 @@ class ServerAsset(models.Model):
     ip_address = models.GenericIPAddressField("Dirección IP", null=True, blank=True)
     os_family = models.CharField("Sistema operativo", max_length=20, choices=OS_CHOICES, default=OS_UNKNOWN)
     server_type = models.CharField("Tipo de servidor", max_length=30, choices=SERVER_TYPE_CHOICES, default=TYPE_UNKNOWN)
+    category = models.ForeignKey(
+        "ServerCategory",
+        on_delete=models.SET_NULL,
+        related_name="assets",
+        null=True,
+        blank=True,
+        verbose_name="Sección funcional",
+    )
     application_name = models.CharField("Aplicación interna", max_length=180, blank=True)
     environment = models.CharField("Ambiente", max_length=80, blank=True)
     os_name = models.CharField("Sistema operativo informado", max_length=180, blank=True)
@@ -318,6 +326,14 @@ class ServerNamingRule(models.Model):
     )
     os_family = models.CharField("Sistema operativo sugerido", max_length=20, choices=ServerAsset.OS_CHOICES, blank=True)
     server_type = models.CharField("Tipo sugerido", max_length=30, choices=ServerAsset.SERVER_TYPE_CHOICES, blank=True)
+    category = models.ForeignKey(
+        "ServerCategory",
+        on_delete=models.SET_NULL,
+        related_name="naming_rules",
+        null=True,
+        blank=True,
+        verbose_name="Sección funcional sugerida",
+    )
     priority = models.PositiveIntegerField("Prioridad", default=100, help_text="Las reglas con menor número se evalúan primero.")
     is_active = models.BooleanField("Activa", default=True)
     notes = models.TextField("Notas", blank=True)
@@ -333,6 +349,27 @@ class ServerNamingRule(models.Model):
         return f"{self.priority} - {self.name}"
 
 
+class ServerCategory(models.Model):
+    name = models.CharField("Nombre", max_length=100, unique=True)
+    code = models.SlugField(
+        "Código",
+        max_length=60,
+        unique=True,
+        help_text="Identificador interno estable. Ejemplo: domain-controllers.",
+    )
+    order = models.PositiveSmallIntegerField("Orden", default=100)
+    is_active = models.BooleanField("Activa", default=True)
+    description = models.TextField("Descripción", blank=True)
+
+    class Meta:
+        ordering = ["order", "name"]
+        verbose_name = "Sección de servidores"
+        verbose_name_plural = "Secciones de servidores"
+
+    def __str__(self):
+        return self.name
+
+
 class ServerInventoryConfiguration(models.Model):
     ad_active_days = models.PositiveSmallIntegerField(
         "Actividad máxima en AD (días)",
@@ -340,6 +377,14 @@ class ServerInventoryConfiguration(models.Model):
         help_text=(
             "Solo se importan equipos habilitados cuya última actividad en Active Directory "
             "esté dentro de este período. Use 0 para no filtrar por fecha."
+        ),
+    )
+    retention_days = models.PositiveSmallIntegerField(
+        "Eliminar equipos sin conexión después de (días)",
+        default=90,
+        help_text=(
+            "Después de una sincronización AD exitosa se eliminan los equipos cuya última "
+            "actividad AD sea anterior a este período. Use 0 para no eliminar."
         ),
     )
     updated_at = models.DateTimeField(auto_now=True)

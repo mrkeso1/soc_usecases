@@ -1,5 +1,5 @@
 import tempfile
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from unittest.mock import patch
 
@@ -17,7 +17,9 @@ from .connectors.base import InventoryRecord
 from .models import (
     InventoryObservation,
     InventorySyncRun,
+    ReconciliationIssue,
     ServerAsset,
+    ServerCategory,
     ServerInventoryConfiguration,
     ServerNamingRule,
 )
@@ -54,6 +56,75 @@ class ServerHeatmapTests(TestCase):
 
         self.assertEqual(ServerInventoryConfiguration.load().ad_active_days, 45)
         self.assertEqual(ServerInventoryConfiguration.objects.count(), 1)
+
+    def test_ad_sync_removes_assets_older_than_retention_period(self):
+        configuration = ServerInventoryConfiguration.load()
+        configuration.retention_days = 90
+        configuration.save()
+        ServerAsset.objects.create(
+            hostname="obsolete01",
+            in_active_directory=True,
+            ad_last_logon_at=datetime.now(timezone.utc) - timedelta(days=91),
+        )
+
+        class Connector:
+            def collect(self):
+                return [
+                    InventoryRecord(
+                        external_id="active01.example.local",
+                        hostname="active01",
+                        observed_at=datetime.now(timezone.utc),
+                    ),
+                ]
+
+        run = synchronize_inventory(InventorySyncRun.SOURCE_AD, Connector())
+
+        self.assertFalse(ServerAsset.objects.filter(hostname="obsolete01").exists())
+        self.assertTrue(ServerAsset.objects.filter(hostname="active01").exists())
+        self.assertEqual(run.metadata["deleted_stale_assets"], 1)
+
+    def test_ad_sync_removes_old_asset_without_last_logon(self):
+        configuration = ServerInventoryConfiguration.load()
+        configuration.retention_days = 90
+        configuration.save()
+        zombie = ServerAsset.objects.create(
+            hostname="zombie-without-logon",
+            in_active_directory=True,
+            ad_last_logon_at=None,
+        )
+        ServerAsset.objects.filter(pk=zombie.pk).update(
+            created_at=datetime.now(timezone.utc) - timedelta(days=91),
+        )
+
+        class Connector:
+            def collect(self):
+                return []
+
+        run = synchronize_inventory(InventorySyncRun.SOURCE_AD, Connector())
+
+        self.assertFalse(ServerAsset.objects.filter(pk=zombie.pk).exists())
+        self.assertEqual(run.metadata["deleted_stale_assets"], 1)
+
+    def test_reprocess_button_does_not_require_new_inventory(self):
+        user = get_user_model().objects.create_user("reprocess-admin", password="pass")
+        group, _ = Group.objects.get_or_create(name="Admin")
+        user.groups.add(group)
+        self.client.login(username="reprocess-admin", password="pass")
+        ServerAsset.objects.create(hostname="arpads99")
+        ServerNamingRule.objects.create(
+            name="DC ARPADS",
+            pattern="arpads*",
+            server_type=ServerAsset.TYPE_AD,
+            priority=1,
+        )
+
+        response = self.client.post(reverse("server_heatmap_reprocess"))
+
+        self.assertRedirects(response, reverse("server_heatmap"))
+        self.assertEqual(
+            ServerAsset.objects.get(hostname="arpads99").server_type,
+            ServerAsset.TYPE_AD,
+        )
 
     def test_ad_filter_only_includes_enabled_computers_active_in_period(self):
         search_filter = _active_computer_filter(
@@ -105,10 +176,12 @@ class ServerHeatmapTests(TestCase):
         self.assertEqual(asset.server_type, ServerAsset.TYPE_DATABASE)
 
     def test_heatmap_compares_ad_coverage_against_siem(self):
+        category = ServerCategory.objects.get(code="application")
         ServerAsset.objects.create(
             hostname="AR-WIN-APP01",
             os_family=ServerAsset.OS_WINDOWS,
             server_type=ServerAsset.TYPE_APPLICATION,
+            category=category,
             in_active_directory=True,
             in_siem=True,
             classification_source=ServerAsset.CLASSIFICATION_MANUAL,
@@ -117,6 +190,7 @@ class ServerHeatmapTests(TestCase):
             hostname="AR-WIN-APP02",
             os_family=ServerAsset.OS_WINDOWS,
             server_type=ServerAsset.TYPE_APPLICATION,
+            category=category,
             in_active_directory=True,
             in_siem=False,
             classification_source=ServerAsset.CLASSIFICATION_MANUAL,
@@ -124,13 +198,104 @@ class ServerHeatmapTests(TestCase):
         ServerAsset.objects.create(hostname="DISABLED", in_active_directory=True, is_enabled=False)
 
         context = build_server_heatmap_context({})
-        cell = context["matrix_rows"][0]["cells"][0]
+        windows_row = next(
+            row for row in context["matrix_rows"]
+            if row["key"] == ServerAsset.OS_WINDOWS
+        )
+        cell = next(
+            item for item in windows_row["cells"]
+            if item["category"].id == category.id
+        )
 
         self.assertEqual(context["total_assets"], 2)
         self.assertEqual(context["ad_only_count"], 1)
         self.assertEqual(context["siem_coverage_percent"], 50.0)
         self.assertEqual(cell["coverage_percent"], 50.0)
         self.assertEqual(cell["gap_count"], 1)
+
+    def test_siem_only_cell_has_neutral_no_baseline_state(self):
+        category = ServerCategory.objects.get(code="exchange")
+        ServerAsset.objects.create(
+            hostname="siem-only-mail",
+            os_family=ServerAsset.OS_WINDOWS,
+            category=category,
+            in_active_directory=False,
+            in_siem=True,
+        )
+
+        context = build_server_heatmap_context({})
+        windows_row = next(
+            row for row in context["matrix_rows"]
+            if row["key"] == ServerAsset.OS_WINDOWS
+        )
+        cell = next(
+            item for item in windows_row["cells"]
+            if item["category"].id == category.id
+        )
+
+        self.assertIsNone(cell["coverage_percent"])
+        self.assertEqual(cell["level"], "no_baseline")
+        self.assertEqual(cell["siem_count"], 1)
+
+    def test_heatmap_always_includes_all_os_and_active_categories(self):
+        context = build_server_heatmap_context({})
+
+        self.assertEqual(
+            [row["key"] for row in context["matrix_rows"]],
+            [key for key, _ in ServerAsset.OS_CHOICES],
+        )
+        self.assertEqual(
+            [category.id for category in context["matrix_types"]],
+            list(
+                ServerCategory.objects.filter(is_active=True)
+                .order_by("order", "name")
+                .values_list("id", flat=True)
+            ),
+        )
+
+    def test_os_coverage_uses_ad_as_denominator(self):
+        for number in range(1, 101):
+            ServerAsset.objects.create(
+                hostname=f"win-{number:03}",
+                os_family=ServerAsset.OS_WINDOWS,
+                in_active_directory=True,
+                in_siem=number <= 80,
+            )
+
+        windows = next(
+            row for row in build_server_heatmap_context({})["os_rows"]
+            if row["key"] == ServerAsset.OS_WINDOWS
+        )
+
+        self.assertEqual(windows["ad_count"], 100)
+        self.assertEqual(windows["covered_count"], 80)
+        self.assertEqual(windows["gap_count"], 20)
+        self.assertEqual(windows["percent"], 80.0)
+
+    def test_functional_section_coverage_uses_each_ad_section_as_100_percent(self):
+        category = ServerCategory.objects.get(code="database")
+        for number in range(1, 11):
+            ServerAsset.objects.create(
+                hostname=f"db-{number:02}",
+                category=category,
+                in_active_directory=True,
+                in_siem=number <= 7,
+            )
+        ServerAsset.objects.create(
+            hostname="unrelated-siem",
+            in_siem=True,
+            category=ServerCategory.objects.get(code="application"),
+        )
+
+        database = next(
+            row for row in build_server_heatmap_context({})["type_rows"]
+            if row["key"] == category.id
+        )
+
+        self.assertEqual(database["ad_count"], 10)
+        self.assertEqual(database["covered_count"], 7)
+        self.assertEqual(database["gap_count"], 3)
+        self.assertEqual(database["percent"], 70.0)
 
     def test_admin_role_can_open_server_heatmap(self):
         user = get_user_model().objects.create_user("heatmap-admin", password="pass")
@@ -143,10 +308,148 @@ class ServerHeatmapTests(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "Mapa de calor de servidores")
 
+    def test_admin_role_can_manage_inventory_from_front_panel(self):
+        user = get_user_model().objects.create_user("front-admin", password="pass")
+        group, _ = Group.objects.get_or_create(name="Admin")
+        user.groups.add(group)
+        self.client.login(username="front-admin", password="pass")
+
+        response = self.client.get(reverse("server_heatmap_administration"))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Panel de administración")
+        self.assertContains(response, "Configuración del inventario")
+        self.assertContains(response, "Administrar equipos")
+
+    def test_front_panel_updates_configuration_and_creates_rule(self):
+        user = get_user_model().objects.create_user("settings-admin", password="pass")
+        group, _ = Group.objects.get_or_create(name="Admin")
+        user.groups.add(group)
+        self.client.login(username="settings-admin", password="pass")
+
+        response = self.client.post(
+            reverse("server_heatmap_administration"),
+            {
+                "action": "save_configuration",
+                "ad_active_days": 45,
+                "retention_days": 120,
+            },
+        )
+        self.assertRedirects(response, reverse("server_heatmap_administration"))
+        configuration = ServerInventoryConfiguration.load()
+        self.assertEqual(configuration.ad_active_days, 45)
+        self.assertEqual(configuration.retention_days, 120)
+
+        response = self.client.post(
+            reverse("server_heatmap_administration"),
+            {
+                "action": "create_rule",
+                "rule-name": "Controladores front",
+                "rule-pattern": "arpads*",
+                "rule-match_type": ServerNamingRule.MATCH_WILDCARD,
+                "rule-os_family": "",
+                "rule-server_type": ServerAsset.TYPE_AD,
+                "rule-priority": 5,
+                "rule-is_active": "on",
+                "rule-notes": "",
+            },
+        )
+        self.assertRedirects(response, reverse("server_heatmap_administration"))
+        self.assertTrue(ServerNamingRule.objects.filter(name="Controladores front").exists())
+
+    def test_front_panel_can_create_dynamic_server_category(self):
+        user = get_user_model().objects.create_user("category-admin", password="pass")
+        group, _ = Group.objects.get_or_create(name="Admin")
+        user.groups.add(group)
+        self.client.login(username="category-admin", password="pass")
+
+        response = self.client.post(
+            reverse("server_heatmap_administration"),
+            {
+                "action": "create_category",
+                "category-name": "SAP",
+                "category-code": "sap",
+                "category-order": 55,
+                "category-is_active": "on",
+                "category-description": "Servidores de SAP",
+            },
+        )
+
+        self.assertRedirects(response, reverse("server_heatmap_administration"))
+        self.assertTrue(ServerCategory.objects.filter(code="sap", name="SAP").exists())
+
+    def test_front_panel_can_disable_selected_assets(self):
+        user = get_user_model().objects.create_user("asset-admin", password="pass")
+        group, _ = Group.objects.get_or_create(name="Admin")
+        user.groups.add(group)
+        self.client.login(username="asset-admin", password="pass")
+        asset = ServerAsset.objects.create(hostname="disable-me")
+
+        response = self.client.post(
+            reverse("server_heatmap_administration"),
+            {"action": "disable_assets", "asset_ids": [asset.id]},
+        )
+
+        self.assertRedirects(response, reverse("server_heatmap_administration"))
+        asset.refresh_from_db()
+        self.assertFalse(asset.is_enabled)
+
+    def test_front_panel_resolves_reconciliation_issue_and_dashboard_excludes_it(self):
+        user = get_user_model().objects.create_user("issue-admin", password="pass")
+        group, _ = Group.objects.get_or_create(name="Admin")
+        user.groups.add(group)
+        self.client.login(username="issue-admin", password="pass")
+        run = InventorySyncRun.objects.create(
+            source=InventorySyncRun.SOURCE_SIEM,
+            status=InventorySyncRun.STATUS_SUCCESS,
+        )
+        observation = InventoryObservation.objects.create(
+            sync_run=run,
+            source=InventorySyncRun.SOURCE_SIEM,
+            external_id="orphan01",
+            hostname="orphan01",
+        )
+        issue = ReconciliationIssue.objects.create(
+            sync_run=run,
+            observation=observation,
+            issue_type=ReconciliationIssue.TYPE_NOT_IN_AD,
+            identifier="orphan01",
+        )
+
+        before = build_server_heatmap_context({})
+        self.assertEqual(before["unresolved_issue_counts"]["not_in_ad"], 1)
+
+        response = self.client.post(
+            reverse("server_heatmap_administration"),
+            {"action": "resolve_issues", "issue_ids": [issue.id]},
+        )
+
+        self.assertRedirects(response, reverse("server_heatmap_administration"))
+        issue.refresh_from_db()
+        self.assertTrue(issue.is_resolved)
+        after = build_server_heatmap_context({})
+        self.assertEqual(after["unresolved_issue_counts"]["not_in_ad"], 0)
+        self.assertEqual(after["unmatched_siem_count"], 0)
+
     def test_percentage_bar_uses_css_decimal_point(self):
-        ServerAsset.objects.create(hostname="win01", os_family=ServerAsset.OS_WINDOWS)
-        ServerAsset.objects.create(hostname="win02", os_family=ServerAsset.OS_WINDOWS)
-        ServerAsset.objects.create(hostname="lin01", os_family=ServerAsset.OS_LINUX)
+        ServerAsset.objects.create(
+            hostname="win01",
+            os_family=ServerAsset.OS_WINDOWS,
+            in_active_directory=True,
+            in_siem=True,
+        )
+        ServerAsset.objects.create(
+            hostname="win02",
+            os_family=ServerAsset.OS_WINDOWS,
+            in_active_directory=True,
+            in_siem=True,
+        )
+        ServerAsset.objects.create(
+            hostname="win03",
+            os_family=ServerAsset.OS_WINDOWS,
+            in_active_directory=True,
+            in_siem=False,
+        )
         user = get_user_model().objects.create_user("chart-admin", password="pass")
         group, _ = Group.objects.get_or_create(name="Admin")
         user.groups.add(group)

@@ -41,7 +41,7 @@
                     <a href="{% url 'source_list' %}" class="{% if url_name == 'source_list' or url_name == 'source_detail' or url_name == 'source_create' or url_name == 'source_edit' or url_name == 'usecase_source_create' %}active{% endif %}">
                         <span class="nav-icon" aria-hidden="true">S</span><span>Fuentes</span>
                     </a>
-                    <a href="{% url 'server_heatmap' %}" class="{% if url_name == 'server_heatmap' %}active{% endif %}">
+                    <a href="{% url 'server_heatmap' %}" class="{% if url_name == 'server_heatmap' or url_name == 'server_heatmap_administration' or url_name == 'server_heatmap_rule_edit' or url_name == 'server_heatmap_asset_edit' %}active{% endif %}">
                         <span class="nav-icon" aria-hidden="true">H</span><span>Mapa servidores</span>
                     </a>
                     <a href="{% url 'control_list' %}" class="{% if url_name == 'control_list' or url_name == 'control_detail' or url_name == 'control_create' or url_name == 'control_edit' or url_name == 'control_history' %}active{% endif %}">
@@ -56,7 +56,7 @@
                         <span class="nav-icon" aria-hidden="true">Σ</span><span>Sigma Tools</span>
                     </a>
                     {% if is_role_admin or request.user.is_superuser %}
-                        <a href="{% url 'admin_console' %}" class="{% if url_name == 'admin_console' or url_name == 'access_control_home' or url_name == 'access_role_create' or url_name == 'access_role_edit' or url_name == 'coverage_admin' or url_name == 'audit_list' or url_name == 'audit_detail' or url_name == 'source_admin_catalog' or url_name == 'source_category_create' or url_name == 'source_category_edit' or url_name == 'source_type_create' or url_name == 'source_type_edit' or url_name == 'report_template_settings' %}active{% endif %}">
+                        <a href="{% url 'admin_console' %}" class="{% if url_name == 'admin_console' or url_name == 'access_control_home' or url_name == 'access_role_create' or url_name == 'access_role_edit' or url_name == 'coverage_admin' or url_name == 'audit_list' or url_name == 'audit_detail' or url_name == 'source_admin_catalog' or url_name == 'source_category_create' or url_name == 'source_category_edit' or url_name == 'source_type_create' or url_name == 'source_type_edit' or url_name == 'report_template_settings' or url_name == 'server_heatmap_administration' or url_name == 'server_heatmap_rule_edit' or url_name == 'server_heatmap_asset_edit' %}active{% endif %}">
                             <span class="nav-icon" aria-hidden="true">O</span><span>Administracion</span>
                         </a>
                     {% endif %}

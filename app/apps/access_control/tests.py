@@ -37,3 +37,5 @@ class AccessControlPermissionTests(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "Catálogos de fuentes")
         self.assertContains(response, "Admin cobertura")
+        self.assertContains(response, reverse("server_heatmap_administration"))
+        self.assertNotContains(response, reverse("admin:server_heatmap_serverasset_changelist"))

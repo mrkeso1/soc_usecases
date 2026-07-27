@@ -42,8 +42,8 @@ def admin_console(request):
         {
             "eyebrow": "Inventario",
             "title": "Servidores y nomenclatura",
-            "description": "Equipos AD/SIEM, habilitación y reglas para clasificar OS y función.",
-            "url": reverse("admin:server_heatmap_serverasset_changelist"),
+            "description": "Panel operativo para equipos AD/SIEM, cruces, retención y reglas de nomenclatura.",
+            "url": reverse("server_heatmap_administration"),
             "badge": "Heatmap",
         },
         {

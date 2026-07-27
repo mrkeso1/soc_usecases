@@ -8,3 +8,15 @@ def can_access_server_heatmap(user):
     if roles["is_readonly"]:
         return False
     return bool(getattr(user, "is_authenticated", False) and user.has_perm("server_heatmap.view_serverasset"))
+
+
+def can_manage_server_heatmap(user):
+    roles = resolve_user_roles(user)
+    return bool(
+        getattr(user, "is_authenticated", False)
+        and (
+            roles["is_admin"]
+            or getattr(user, "is_superuser", False)
+            or user.has_perm("server_heatmap.change_serverasset")
+        )
+    )

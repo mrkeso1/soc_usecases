@@ -32,6 +32,7 @@
     .heat-cell.warning { background:rgba(245,166,35,.18); border-color:rgba(245,166,35,.45); }
     .heat-cell.bad { background:rgba(255,71,87,.18); border-color:rgba(255,71,87,.45); }
     .heat-cell.empty { opacity:.42; }
+    .heat-cell.no_baseline { background:rgba(78,106,142,.12); border-color:rgba(78,106,142,.35); }
     .heat-cell strong { display:block; color:var(--text-strong); font-size:1.12rem; }
     .heat-cell span,.heat-cell small { display:block; margin-top:3px; color:var(--text-muted); font-size:.72rem; }
     .heat-legend { display:flex; flex-wrap:wrap; gap:12px; margin:12px 0; color:var(--text-muted); font-size:.82rem; }
@@ -56,7 +57,15 @@
 <main class="container"><section class="page-shell wide">
     <header class="page-header">
         <div><div class="page-eyebrow">// INVENTARIO AD × SIEM</div><h1 class="page-title">Mapa de calor de servidores</h1><p class="page-subtitle">Compara equipos registrados en Active Directory con los que tienen ingesta en el SIEM. La clasificación puede surgir de reglas de nomenclatura o corregirse manualmente.</p></div>
-        {% if request.user.is_staff %}<div class="header-actions"><a class="btn" href="{% url 'admin:server_heatmap_serverasset_changelist' %}">Administrar equipos</a><a class="btn" href="{% url 'admin:server_heatmap_servernamingrule_changelist' %}">Reglas de nomenclatura</a></div>{% endif %}
+        <div class="header-actions">
+            <form method="post" action="{% url 'server_heatmap_reprocess' %}">
+                {% csrf_token %}
+                <button class="btn-primary" type="submit">Cruzar y aplicar nomenclaturas</button>
+            </form>
+            {% if can_manage_inventory %}
+                <a class="btn" href="{% url 'server_heatmap_administration' %}">Panel de administración</a>
+            {% endif %}
+        </div>
     </header>
 
     <section class="inventory-flow">
@@ -103,23 +112,23 @@
 
     <section class="filter-panel"><form class="filter-grid server-filters" method="get">
         <div class="field"><label>Sistema operativo</label><select name="os"><option value="">Todos</option>{% for value,label in os_choices %}<option value="{{ value }}" {% if selected_os == value %}selected{% endif %}>{{ label }}</option>{% endfor %}</select></div>
-        <div class="field"><label>Tipo funcional</label><select name="type"><option value="">Todos</option>{% for value,label in type_choices %}<option value="{{ value }}" {% if selected_type == value %}selected{% endif %}>{{ label }}</option>{% endfor %}</select></div>
+        <div class="field"><label>Sección funcional</label><select name="type"><option value="">Todas</option>{% for category in type_choices %}<option value="{{ category.id }}" {% if selected_type == category.id|stringformat:"s" %}selected{% endif %}>{{ category.name }}</option>{% endfor %}</select></div>
         <div class="field"><label>Cobertura</label><select name="coverage"><option value="">Todas</option><option value="both" {% if selected_coverage == 'both' %}selected{% endif %}>AD + SIEM</option><option value="ad_only" {% if selected_coverage == 'ad_only' %}selected{% endif %}>Solo AD</option><option value="siem_only" {% if selected_coverage == 'siem_only' %}selected{% endif %}>Solo SIEM</option></select></div>
         <div class="field"><label>Estado</label><select name="enabled"><option value="yes" {% if selected_enabled == 'yes' %}selected{% endif %}>Habilitados</option><option value="all" {% if selected_enabled == 'all' %}selected{% endif %}>Todos</option><option value="no" {% if selected_enabled == 'no' %}selected{% endif %}>Deshabilitados</option></select></div>
         <div class="header-actions"><button class="btn-primary" type="submit">Filtrar</button><a class="btn" href="{% url 'server_heatmap' %}">Limpiar</a></div>
     </form></section>
 
-    <div class="heat-legend"><span><i style="background:var(--good)"></i>90–100%</span><span><i style="background:var(--accent)"></i>70–89%</span><span><i style="background:var(--medium)"></i>1–69%</span><span><i style="background:var(--bad)"></i>0%</span><span>Porcentaje = equipos AD también presentes en SIEM.</span></div>
+    <div class="heat-legend"><span><i style="background:var(--good)"></i>90–100%</span><span><i style="background:var(--accent)"></i>70–89%</span><span><i style="background:var(--medium)"></i>1–69%</span><span><i style="background:var(--bad)"></i>0%</span><span><i style="background:var(--text-muted)"></i>Sin línea base AD</span><span>Porcentaje = equipos AD también presentes en SIEM.</span></div>
     <section class="heatmap-shell">
-        {% if matrix_rows and matrix_types %}<table class="heatmap"><thead><tr><th>OS / tipo</th>{% for item in matrix_types %}<th>{{ item.label }}</th>{% endfor %}</tr></thead><tbody>
-        {% for row in matrix_rows %}<tr><td class="heatmap-row-title"><strong>{{ row.label }}</strong><small>{{ row.total }} equipos</small></td>{% for cell in row.cells %}<td class="heat-cell {{ cell.level }}"><strong>{% if cell.ad_count %}{{ cell.coverage_percent }}%{% else %}—{% endif %}</strong><span>{{ cell.covered_count }}/{{ cell.ad_count }} AD cubiertos</span><small>{{ cell.gap_count }} brechas · {{ cell.siem_count }} SIEM</small></td>{% endfor %}</tr>{% endfor %}
-        </tbody></table>{% else %}<div class="empty-state">Todavía no hay equipos para construir el mapa. Podés cargarlos desde Django Admin.</div>{% endif %}
+        {% if matrix_rows and matrix_types %}<table class="heatmap"><thead><tr><th>OS / sección</th>{% for item in matrix_types %}<th>{{ item.name }}</th>{% endfor %}</tr></thead><tbody>
+        {% for row in matrix_rows %}<tr><td class="heatmap-row-title"><strong>{{ row.label }}</strong><small>{{ row.total }} equipos</small></td>{% for cell in row.cells %}<td class="heat-cell {{ cell.level }}" title="{% if cell.level == 'no_baseline' %}{{ cell.siem_count }} equipos detectados solo por SIEM, sin correspondencia en AD{% elif cell.level == 'empty' %}Sin inventario registrado{% else %}{{ cell.covered_count }} de {{ cell.ad_count }} equipos AD tienen ingesta SIEM{% endif %}"><strong>{% if cell.coverage_percent != None %}{{ cell.coverage_percent }}%{% else %}—{% endif %}</strong><span>{% if cell.level == 'no_baseline' %}Sin línea base AD{% else %}{{ cell.covered_count }}/{{ cell.ad_count }} AD cubiertos{% endif %}</span><small>{{ cell.gap_count }} brechas · {{ cell.siem_count }} SIEM</small></td>{% endfor %}</tr>{% endfor %}
+        </tbody></table>{% else %}<div class="empty-state">Todavía no hay equipos clasificados para construir el mapa. Administrá las secciones y reglas desde el panel propio de servidores.</div>{% endif %}
     </section>
 
     <section class="server-grid">
-        <article class="server-panel"><h2>Por sistema operativo</h2><small>Distribución del inventario visible</small><div class="server-bars">{% for item in os_rows %}<div><div class="server-bar-head"><span>{{ item.label }}</span><strong>{{ item.value }} · {{ item.percent }}%</strong></div><div class="server-bar-track"><span style="width:{{ item.percent|unlocalize }}%"></span></div></div>{% empty %}<p class="muted">Sin datos.</p>{% endfor %}</div></article>
-        <article class="server-panel"><h2>Por tipo funcional</h2><small>AD, aplicaciones, DB, file server y otros</small><div class="server-bars">{% for item in type_rows %}<div><div class="server-bar-head"><span>{{ item.label }}</span><strong>{{ item.value }} · {{ item.percent }}%</strong></div><div class="server-bar-track"><span style="width:{{ item.percent|unlocalize }}%"></span></div></div>{% empty %}<p class="muted">Sin datos.</p>{% endfor %}</div></article>
-        <article class="server-panel"><h2>Por aplicación interna</h2><small>Usa el nombre funcional cargado en cada equipo</small><div class="server-bars">{% for item in application_rows %}<div><div class="server-bar-head"><span>{{ item.label }}</span><strong>{{ item.value }} · {{ item.percent }}%</strong></div><div class="server-bar-track"><span style="width:{{ item.percent|unlocalize }}%"></span></div></div>{% empty %}<p class="muted">Sin aplicaciones identificadas.</p>{% endfor %}</div></article>
+        <article class="server-panel"><h2>Cobertura por sistema operativo</h2><small>Porcentaje de equipos AD que también están en SIEM</small><div class="server-bars">{% for item in os_rows %}<div><div class="server-bar-head"><span>{{ item.label }}</span><strong>{{ item.covered_count }}/{{ item.ad_count }} · {{ item.percent }}%</strong></div><div class="server-bar-track"><span style="width:{{ item.percent|unlocalize }}%"></span></div><small>{{ item.gap_count }} pendientes de ingesta</small></div>{% empty %}<p class="muted">Sin equipos AD.</p>{% endfor %}</div></article>
+        <article class="server-panel"><h2>Cobertura por sección funcional</h2><small>En cada sección, el total de equipos AD representa el 100%</small><div class="server-bars">{% for item in type_rows %}<div><div class="server-bar-head"><span>{{ item.label }}</span><strong>{{ item.covered_count }}/{{ item.ad_count }} · {{ item.percent }}%</strong></div><div class="server-bar-track"><span style="width:{{ item.percent|unlocalize }}%"></span></div><small>{{ item.gap_count }} pendientes de ingesta</small></div>{% empty %}<p class="muted">Sin equipos AD clasificados.</p>{% endfor %}</div></article>
+        <article class="server-panel"><h2>Cobertura por aplicación interna</h2><small>En cada aplicación, el total de equipos AD representa el 100%</small><div class="server-bars">{% for item in application_rows %}<div><div class="server-bar-head"><span>{{ item.label }}</span><strong>{{ item.covered_count }}/{{ item.ad_count }} · {{ item.percent }}%</strong></div><div class="server-bar-track"><span style="width:{{ item.percent|unlocalize }}%"></span></div><small>{{ item.gap_count }} pendientes de ingesta</small></div>{% empty %}<p class="muted">Sin aplicaciones identificadas en AD.</p>{% endfor %}</div></article>
     </section>
 
     <section class="table-panel" style="margin-top:14px">
@@ -138,7 +147,7 @@
             <tbody>{% for item in gaps %}<tr>
                 <td><strong>{{ item.hostname }}</strong></td>
                 <td>{{ item.os_name|default:item.get_os_family_display }}</td>
-                <td>{{ item.get_server_type_display }}</td>
+                <td>{% if item.category %}{{ item.category.name }}{% else %}{{ item.get_server_type_display }}{% endif %}</td>
                 <td>{{ item.environment|default:'-' }}</td>
                 <td>{{ item.get_dns_status_display }}</td>
                 <td>{{ item.resolved_ip_address|default:item.ip_address|default:'-' }}</td>
@@ -150,7 +159,7 @@
     </section>
 
     {% if latest_siem_run %}
-    <section class="table-panel" style="margin-top:14px"><div style="padding:14px 14px 4px"><h2 class="section-title">Registros SIEM sin asociación AD</h2><p class="page-subtitle">Pueden ser dispositivos que no pertenecen al inventario de servidores, direcciones IP sin resolver o registros que requieren revisión.</p></div><div style="overflow:auto"><table class="gap-table"><thead><tr><th>Identificador SIEM</th><th>Hostname</th><th>IP</th><th>Tipo informado</th></tr></thead><tbody>{% for item in unmatched_siem %}<tr><td>{{ item.external_id }}</td><td>{{ item.hostname|default:'-' }}</td><td>{{ item.ip_address|default:'-' }}</td><td>{{ item.server_type_hint|default:'-' }}</td></tr>{% empty %}<tr><td colspan="4" class="muted">Todos los registros identificables del último CSV fueron asociados.</td></tr>{% endfor %}</tbody></table></div></section>
+    <section class="table-panel" style="margin-top:14px"><div style="padding:14px 14px 4px"><h2 class="section-title">Conflictos SIEM pendientes</h2><p class="page-subtitle">{{ unmatched_siem_count }} sin resolver: {{ unresolved_issue_counts.not_in_ad }} no encontrados en AD · {{ unresolved_issue_counts.ambiguous }} ambiguos · {{ unresolved_issue_counts.missing_identifier }} sin identificador.</p></div><div style="overflow:auto"><table class="gap-table"><thead><tr><th>Identificador SIEM</th><th>Hostname</th><th>IP</th><th>Tipo informado</th></tr></thead><tbody>{% for item in unmatched_siem %}<tr><td>{{ item.external_id }}</td><td>{{ item.hostname|default:'-' }}</td><td>{{ item.ip_address|default:'-' }}</td><td>{{ item.server_type_hint|default:'-' }}</td></tr>{% empty %}<tr><td colspan="4" class="muted">No hay conflictos SIEM pendientes.</td></tr>{% endfor %}</tbody></table></div></section>
     {% endif %}
 </section></main>
 {% endblock %}

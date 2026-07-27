@@ -7,9 +7,18 @@ from .models import (
     InventorySyncRun,
     ReconciliationIssue,
     ServerAsset,
+    ServerCategory,
     ServerInventoryConfiguration,
     ServerNamingRule,
 )
+
+
+@admin.register(ServerCategory)
+class ServerCategoryAdmin(admin.ModelAdmin):
+    list_display = ("order", "name", "code", "is_active")
+    list_filter = ("is_active",)
+    search_fields = ("name", "code", "description")
+    ordering = ("order", "name")
 
 
 @admin.action(description="Habilitar equipos seleccionados")
@@ -105,7 +114,7 @@ class ServerNamingRuleAdmin(admin.ModelAdmin):
 
 @admin.register(ServerInventoryConfiguration)
 class ServerInventoryConfigurationAdmin(admin.ModelAdmin):
-    list_display = ("__str__", "ad_active_days", "updated_at")
+    list_display = ("__str__", "ad_active_days", "retention_days", "updated_at")
     readonly_fields = ("updated_at",)
 
     def has_add_permission(self, request):

@@ -1,15 +1,19 @@
 import ipaddress
+from datetime import timedelta
 
 from django.db import transaction
+from django.db.models import Q
 from django.utils import timezone
 
-from .classification import apply_automatic_classification
+from .classification import active_naming_rules, apply_automatic_classification
+from .connectors.base import InventoryRecord
 from .models import (
     AssetIdentifier,
     InventoryObservation,
     InventorySyncRun,
     ReconciliationIssue,
     ServerAsset,
+    ServerInventoryConfiguration,
 )
 
 
@@ -132,7 +136,7 @@ def _save_identifier(asset, kind, value, source, seen_at):
     )
 
 
-def reconcile_observation(observation, record):
+def reconcile_observation(observation, record, *, naming_rules=None):
     candidates = list(_candidate_assets(record)[:2])
     canonical_hostname = normalize_hostname(record.hostname or record.fqdn)
     if len(candidates) > 1:
@@ -199,9 +203,9 @@ def reconcile_observation(observation, record):
             asset.os_family = os_family_from_name(record.os_name)
     asset.inventory_source = source
     asset.is_enabled = True
-    asset.save()
     if asset.classification_source == ServerAsset.CLASSIFICATION_AUTO:
-        apply_automatic_classification(asset)
+        apply_automatic_classification(asset, save=False, rules=naming_rules)
+    asset.save()
 
     _save_identifier(asset, AssetIdentifier.KIND_HOSTNAME, canonical_hostname, source, observed_at)
     _save_identifier(asset, AssetIdentifier.KIND_FQDN, fqdn, source, observed_at)
@@ -216,6 +220,7 @@ def synchronize_inventory(source, connector, *, metadata=None):
     try:
         collected_records = connector.collect()
         records, duplicate_count = _deduplicate_records(collected_records)
+        naming_rules = active_naming_rules()
         with transaction.atomic():
             if source == InventorySyncRun.SOURCE_AD:
                 ServerAsset.objects.update(in_active_directory=False)
@@ -240,7 +245,11 @@ def synchronize_inventory(source, connector, *, metadata=None):
                     observed_at=record.observed_at,
                     raw_data=record.raw_data,
                 )
-                asset, was_created = reconcile_observation(observation, record)
+                asset, was_created = reconcile_observation(
+                    observation,
+                    record,
+                    naming_rules=naming_rules,
+                )
                 if asset and was_created:
                     created_ids.add(asset.id)
                 elif asset:
@@ -257,6 +266,18 @@ def synchronize_inventory(source, connector, *, metadata=None):
                 "unique_records": len(records),
                 "duplicate_records": duplicate_count,
             }
+            if source == InventorySyncRun.SOURCE_AD:
+                retention_days = ServerInventoryConfiguration.load().retention_days
+                deleted_assets = 0
+                if retention_days:
+                    cutoff = timezone.now() - timedelta(days=retention_days)
+                    stale_assets = ServerAsset.objects.filter(
+                        Q(ad_last_logon_at__lt=cutoff)
+                        | Q(ad_last_logon_at__isnull=True, created_at__lt=cutoff),
+                    )
+                    deleted_assets = stale_assets.count()
+                    stale_assets.delete()
+                run.metadata["deleted_stale_assets"] = deleted_assets
             run.save()
         return run
     except Exception as exc:
@@ -265,3 +286,55 @@ def synchronize_inventory(source, connector, *, metadata=None):
         run.error_message = str(exc)
         run.save(update_fields=["status", "finished_at", "error_message"])
         raise
+
+
+def _record_from_observation(observation):
+    return InventoryRecord(
+        external_id=observation.external_id,
+        hostname=observation.hostname,
+        fqdn=observation.fqdn,
+        ip_address=observation.ip_address,
+        os_name=observation.os_name,
+        organizational_unit=observation.organizational_unit,
+        environment=observation.environment,
+        groups=observation.groups,
+        server_type_hint=observation.server_type_hint,
+        observed_at=observation.observed_at,
+        raw_data=observation.raw_data,
+    )
+
+
+def reprocess_stored_inventory():
+    latest_runs = []
+    for source in (InventorySyncRun.SOURCE_AD, InventorySyncRun.SOURCE_SIEM):
+        run = InventorySyncRun.objects.filter(
+            source=source,
+            status=InventorySyncRun.STATUS_SUCCESS,
+        ).first()
+        if run:
+            latest_runs.append(run)
+
+    naming_rules = active_naming_rules()
+    processed = 0
+    matched = 0
+    with transaction.atomic():
+        ServerAsset.objects.update(in_active_directory=False, in_siem=False)
+        for run in latest_runs:
+            run.issues.all().delete()
+            for observation in run.observations.all().iterator(chunk_size=500):
+                asset, _ = reconcile_observation(
+                    observation,
+                    _record_from_observation(observation),
+                    naming_rules=naming_rules,
+                )
+                processed += 1
+                matched += bool(asset)
+            run.issues_count = run.issues.count()
+            run.save(update_fields=["issues_count"])
+
+        # También actualiza equipos manualmente cargados que no estén en las últimas observaciones.
+        pending = ServerAsset.objects.filter(classification_source=ServerAsset.CLASSIFICATION_AUTO)
+        for asset in pending.iterator(chunk_size=500):
+            apply_automatic_classification(asset, rules=naming_rules)
+
+    return {"processed": processed, "matched": matched, "runs": len(latest_runs)}
