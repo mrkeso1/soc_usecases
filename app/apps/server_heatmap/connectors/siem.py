@@ -48,22 +48,33 @@ def _groups(value):
 
 
 class SiemCsvConnector:
-    def __init__(self, *, path=None, url=None, text=None, timeout=30):
+    def __init__(
+        self,
+        *,
+        path=None,
+        url=None,
+        text=None,
+        timeout=30,
+        use_environment_proxy=False,
+    ):
         if not path and not url and text is None:
             raise ValueError("Se requiere una ruta, URL o contenido para el inventario SIEM.")
         self.path = Path(path) if path else None
         self.url = url
         self.text = text
         self.timeout = timeout
+        self.use_environment_proxy = use_environment_proxy
 
     def _read_text(self):
         if self.text is not None:
             return self.text
         if self.path:
             return self.path.read_text(encoding="utf-8-sig")
-        response = requests.get(self.url, timeout=self.timeout)
-        response.raise_for_status()
-        return response.content.decode("utf-8-sig")
+        with requests.Session() as session:
+            session.trust_env = self.use_environment_proxy
+            response = session.get(self.url, timeout=self.timeout)
+            response.raise_for_status()
+            return response.content.decode("utf-8-sig")
 
     def collect(self):
         text = self._read_text()

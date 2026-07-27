@@ -12,12 +12,14 @@ from .connectors.siem import SiemCsvConnector
 from .classification import active_naming_rules, apply_automatic_classification
 from .forms import (
     InventoryConfigurationForm,
+    InventoryFilterRuleForm,
     ServerAssetForm,
     ServerCategoryForm,
     ServerNamingRuleForm,
 )
 from .models import (
     InventoryObservation,
+    InventoryFilterRule,
     InventorySyncRun,
     ReconciliationIssue,
     ServerAsset,
@@ -26,6 +28,7 @@ from .models import (
     ServerNamingRule,
 )
 from .network_diagnostics import diagnose_ingestion_gaps
+from .inventory_filters import simulate_inventory_filters
 from .permissions import can_access_server_heatmap, can_manage_server_heatmap
 from .reconciliation import reprocess_stored_inventory, synchronize_inventory
 
@@ -563,3 +566,73 @@ def delete_server_category(request, category_id):
         category.delete()
         messages.success(request, f"Sección «{name}» eliminada.")
     return redirect("server_heatmap_administration")
+
+
+@login_required
+def inventory_filter_list(request):
+    if not can_manage_server_heatmap(request.user):
+        return HttpResponseForbidden("No tenés permisos para administrar filtros.")
+    simulation = None
+    if request.GET.get("simulate") == "1":
+        simulation = simulate_inventory_filters()
+    return render(
+        request,
+        "server_heatmap/filter_list.html",
+        {
+            "rules": InventoryFilterRule.objects.select_related("category").all(),
+            "simulation": simulation,
+        },
+    )
+
+
+@login_required
+def inventory_filter_create(request):
+    if not can_manage_server_heatmap(request.user):
+        return HttpResponseForbidden("No tenés permisos para administrar filtros.")
+    form = InventoryFilterRuleForm(request.POST or None)
+    if request.method == "POST" and form.is_valid():
+        rule = form.save()
+        messages.success(
+            request,
+            f"Filtro «{rule.name}» creado {'activo' if rule.is_active else 'inactivo'}.",
+        )
+        return redirect("server_heatmap_filter_edit", rule_id=rule.id)
+    return render(
+        request,
+        "server_heatmap/filter_form.html",
+        {"form": form, "rule": None, "preview": None},
+    )
+
+
+@login_required
+def inventory_filter_edit(request, rule_id):
+    if not can_manage_server_heatmap(request.user):
+        return HttpResponseForbidden("No tenés permisos para administrar filtros.")
+    rule = get_object_or_404(InventoryFilterRule, pk=rule_id)
+    form = InventoryFilterRuleForm(request.POST or None, instance=rule)
+    if request.method == "POST" and form.is_valid():
+        form.save()
+        messages.success(request, "Filtro actualizado.")
+        return redirect("server_heatmap_filter_edit", rule_id=rule.id)
+    preview = None
+    if request.GET.get("preview") == "1":
+        preview = simulate_inventory_filters(
+            rules=InventoryFilterRule.objects.filter(pk=rule.pk),
+        )
+    return render(
+        request,
+        "server_heatmap/filter_form.html",
+        {"form": form, "rule": rule, "preview": preview},
+    )
+
+
+@login_required
+@require_POST
+def inventory_filter_delete(request, rule_id):
+    if not can_manage_server_heatmap(request.user):
+        return HttpResponseForbidden("No tenés permisos para administrar filtros.")
+    rule = get_object_or_404(InventoryFilterRule, pk=rule_id)
+    name = rule.name
+    rule.delete()
+    messages.success(request, f"Filtro «{name}» eliminado.")
+    return redirect("server_heatmap_filter_list")

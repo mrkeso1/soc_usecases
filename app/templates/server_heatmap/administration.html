@@ -43,6 +43,7 @@
         </div>
         <div class="header-actions">
             <form method="post" action="{% url 'server_heatmap_reprocess' %}">{% csrf_token %}<button class="btn-primary" type="submit">Cruzar y aplicar reglas</button></form>
+            <a class="btn" href="{% url 'server_heatmap_filter_list' %}">Filtros de inventario</a>
             <a class="btn" href="{% url 'server_heatmap' %}">Volver al mapa</a>
         </div>
     </header>

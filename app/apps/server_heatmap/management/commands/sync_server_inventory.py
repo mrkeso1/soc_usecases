@@ -82,6 +82,11 @@ class Command(BaseCommand):
                     path=path,
                     url=None if path else url,
                     timeout=getattr(settings, "SERVER_INVENTORY_CONNECT_TIMEOUT", 30),
+                    use_environment_proxy=getattr(
+                        settings,
+                        "SERVER_INVENTORY_SIEM_USE_PROXY",
+                        False,
+                    ),
                 )
                 source_code = InventorySyncRun.SOURCE_SIEM
             else:

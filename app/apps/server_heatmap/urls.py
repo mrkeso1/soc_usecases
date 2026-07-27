@@ -8,6 +8,10 @@ from .views import (
     edit_server_asset,
     edit_server_category,
     export_ingestion_gaps,
+    inventory_filter_create,
+    inventory_filter_delete,
+    inventory_filter_edit,
+    inventory_filter_list,
     reprocess_inventory,
     server_heatmap_view,
     server_administration,
@@ -42,5 +46,25 @@ urlpatterns = [
         "administration/categories/<int:category_id>/delete/",
         delete_server_category,
         name="server_heatmap_category_delete",
+    ),
+    path(
+        "administration/filters/",
+        inventory_filter_list,
+        name="server_heatmap_filter_list",
+    ),
+    path(
+        "administration/filters/new/",
+        inventory_filter_create,
+        name="server_heatmap_filter_create",
+    ),
+    path(
+        "administration/filters/<int:rule_id>/",
+        inventory_filter_edit,
+        name="server_heatmap_filter_edit",
+    ),
+    path(
+        "administration/filters/<int:rule_id>/delete/",
+        inventory_filter_delete,
+        name="server_heatmap_filter_delete",
     ),
 ]

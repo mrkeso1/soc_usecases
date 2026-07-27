@@ -41,7 +41,7 @@
                     <a href="{% url 'source_list' %}" class="{% if url_name == 'source_list' or url_name == 'source_detail' or url_name == 'source_create' or url_name == 'source_edit' or url_name == 'usecase_source_create' %}active{% endif %}">
                         <span class="nav-icon" aria-hidden="true">S</span><span>Fuentes</span>
                     </a>
-                    <a href="{% url 'server_heatmap' %}" class="{% if url_name == 'server_heatmap' or url_name == 'server_heatmap_administration' or url_name == 'server_heatmap_rule_edit' or url_name == 'server_heatmap_asset_edit' %}active{% endif %}">
+                    <a href="{% url 'server_heatmap' %}" class="{% if url_name == 'server_heatmap' or url_name == 'server_heatmap_administration' or url_name == 'server_heatmap_rule_edit' or url_name == 'server_heatmap_asset_edit' or url_name == 'server_heatmap_filter_list' or url_name == 'server_heatmap_filter_create' or url_name == 'server_heatmap_filter_edit' %}active{% endif %}">
                         <span class="nav-icon" aria-hidden="true">H</span><span>Mapa servidores</span>
                     </a>
                     <a href="{% url 'control_list' %}" class="{% if url_name == 'control_list' or url_name == 'control_detail' or url_name == 'control_create' or url_name == 'control_edit' or url_name == 'control_history' %}active{% endif %}">

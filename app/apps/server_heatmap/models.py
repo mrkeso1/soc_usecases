@@ -1,3 +1,6 @@
+import re
+
+from django.core.exceptions import ValidationError
 from django.db import models
 
 
@@ -407,3 +410,159 @@ class ServerInventoryConfiguration(models.Model):
     def load(cls):
         configuration, _ = cls.objects.get_or_create(pk=1)
         return configuration
+
+
+class InventoryFilterRule(models.Model):
+    SOURCE_BOTH = "both"
+    SOURCE_CHOICES = [
+        (SOURCE_BOTH, "AD y SIEM"),
+        (InventorySyncRun.SOURCE_AD, "Active Directory"),
+        (InventorySyncRun.SOURCE_SIEM, "SIEM"),
+    ]
+    FIELD_HOSTNAME = "hostname"
+    FIELD_FQDN = "fqdn"
+    FIELD_IP = "ip_address"
+    FIELD_OU = "organizational_unit"
+    FIELD_OS = "os_name"
+    FIELD_GROUPS = "groups"
+    FIELD_DEVICE_TYPE = "server_type_hint"
+    FIELD_ENVIRONMENT = "environment"
+    FIELD_CHOICES = [
+        (FIELD_HOSTNAME, "Hostname"),
+        (FIELD_FQDN, "FQDN"),
+        (FIELD_IP, "Dirección IP"),
+        (FIELD_OU, "Unidad organizativa (OU)"),
+        (FIELD_OS, "Sistema operativo informado"),
+        (FIELD_GROUPS, "Grupos SIEM"),
+        (FIELD_DEVICE_TYPE, "Tipo de dispositivo SIEM"),
+        (FIELD_ENVIRONMENT, "Ambiente"),
+    ]
+    OP_EXACT = "exact"
+    OP_CONTAINS = "contains"
+    OP_WILDCARD = "wildcard"
+    OP_REGEX = "regex"
+    OP_WORD = "word"
+    OPERATOR_CHOICES = [
+        (OP_EXACT, "Igual"),
+        (OP_CONTAINS, "Contiene"),
+        (OP_WILDCARD, "Comodín (* y ?)"),
+        (OP_REGEX, "Expresión regular"),
+        (OP_WORD, "Palabra completa"),
+    ]
+    ACTION_EXCLUDE = "exclude"
+    ACTION_INCLUDE = "include"
+    ACTION_CLASSIFY = "classify"
+    ACTION_CHOICES = [
+        (ACTION_EXCLUDE, "Excluir"),
+        (ACTION_INCLUDE, "Incluir"),
+        (ACTION_CLASSIFY, "Clasificar"),
+    ]
+
+    name = models.CharField("Nombre", max_length=140, unique=True)
+    source = models.CharField(
+        "Origen",
+        max_length=20,
+        choices=SOURCE_CHOICES,
+        default=SOURCE_BOTH,
+    )
+    field = models.CharField("Campo evaluado", max_length=40, choices=FIELD_CHOICES)
+    operator = models.CharField(
+        "Operador",
+        max_length=20,
+        choices=OPERATOR_CHOICES,
+        default=OP_WILDCARD,
+    )
+    pattern = models.CharField("Patrón", max_length=500)
+    action = models.CharField("Acción", max_length=20, choices=ACTION_CHOICES)
+    category = models.ForeignKey(
+        ServerCategory,
+        on_delete=models.SET_NULL,
+        related_name="inventory_filter_rules",
+        null=True,
+        blank=True,
+        verbose_name="Sección asignada",
+    )
+    os_family = models.CharField(
+        "Sistema operativo asignado",
+        max_length=20,
+        choices=ServerAsset.OS_CHOICES,
+        blank=True,
+    )
+    environment_value = models.CharField(
+        "Ambiente asignado",
+        max_length=80,
+        blank=True,
+    )
+    priority = models.PositiveIntegerField(
+        "Prioridad",
+        default=100,
+        help_text="Las reglas con menor número se evalúan primero.",
+    )
+    is_active = models.BooleanField("Activa", default=False)
+    reason = models.TextField("Motivo", blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["priority", "name"]
+        verbose_name = "Filtro de inventario"
+        verbose_name_plural = "Filtros de inventario"
+
+    def clean(self):
+        super().clean()
+        if self.operator == self.OP_REGEX:
+            try:
+                re.compile(self.pattern)
+            except re.error as exc:
+                raise ValidationError({"pattern": f"Expresión regular inválida: {exc}"}) from exc
+        if self.action == self.ACTION_CLASSIFY and not (
+            self.category_id or self.os_family or self.environment_value
+        ):
+            raise ValidationError(
+                "Una regla de clasificación debe asignar sección, sistema operativo o ambiente."
+            )
+
+    def __str__(self):
+        return f"{self.priority} - {self.name}"
+
+
+class InventoryFilterDecision(models.Model):
+    sync_run = models.ForeignKey(
+        InventorySyncRun,
+        on_delete=models.CASCADE,
+        related_name="filter_decisions",
+        null=True,
+        blank=True,
+        verbose_name="Ejecución",
+    )
+    rule = models.ForeignKey(
+        InventoryFilterRule,
+        on_delete=models.SET_NULL,
+        related_name="decisions",
+        null=True,
+        blank=True,
+        verbose_name="Regla aplicada",
+    )
+    source = models.CharField(
+        "Origen",
+        max_length=20,
+        choices=InventorySyncRun.SOURCE_CHOICES,
+    )
+    identifier = models.CharField("Identificador", max_length=255, blank=True)
+    action = models.CharField(
+        "Acción",
+        max_length=20,
+        choices=InventoryFilterRule.ACTION_CHOICES,
+    )
+    reason = models.TextField("Motivo", blank=True)
+    raw_data = models.JSONField("Datos originales", default=dict, blank=True)
+    is_reviewed = models.BooleanField("Revisada", default=False)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["-created_at"]
+        verbose_name = "Decisión de filtro"
+        verbose_name_plural = "Decisiones de filtros"
+
+    def __str__(self):
+        return f"{self.source}: {self.identifier} - {self.action}"

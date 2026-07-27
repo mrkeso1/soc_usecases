@@ -14,7 +14,16 @@ from django.urls import reverse
 from .classification import apply_automatic_classification
 from .connectors.ad import _active_computer_filter
 from .connectors.base import InventoryRecord
+from .connectors.siem import SiemCsvConnector
+from .forms import InventoryFilterRuleForm
+from .inventory_filters import (
+    evaluate_observation,
+    load_compiled_filters,
+    simulate_inventory_filters,
+)
 from .models import (
+    InventoryFilterDecision,
+    InventoryFilterRule,
     InventoryObservation,
     InventorySyncRun,
     ReconciliationIssue,
@@ -34,6 +43,153 @@ from .views import build_server_heatmap_context
 
 
 class ServerHeatmapTests(TestCase):
+    def _filter_test_observation(self, *, source="ad", hostname="ltp001", groups=""):
+        run = InventorySyncRun.objects.create(
+            source=source,
+            status=InventorySyncRun.STATUS_SUCCESS,
+        )
+        return InventoryObservation.objects.create(
+            sync_run=run,
+            source=source,
+            external_id=hostname,
+            hostname=hostname,
+            groups=groups,
+        )
+
+    def test_inventory_filter_excludes_hostname_by_wildcard(self):
+        observation = self._filter_test_observation(hostname="LTP001")
+        rule = InventoryFilterRule.objects.create(
+            name="Excluir notebooks prueba",
+            source=InventorySyncRun.SOURCE_AD,
+            field=InventoryFilterRule.FIELD_HOSTNAME,
+            operator=InventoryFilterRule.OP_WILDCARD,
+            pattern="ltp*",
+            action=InventoryFilterRule.ACTION_EXCLUDE,
+            priority=10,
+            is_active=True,
+        )
+
+        evaluation = evaluate_observation(
+            observation,
+            load_compiled_filters(rules=InventoryFilterRule.objects.filter(pk=rule.pk)),
+        )
+
+        self.assertTrue(evaluation["excluded"])
+        self.assertEqual(evaluation["scope_decision"], rule)
+
+    def test_inventory_filter_priority_allows_specific_include_before_exclude(self):
+        observation = self._filter_test_observation(hostname="LTP-SERVER-01")
+        include = InventoryFilterRule.objects.create(
+            name="Permitir servidor LTP",
+            source="ad",
+            field="hostname",
+            operator="exact",
+            pattern="ltp-server-01",
+            action="include",
+            priority=1,
+            is_active=True,
+        )
+        InventoryFilterRule.objects.create(
+            name="Excluir resto LTP",
+            source="ad",
+            field="hostname",
+            operator="wildcard",
+            pattern="ltp*",
+            action="exclude",
+            priority=10,
+            is_active=True,
+        )
+
+        evaluation = evaluate_observation(observation, load_compiled_filters())
+
+        self.assertFalse(evaluation["excluded"])
+        self.assertEqual(evaluation["scope_decision"], include)
+
+    def test_word_operator_does_not_match_substring(self):
+        office = self._filter_test_observation(
+            source="siem",
+            hostname="office-device",
+            groups="Office5 platform",
+        )
+        firewall = InventoryObservation.objects.create(
+            sync_run=office.sync_run,
+            source="siem",
+            external_id="firewall",
+            hostname="firewall",
+            groups="F5, NetScaler",
+        )
+        rule = InventoryFilterRule.objects.create(
+            name="Seguridad F5 prueba",
+            source="siem",
+            field="groups",
+            operator="word",
+            pattern="f5",
+            action="classify",
+            category=ServerCategory.objects.get(code="security"),
+            is_active=True,
+        )
+        compiled = load_compiled_filters(
+            rules=InventoryFilterRule.objects.filter(pk=rule.pk),
+        )
+
+        self.assertFalse(evaluate_observation(office, compiled)["matched_rules"])
+        self.assertEqual(evaluate_observation(firewall, compiled)["matched_rules"], [rule])
+
+    def test_filter_simulation_is_read_only(self):
+        self._filter_test_observation(hostname="LTP009")
+        rule = InventoryFilterRule.objects.create(
+            name="Simular exclusión LTP",
+            source="ad",
+            field="hostname",
+            operator="wildcard",
+            pattern="ltp*",
+            action="exclude",
+            is_active=False,
+        )
+
+        result = simulate_inventory_filters(
+            rules=InventoryFilterRule.objects.filter(pk=rule.pk),
+        )
+
+        self.assertEqual(result["received"], 1)
+        self.assertEqual(result["excluded"], 1)
+        self.assertEqual(InventoryFilterDecision.objects.count(), 0)
+
+    def test_invalid_literal_star_dot_filter_is_rejected(self):
+        form = InventoryFilterRuleForm(
+            {
+                "name": "Patrón inválido",
+                "source": "ad",
+                "field": "hostname",
+                "operator": "wildcard",
+                "pattern": "*.",
+                "action": "exclude",
+                "priority": 100,
+            }
+        )
+
+        self.assertFalse(form.is_valid())
+        self.assertIn("pattern", form.errors)
+
+    @patch("apps.server_heatmap.connectors.siem.requests.Session")
+    def test_siem_url_bypasses_environment_proxy_by_default(self, session_class):
+        session = session_class.return_value.__enter__.return_value
+        response = session.get.return_value
+        response.content = (
+            "TipoDispositivo,Ip-Hostname,UltimaFechaIngesta,GruposAsociados,FechaRegistro\n"
+            "winevent_nic,host01.example.local,2026-07-27 07:25:13,[],2026-07-27\n"
+        ).encode()
+
+        records = SiemCsvConnector(url="http://siem.local/inventory.csv").collect()
+
+        self.assertFalse(session.trust_env)
+        session.get.assert_called_once_with(
+            "http://siem.local/inventory.csv",
+            timeout=30,
+        )
+        response.raise_for_status.assert_called_once()
+        self.assertEqual(len(records), 1)
+
     def test_simple_wildcard_rule_classifies_domain_controllers(self):
         ServerNamingRule.objects.create(
             name="Controladores ARPADS",
@@ -320,6 +476,32 @@ class ServerHeatmapTests(TestCase):
         self.assertContains(response, "Panel de administración")
         self.assertContains(response, "Configuración del inventario")
         self.assertContains(response, "Administrar equipos")
+
+    def test_admin_role_can_open_and_simulate_filter_panel(self):
+        user = get_user_model().objects.create_user("filter-admin", password="pass")
+        group, _ = Group.objects.get_or_create(name="Admin")
+        user.groups.add(group)
+        self.client.login(username="filter-admin", password="pass")
+        self._filter_test_observation(hostname="LTP-PREVIEW")
+        InventoryFilterRule.objects.create(
+            name="Filtro activo de interfaz",
+            source="ad",
+            field="hostname",
+            operator="wildcard",
+            pattern="ltp*",
+            action="exclude",
+            is_active=True,
+        )
+
+        response = self.client.get(
+            reverse("server_heatmap_filter_list"),
+            {"simulate": "1"},
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Filtros de inventario")
+        self.assertContains(response, "Resultado de la simulación")
+        self.assertContains(response, "LTP-PREVIEW")
 
     def test_front_panel_updates_configuration_and_creates_rule(self):
         user = get_user_model().objects.create_user("settings-admin", password="pass")

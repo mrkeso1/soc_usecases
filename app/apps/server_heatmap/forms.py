@@ -1,6 +1,12 @@
 from django import forms
 
-from .models import ServerAsset, ServerCategory, ServerInventoryConfiguration, ServerNamingRule
+from .models import (
+    InventoryFilterRule,
+    ServerAsset,
+    ServerCategory,
+    ServerInventoryConfiguration,
+    ServerNamingRule,
+)
 
 
 class InventoryConfigurationForm(forms.ModelForm):
@@ -47,3 +53,31 @@ class ServerCategoryForm(forms.ModelForm):
     class Meta:
         model = ServerCategory
         fields = ("name", "code", "order", "is_active", "description")
+
+
+class InventoryFilterRuleForm(forms.ModelForm):
+    class Meta:
+        model = InventoryFilterRule
+        fields = (
+            "name",
+            "source",
+            "field",
+            "operator",
+            "pattern",
+            "action",
+            "category",
+            "os_family",
+            "environment_value",
+            "priority",
+            "is_active",
+            "reason",
+        )
+
+    def clean_pattern(self):
+        pattern = self.cleaned_data["pattern"].strip()
+        if self.cleaned_data.get("operator") == InventoryFilterRule.OP_WILDCARD:
+            if pattern == "*.":
+                raise forms.ValidationError(
+                    "El patrón '*.' no identifica un prefijo válido. Usá un comodín concreto."
+                )
+        return pattern
