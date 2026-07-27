@@ -9,13 +9,9 @@
     .admin-card.full { grid-column:1/-1; }
     .admin-card h2 { margin:0 0 5px; color:var(--text-strong); font-size:1.05rem; }
     .admin-card > p { margin-bottom:14px; color:var(--text-muted); font-size:.84rem; }
-    .form-grid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:12px; }
-    .form-grid .wide { grid-column:1/-1; }
     .field label { display:block; margin-bottom:5px; color:var(--text-muted); font-size:.76rem; font-weight:700; }
     .field input,.field select,.field textarea { width:100%; }
-    .field textarea { min-height:72px; }
-    .field .helptext { display:block; margin-top:4px; color:var(--text-muted); font-size:.72rem; line-height:1.35; }
-    .field .errorlist { margin:4px 0; color:var(--bad); font-size:.75rem; }
+    .field .helptext { display:block; margin-top:4px; color:var(--text-muted); font-size:.72rem; }
     .admin-actions { display:flex; flex-wrap:wrap; gap:8px; align-items:center; margin-top:14px; }
     .admin-table-shell { overflow:auto; border:1px solid var(--border); border-radius:12px; }
     .admin-table { width:100%; border-collapse:collapse; min-width:850px; }
@@ -23,13 +19,14 @@
     .admin-table th { color:var(--text-muted); font:700 10px 'JetBrains Mono',monospace; text-transform:uppercase; }
     .admin-table td { color:var(--text); }
     .admin-table strong { color:var(--text-strong); }
-    .admin-table form { display:inline; }
     .status-pill { display:inline-block; padding:3px 7px; border-radius:999px; background:var(--accent-dim); }
     .status-pill.on { color:var(--good); }
     .status-pill.off { color:var(--bad); }
-    .asset-filters { display:grid; grid-template-columns:minmax(220px,1fr) 180px 220px auto; gap:8px; margin:12px 0; }
+    .asset-filters { display:grid; grid-template-columns:minmax(220px,1fr) 180px 220px; gap:8px; margin:12px 0; }
     .pagination { display:flex; justify-content:center; gap:8px; margin-top:13px; }
-    @media(max-width:900px){.admin-grid{grid-template-columns:1fr}.asset-filters,.form-grid{grid-template-columns:1fr}.admin-card.full,.form-grid .wide{grid-column:auto}}
+    .live-status { min-height:18px; color:var(--text-muted); font-size:.75rem; }
+    #asset-results.is-loading { opacity:.55; pointer-events:none; }
+    @media(max-width:900px){.admin-grid{grid-template-columns:1fr}.asset-filters{grid-template-columns:1fr}.admin-card.full{grid-column:auto}}
 </style>
 {% endblock %}
 
@@ -39,11 +36,13 @@
         <div>
             <div class="page-eyebrow">// SERVIDORES</div>
             <h1 class="page-title">Panel de administración</h1>
-            <p class="page-subtitle">Configuración, nomenclaturas, equipos y ejecuciones desde una única pantalla.</p>
+            <p class="page-subtitle">Configuración, equipos, conflictos y ejecuciones.</p>
         </div>
         <div class="header-actions">
-            <form method="post" action="{% url 'server_heatmap_reprocess' %}">{% csrf_token %}<button class="btn-primary" type="submit">Cruzar y aplicar reglas</button></form>
+            <a class="btn" href="{% url 'server_heatmap_sections' %}">Secciones funcionales</a>
+            <a class="btn" href="{% url 'server_heatmap_naming_rules' %}">Reglas</a>
             <a class="btn" href="{% url 'server_heatmap_filter_list' %}">Filtros de inventario</a>
+            <form method="post" action="{% url 'server_heatmap_reprocess' %}">{% csrf_token %}<button class="btn-primary" type="submit">Cruzar y aplicar reglas</button></form>
             <a class="btn" href="{% url 'server_heatmap' %}">Volver al mapa</a>
         </div>
     </header>
@@ -62,92 +61,38 @@
         </article>
 
         <article class="admin-card">
-            <h2>Nueva sección funcional</h2>
-            <p>Agregá categorías a demanda para organizar las columnas del mapa.</p>
-            <form method="post">
-                {% csrf_token %}<input type="hidden" name="action" value="create_category">
-                {% for field in category_form %}<div class="field" style="margin-bottom:10px">{{ field.label_tag }}{{ field }}{{ field.errors }}{% if field.help_text %}<span class="helptext">{{ field.help_text }}</span>{% endif %}</div>{% endfor %}
-                <button class="btn-primary" type="submit">Crear sección</button>
-            </form>
-        </article>
-
-        <article class="admin-card">
-            <h2>Secciones disponibles</h2>
-            <p>Estas secciones forman las columnas del mapa de cobertura.</p>
-            <div class="admin-table-shell"><table class="admin-table" style="min-width:520px">
-                <thead><tr><th>Orden</th><th>Nombre</th><th>Código</th><th>Estado</th><th></th></tr></thead>
-                <tbody>{% for category in categories %}<tr><td>{{ category.order }}</td><td><strong>{{ category.name }}</strong></td><td><code>{{ category.code }}</code></td><td>{{ category.is_active|yesno:"Activa,Inactiva" }}</td><td><a class="btn" href="{% url 'server_heatmap_category_edit' category.id %}">Editar</a> <form method="post" action="{% url 'server_heatmap_category_delete' category.id %}" onsubmit="return confirm('¿Eliminar esta sección?');">{% csrf_token %}<button class="btn" type="submit">Eliminar</button></form></td></tr>{% empty %}<tr><td colspan="5">No hay secciones.</td></tr>{% endfor %}</tbody>
-            </table></div>
-        </article>
-
-        <article class="admin-card">
-            <h2>Nueva regla de nomenclatura</h2>
-            <p>Usá comodines simples como <code>arpads*</code> o expresiones regulares avanzadas.</p>
-            <form method="post">
-                {% csrf_token %}<input type="hidden" name="action" value="create_rule">
-                <div class="form-grid">
-                    {% for field in rule_form %}
-                        <div class="field {% if field.name == 'notes' %}wide{% endif %}">{{ field.label_tag }}{{ field }}{{ field.errors }}{% if field.help_text %}<span class="helptext">{{ field.help_text }}</span>{% endif %}</div>
-                    {% endfor %}
-                </div>
-                <div class="admin-actions"><button class="btn-primary" type="submit">Crear regla</button></div>
-            </form>
-        </article>
-
-        <article class="admin-card full">
-            <h2>Reglas activas y prioridades</h2>
-            <p>Las reglas con menor prioridad numérica se evalúan primero.</p>
-            <div class="admin-table-shell"><table class="admin-table">
-                <thead><tr><th>Prioridad</th><th>Nombre</th><th>Patrón</th><th>Modo</th><th>OS</th><th>Tipo</th><th>Estado</th><th>Acciones</th></tr></thead>
-                <tbody>
-                {% for rule in rules %}
-                    <tr>
-                        <td>{{ rule.priority }}</td><td><strong>{{ rule.name }}</strong></td><td><code>{{ rule.pattern }}</code></td>
-                        <td>{{ rule.get_match_type_display }}</td><td>{{ rule.get_os_family_display|default:"-" }}</td><td>{{ rule.category.name|default:"-" }}</td>
-                        <td><span class="status-pill {% if rule.is_active %}on{% else %}off{% endif %}">{% if rule.is_active %}Activa{% else %}Inactiva{% endif %}</span></td>
-                        <td><a class="btn" href="{% url 'server_heatmap_rule_edit' rule.id %}">Editar</a>
-                            <form method="post" action="{% url 'server_heatmap_rule_delete' rule.id %}" onsubmit="return confirm('¿Eliminar esta regla?');">{% csrf_token %}<button class="btn" type="submit">Eliminar</button></form>
-                        </td>
-                    </tr>
-                {% empty %}<tr><td colspan="8">No hay reglas configuradas.</td></tr>{% endfor %}
-                </tbody>
-            </table></div>
+            <h2>Organización y clasificación</h2>
+            <p>Las secciones definen las columnas del mapa. Las reglas clasifican automáticamente los equipos por nomenclatura.</p>
+            <div class="admin-actions">
+                <a class="btn-primary" href="{% url 'server_heatmap_sections' %}">Administrar secciones</a>
+                <a class="btn" href="{% url 'server_heatmap_naming_rules' %}">Administrar reglas</a>
+                <a class="btn" href="{% url 'server_heatmap_filter_list' %}">Administrar filtros</a>
+            </div>
         </article>
 
         <article class="admin-card full">
             <h2>Administrar equipos</h2>
-            <p>Buscá, filtrá y aplicá acciones por lote. Se muestran 100 equipos por página.</p>
-            <form method="get" class="asset-filters">
-                <input type="search" name="q" value="{{ query }}" placeholder="Hostname, IP, aplicación u OU">
+            <p>Los resultados se actualizan mientras escribís, sin recargar la pantalla.</p>
+            <form method="get" class="asset-filters" id="asset-live-filters">
+                <input type="search" name="q" value="{{ query }}" placeholder="Hostname, IP, aplicación u OU" autocomplete="off">
                 <select name="enabled"><option value="all">Todos los estados</option><option value="yes" {% if selected_enabled == 'yes' %}selected{% endif %}>Habilitados</option><option value="no" {% if selected_enabled == 'no' %}selected{% endif %}>Deshabilitados</option></select>
                 <select name="type"><option value="">Todas las secciones</option>{% for category in type_choices %}<option value="{{ category.id }}" {% if selected_type == category.id|stringformat:"s" %}selected{% endif %}>{{ category.name }}</option>{% endfor %}</select>
-                <button class="btn-primary" type="submit">Filtrar</button>
             </form>
-            <form method="post">
-                {% csrf_token %}
-                <div class="admin-actions">
-                    <button class="btn" name="action" value="enable_assets" type="submit">Habilitar</button>
-                    <button class="btn" name="action" value="disable_assets" type="submit">Deshabilitar</button>
-                    <button class="btn" name="action" value="reclassify_assets" type="submit">Reclasificar seleccionados</button>
-                </div>
-                <div class="admin-table-shell" style="margin-top:10px"><table class="admin-table">
-                    <thead><tr><th><input type="checkbox" onclick="document.querySelectorAll('[name=asset_ids]').forEach(x=>x.checked=this.checked)"></th><th>Hostname</th><th>IP</th><th>OS</th><th>Tipo</th><th>AD</th><th>SIEM</th><th>Última conexión</th><th>Estado</th><th></th></tr></thead>
-                    <tbody>{% for asset in asset_page %}
-                        <tr><td><input type="checkbox" name="asset_ids" value="{{ asset.id }}"></td><td><strong>{{ asset.hostname }}</strong></td><td>{{ asset.ip_address|default:"-" }}</td><td>{{ asset.get_os_family_display }}</td><td>{{ asset.category.name|default:"Sin identificar" }}</td><td>{{ asset.in_active_directory|yesno:"Sí,No" }}</td><td>{{ asset.in_siem|yesno:"Sí,No" }}</td><td>{{ asset.ad_last_logon_at|date:"d/m/Y H:i"|default:"-" }}</td><td>{% if asset.is_enabled %}<span class="status-pill on">Habilitado</span>{% else %}<span class="status-pill off">Deshabilitado</span>{% endif %}</td><td><a class="btn" href="{% url 'server_heatmap_asset_edit' asset.id %}">Editar</a></td></tr>
-                    {% empty %}<tr><td colspan="10">No se encontraron equipos.</td></tr>{% endfor %}</tbody>
-                </table></div>
-            </form>
-            {% if asset_page.paginator.num_pages > 1 %}<div class="pagination">{% if asset_page.has_previous %}<a class="btn" href="?q={{ query|urlencode }}&enabled={{ selected_enabled }}&type={{ selected_type }}&page={{ asset_page.previous_page_number }}">Anterior</a>{% endif %}<span class="btn">Página {{ asset_page.number }} de {{ asset_page.paginator.num_pages }}</span>{% if asset_page.has_next %}<a class="btn" href="?q={{ query|urlencode }}&enabled={{ selected_enabled }}&type={{ selected_type }}&page={{ asset_page.next_page_number }}">Siguiente</a>{% endif %}</div>{% endif %}
+            <div class="live-status" id="asset-live-status" aria-live="polite"></div>
+            <div id="asset-results">{% include "server_heatmap/_asset_results.html" %}</div>
         </article>
 
         <article class="admin-card full">
             <h2>Conflictos de conciliación pendientes</h2>
-            <p>Revisá los registros ambiguos, sin identificador o no encontrados en AD y cerralos cuando corresponda.</p>
+            <p>Seleccioná registros para intentar obtener el hostname mediante DNS y volver a cruzarlos con Active Directory.</p>
             <form method="post">{% csrf_token %}
-                <div class="admin-actions"><button class="btn-primary" name="action" value="resolve_issues" type="submit">Marcar seleccionados como resueltos</button></div>
+                <div class="admin-actions">
+                    <button class="btn-primary" name="action" value="resolve_issue_names" type="submit">Intentar resolver nombre</button>
+                    <button class="btn" name="action" value="resolve_issues" type="submit">Marcar como resueltos</button>
+                </div>
                 <div class="admin-table-shell" style="margin-top:10px"><table class="admin-table">
-                    <thead><tr><th></th><th>Fecha</th><th>Tipo</th><th>Identificador</th><th>Origen</th><th>Detalle</th></tr></thead>
-                    <tbody>{% for issue in unresolved_issues %}<tr><td><input type="checkbox" name="issue_ids" value="{{ issue.id }}"></td><td>{{ issue.created_at|date:"d/m/Y H:i" }}</td><td>{{ issue.get_issue_type_display }}</td><td><strong>{{ issue.identifier|default:"-" }}</strong></td><td>{{ issue.sync_run.get_source_display }}</td><td>{{ issue.details }}</td></tr>{% empty %}<tr><td colspan="6">No hay conflictos pendientes.</td></tr>{% endfor %}</tbody>
+                    <thead><tr><th><input type="checkbox" data-check-all-issues></th><th>Fecha</th><th>Tipo</th><th>Identificador</th><th>Nombre / IP</th><th>Origen</th><th>Detalle</th></tr></thead>
+                    <tbody>{% for issue in unresolved_issues %}<tr><td><input type="checkbox" name="issue_ids" value="{{ issue.id }}"></td><td>{{ issue.created_at|date:"d/m/Y H:i" }}</td><td>{{ issue.get_issue_type_display }}</td><td><strong>{{ issue.identifier|default:"-" }}</strong></td><td>{% if issue.observation %}{{ issue.observation.hostname|default:"-" }}<br><code>{{ issue.observation.ip_address|default:"-" }}</code>{% else %}-{% endif %}</td><td>{{ issue.sync_run.get_source_display }}</td><td>{{ issue.details }}</td></tr>{% empty %}<tr><td colspan="7">No hay conflictos pendientes.</td></tr>{% endfor %}</tbody>
                 </table></div>
             </form>
         </article>
@@ -161,4 +106,57 @@
         </article>
     </div>
 </section></main>
+
+<script>
+(() => {
+    const filters = document.getElementById("asset-live-filters");
+    const results = document.getElementById("asset-results");
+    const status = document.getElementById("asset-live-status");
+    const endpoint = "{% url 'server_heatmap_asset_results' %}";
+    let timer;
+    let controller;
+
+    async function updateAssets(searchParams) {
+        if (controller) controller.abort();
+        controller = new AbortController();
+        results.classList.add("is-loading");
+        status.textContent = "Buscando…";
+        try {
+            const response = await fetch(`${endpoint}?${searchParams}`, {
+                headers: {"X-Requested-With": "XMLHttpRequest"},
+                signal: controller.signal
+            });
+            if (!response.ok) throw new Error(`HTTP ${response.status}`);
+            results.innerHTML = await response.text();
+            history.replaceState({}, "", `${location.pathname}?${searchParams}`);
+            status.textContent = "Resultados actualizados.";
+        } catch (error) {
+            if (error.name !== "AbortError") status.textContent = "No se pudo actualizar la lista.";
+        } finally {
+            results.classList.remove("is-loading");
+        }
+    }
+
+    function requestUpdate() {
+        clearTimeout(timer);
+        timer = setTimeout(() => updateAssets(new URLSearchParams(new FormData(filters))), 280);
+    }
+    filters.addEventListener("input", requestUpdate);
+    filters.addEventListener("change", requestUpdate);
+    filters.addEventListener("submit", event => { event.preventDefault(); requestUpdate(); });
+    results.addEventListener("click", event => {
+        const link = event.target.closest("[data-live-page]");
+        if (link) {
+            event.preventDefault();
+            updateAssets(new URL(link.href, location.href).searchParams);
+        }
+        if (event.target.matches("[data-check-all-assets]")) {
+            results.querySelectorAll("[name=asset_ids]").forEach(item => item.checked = event.target.checked);
+        }
+    });
+    document.querySelector("[data-check-all-issues]")?.addEventListener("change", event => {
+        document.querySelectorAll("[name=issue_ids]").forEach(item => item.checked = event.target.checked);
+    });
+})();
+</script>
 {% endblock %}

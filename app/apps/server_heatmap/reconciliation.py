@@ -15,6 +15,7 @@ from .models import (
     ServerAsset,
     ServerInventoryConfiguration,
 )
+from .network_diagnostics import resolve_observation_identity
 
 
 def normalize_hostname(value):
@@ -302,6 +303,51 @@ def _record_from_observation(observation):
         observed_at=observation.observed_at,
         raw_data=observation.raw_data,
     )
+
+
+def retry_issue_name_resolution(issue):
+    """Resuelve la identidad por DNS y reintenta la conciliación."""
+    observation = issue.observation
+    if observation is None:
+        return False, "El conflicto no tiene una observación asociada."
+
+    resolution = resolve_observation_identity(observation)
+    details = dict(issue.details or {})
+    details["name_resolution"] = {
+        "hostname": resolution.hostname,
+        "fqdn": resolution.fqdn,
+        "ip_address": resolution.ip_address,
+        "error": resolution.error,
+        "attempted_at": timezone.now().isoformat(),
+    }
+    if resolution.error:
+        issue.details = details
+        issue.save(update_fields=["details"])
+        return False, resolution.error
+
+    observation.hostname = resolution.hostname or observation.hostname
+    observation.fqdn = resolution.fqdn or observation.fqdn
+    observation.ip_address = resolution.ip_address or observation.ip_address
+    observation.save(update_fields=["hostname", "fqdn", "ip_address"])
+    record = _record_from_observation(observation)
+    candidates = list(_candidate_assets(record)[:2])
+    if len(candidates) != 1:
+        message = "El nombre resuelto no coincide con un único equipo de Active Directory."
+        details["name_resolution"]["error"] = message
+        details["name_resolution"]["candidate_ids"] = [asset.id for asset in candidates]
+        issue.details = details
+        issue.save(update_fields=["details"])
+        return False, message
+
+    asset, _ = reconcile_observation(
+        observation,
+        record,
+        naming_rules=active_naming_rules(),
+    )
+    if not asset:
+        return False, "No se pudo asociar el equipo después de resolver el nombre."
+    observation.issues.filter(is_resolved=False).update(is_resolved=True)
+    return True, asset.hostname
 
 
 def reprocess_stored_inventory():

@@ -1,0 +1,9 @@
+{% extends "base.html" %}
+{% block title %}Reglas de nomenclatura - SOC Control Manager{% endblock %}
+{% block content %}
+<main class="container"><section class="page-shell wide">
+<header class="page-header"><div><div class="page-eyebrow">// SERVIDORES</div><h1 class="page-title">Reglas de nomenclatura</h1><p class="page-subtitle">Clasificá equipos automáticamente por nombre y prioridad.</p></div><div class="header-actions"><a class="btn" href="{% url 'server_heatmap_administration' %}">Volver al panel</a></div></header>
+<article class="panel"><h2>Crear regla</h2><form method="post">{% csrf_token %}<div class="form-grid">{% for field in form %}<div class="field">{{ field.label_tag }}{{ field }}{{ field.errors }}{% if field.help_text %}<small>{{ field.help_text }}</small>{% endif %}</div>{% endfor %}</div><button class="btn-primary" type="submit">Crear regla</button></form></article>
+<article class="panel" style="margin-top:14px"><h2>Reglas disponibles</h2><div class="table-wrap"><table><thead><tr><th>Prioridad</th><th>Nombre</th><th>Patrón</th><th>Modo</th><th>OS</th><th>Tipo</th><th>Estado</th><th></th></tr></thead><tbody>{% for rule in rules %}<tr><td>{{ rule.priority }}</td><td><strong>{{ rule.name }}</strong></td><td><code>{{ rule.pattern }}</code></td><td>{{ rule.get_match_type_display }}</td><td>{{ rule.get_os_family_display|default:"-" }}</td><td>{{ rule.category.name|default:"-" }}</td><td>{{ rule.is_active|yesno:"Activa,Inactiva" }}</td><td><a class="btn" href="{% url 'server_heatmap_rule_edit' rule.id %}">Editar</a> <form method="post" action="{% url 'server_heatmap_rule_delete' rule.id %}" style="display:inline" onsubmit="return confirm('¿Eliminar esta regla?')">{% csrf_token %}<button class="btn" type="submit">Eliminar</button></form></td></tr>{% empty %}<tr><td colspan="8">No hay reglas.</td></tr>{% endfor %}</tbody></table></div></article>
+</section></main>
+{% endblock %}

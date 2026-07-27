@@ -576,6 +576,82 @@ class ServerHeatmapTests(TestCase):
         asset.refresh_from_db()
         self.assertFalse(asset.is_enabled)
 
+    def test_asset_results_filter_without_rendering_full_panel(self):
+        user = get_user_model().objects.create_user("live-admin", password="pass")
+        group, _ = Group.objects.get_or_create(name="Admin")
+        user.groups.add(group)
+        self.client.login(username="live-admin", password="pass")
+        ServerAsset.objects.create(hostname="srv-search-target")
+        ServerAsset.objects.create(hostname="srv-unrelated")
+
+        response = self.client.get(
+            reverse("server_heatmap_asset_results"),
+            {"q": "search-target"},
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "srv-search-target")
+        self.assertNotContains(response, "srv-unrelated")
+        self.assertNotContains(response, "Panel de administración")
+
+    def test_sections_and_rules_have_dedicated_pages(self):
+        user = get_user_model().objects.create_user("catalog-admin", password="pass")
+        group, _ = Group.objects.get_or_create(name="Admin")
+        user.groups.add(group)
+        self.client.login(username="catalog-admin", password="pass")
+
+        sections = self.client.get(reverse("server_heatmap_sections"))
+        rules = self.client.get(reverse("server_heatmap_naming_rules"))
+
+        self.assertEqual(sections.status_code, 200)
+        self.assertContains(sections, "Secciones funcionales")
+        self.assertEqual(rules.status_code, 200)
+        self.assertContains(rules, "Reglas de nomenclatura")
+
+    @patch(
+        "apps.server_heatmap.network_diagnostics.socket.gethostbyaddr",
+        return_value=("srv-dns.ardp.local", [], ["10.20.30.40"]),
+    )
+    def test_conflict_can_resolve_name_by_reverse_dns(self, _gethostbyaddr):
+        user = get_user_model().objects.create_user("dns-admin", password="pass")
+        group, _ = Group.objects.get_or_create(name="Admin")
+        user.groups.add(group)
+        self.client.login(username="dns-admin", password="pass")
+        asset = ServerAsset.objects.create(
+            hostname="srv-dns",
+            in_active_directory=True,
+        )
+        run = InventorySyncRun.objects.create(
+            source=InventorySyncRun.SOURCE_SIEM,
+            status=InventorySyncRun.STATUS_SUCCESS,
+        )
+        observation = InventoryObservation.objects.create(
+            sync_run=run,
+            source=InventorySyncRun.SOURCE_SIEM,
+            external_id="rhlinux:10.20.30.40",
+            ip_address="10.20.30.40",
+        )
+        issue = ReconciliationIssue.objects.create(
+            sync_run=run,
+            observation=observation,
+            issue_type=ReconciliationIssue.TYPE_NOT_IN_AD,
+            identifier="10.20.30.40",
+        )
+
+        response = self.client.post(
+            reverse("server_heatmap_administration"),
+            {"action": "resolve_issue_names", "issue_ids": [issue.id]},
+        )
+
+        self.assertRedirects(response, reverse("server_heatmap_administration"))
+        issue.refresh_from_db()
+        observation.refresh_from_db()
+        asset.refresh_from_db()
+        self.assertTrue(issue.is_resolved)
+        self.assertEqual(observation.asset_id, asset.id)
+        self.assertEqual(observation.hostname, "srv-dns")
+        self.assertTrue(asset.in_siem)
+
     def test_front_panel_resolves_reconciliation_issue_and_dashboard_excludes_it(self):
         user = get_user_model().objects.create_user("issue-admin", password="pass")
         group, _ = Group.objects.get_or_create(name="Admin")

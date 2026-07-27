@@ -1,0 +1,15 @@
+<form method="post" action="{% url 'server_heatmap_administration' %}">
+    {% csrf_token %}
+    <div class="admin-actions">
+        <button class="btn" name="action" value="enable_assets" type="submit">Habilitar</button>
+        <button class="btn" name="action" value="disable_assets" type="submit">Deshabilitar</button>
+        <button class="btn" name="action" value="reclassify_assets" type="submit">Reclasificar seleccionados</button>
+    </div>
+    <div class="admin-table-shell" style="margin-top:10px"><table class="admin-table">
+        <thead><tr><th><input type="checkbox" data-check-all-assets></th><th>Hostname</th><th>IP</th><th>OS</th><th>Tipo</th><th>AD</th><th>SIEM</th><th>Última conexión</th><th>Estado</th><th></th></tr></thead>
+        <tbody>{% for asset in asset_page %}
+            <tr><td><input type="checkbox" name="asset_ids" value="{{ asset.id }}"></td><td><strong>{{ asset.hostname }}</strong></td><td>{{ asset.ip_address|default:"-" }}</td><td>{{ asset.get_os_family_display }}</td><td>{{ asset.category.name|default:"Sin identificar" }}</td><td>{{ asset.in_active_directory|yesno:"Sí,No" }}</td><td>{{ asset.in_siem|yesno:"Sí,No" }}</td><td>{{ asset.ad_last_logon_at|date:"d/m/Y H:i"|default:"-" }}</td><td>{% if asset.is_enabled %}<span class="status-pill on">Habilitado</span>{% else %}<span class="status-pill off">Deshabilitado</span>{% endif %}</td><td><a class="btn" href="{% url 'server_heatmap_asset_edit' asset.id %}">Editar</a></td></tr>
+        {% empty %}<tr><td colspan="10">No se encontraron equipos.</td></tr>{% endfor %}</tbody>
+    </table></div>
+</form>
+{% if asset_page.paginator.num_pages > 1 %}<div class="pagination">{% if asset_page.has_previous %}<a class="btn" data-live-page href="?q={{ query|urlencode }}&enabled={{ selected_enabled }}&type={{ selected_type }}&page={{ asset_page.previous_page_number }}">Anterior</a>{% endif %}<span class="btn">Página {{ asset_page.number }} de {{ asset_page.paginator.num_pages }}</span>{% if asset_page.has_next %}<a class="btn" data-live-page href="?q={{ query|urlencode }}&enabled={{ selected_enabled }}&type={{ selected_type }}&page={{ asset_page.next_page_number }}">Siguiente</a>{% endif %}</div>{% endif %}

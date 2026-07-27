@@ -15,6 +15,9 @@ from .views import (
     reprocess_inventory,
     server_heatmap_view,
     server_administration,
+    server_asset_results,
+    server_naming_rules,
+    server_sections,
     upload_siem_inventory,
 )
 
@@ -26,6 +29,21 @@ urlpatterns = [
     path("gaps/diagnose/", diagnose_gaps, name="server_heatmap_gap_diagnose"),
     path("reprocess/", reprocess_inventory, name="server_heatmap_reprocess"),
     path("administration/", server_administration, name="server_heatmap_administration"),
+    path(
+        "administration/assets/results/",
+        server_asset_results,
+        name="server_heatmap_asset_results",
+    ),
+    path(
+        "administration/sections/",
+        server_sections,
+        name="server_heatmap_sections",
+    ),
+    path(
+        "administration/naming-rules/",
+        server_naming_rules,
+        name="server_heatmap_naming_rules",
+    ),
     path("administration/rules/<int:rule_id>/", edit_naming_rule, name="server_heatmap_rule_edit"),
     path(
         "administration/rules/<int:rule_id>/delete/",

@@ -3,6 +3,7 @@ import platform
 import shutil
 import socket
 import subprocess
+import ipaddress
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass
 
@@ -19,6 +20,61 @@ class NetworkDiagnosticResult:
     resolved_ip_address: str | None = None
     reachability_status: str = ServerAsset.REACHABILITY_UNCHECKED
     error: str = ""
+
+
+@dataclass(slots=True)
+class IdentityResolutionResult:
+    hostname: str = ""
+    fqdn: str = ""
+    ip_address: str | None = None
+    error: str = ""
+
+
+def resolve_observation_identity(observation):
+    """Completa una observación SIEM mediante DNS directo o inverso."""
+    hostname = (observation.hostname or "").strip().lower().rstrip(".")
+    fqdn = (observation.fqdn or "").strip().lower().rstrip(".")
+    ip_value = str(observation.ip_address or "").strip()
+    try:
+        is_ip = bool(ip_value and ipaddress.ip_address(ip_value))
+    except ValueError:
+        is_ip = False
+
+    errors = []
+    if is_ip:
+        try:
+            resolved_fqdn = socket.gethostbyaddr(ip_value)[0].lower().rstrip(".")
+            return IdentityResolutionResult(
+                hostname=resolved_fqdn.split(".", 1)[0],
+                fqdn=resolved_fqdn,
+                ip_address=ip_value,
+            )
+        except OSError as exc:
+            errors.append(f"DNS inverso: {exc}")
+
+    candidate = fqdn or hostname
+    if candidate:
+        try:
+            addresses = socket.getaddrinfo(candidate, None, type=socket.SOCK_STREAM)
+            ips = [item[4][0] for item in addresses]
+            resolved_ip = next((value for value in ips if ":" not in value), ips[0] if ips else None)
+            resolved_fqdn = socket.getfqdn(candidate).lower().rstrip(".")
+            return IdentityResolutionResult(
+                hostname=hostname or resolved_fqdn.split(".", 1)[0],
+                fqdn=resolved_fqdn,
+                ip_address=resolved_ip,
+            )
+        except OSError as exc:
+            errors.append(f"DNS directo: {exc}")
+
+    if not errors:
+        errors.append("El registro no contiene un nombre o una IP utilizable.")
+    return IdentityResolutionResult(
+        hostname=hostname,
+        fqdn=fqdn,
+        ip_address=ip_value or None,
+        error=" | ".join(errors),
+    )
 
 
 def _resolve(asset):

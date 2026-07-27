@@ -30,7 +30,11 @@ from .models import (
 from .network_diagnostics import diagnose_ingestion_gaps
 from .inventory_filters import simulate_inventory_filters
 from .permissions import can_access_server_heatmap, can_manage_server_heatmap
-from .reconciliation import reprocess_stored_inventory, synchronize_inventory
+from .reconciliation import (
+    reprocess_stored_inventory,
+    retry_issue_name_resolution,
+    synchronize_inventory,
+)
 
 
 MAX_SIEM_UPLOAD_BYTES = 15 * 1024 * 1024
@@ -448,6 +452,24 @@ def server_administration(request):
             ).update(is_resolved=True)
             messages.success(request, f"{changed} conflicto(s) marcado(s) como resuelto(s).")
             return redirect("server_heatmap_administration")
+        elif action == "resolve_issue_names":
+            issues = ReconciliationIssue.objects.filter(
+                id__in=request.POST.getlist("issue_ids"),
+                is_resolved=False,
+            ).select_related("observation")
+            resolved = failed = 0
+            for issue in issues:
+                success, _ = retry_issue_name_resolution(issue)
+                resolved += int(success)
+                failed += int(not success)
+            if resolved:
+                messages.success(request, f"{resolved} conflicto(s) asociados mediante DNS.")
+            if failed:
+                messages.warning(
+                    request,
+                    f"{failed} conflicto(s) no pudieron resolverse; conservan el detalle del intento.",
+                )
+            return redirect("server_heatmap_administration")
 
     query = (request.GET.get("q") or "").strip()
     enabled = (request.GET.get("enabled") or "all").strip()
@@ -490,6 +512,74 @@ def server_administration(request):
     )
 
 
+def _filtered_assets(params):
+    query = (params.get("q") or "").strip()
+    enabled = (params.get("enabled") or "all").strip()
+    server_type = (params.get("type") or "").strip()
+    assets = ServerAsset.objects.all()
+    if query:
+        assets = assets.filter(
+            Q(hostname__icontains=query)
+            | Q(ip_address__icontains=query)
+            | Q(application_name__icontains=query)
+            | Q(organizational_unit__icontains=query)
+        )
+    if enabled == "yes":
+        assets = assets.filter(is_enabled=True)
+    elif enabled == "no":
+        assets = assets.filter(is_enabled=False)
+    if server_type:
+        assets = assets.filter(category_id=server_type)
+    page = Paginator(assets.order_by("hostname"), 100).get_page(params.get("page"))
+    return {
+        "asset_page": page,
+        "query": query,
+        "selected_enabled": enabled,
+        "selected_type": server_type,
+    }
+
+
+@login_required
+def server_asset_results(request):
+    if not can_manage_server_heatmap(request.user):
+        return HttpResponseForbidden("No tenés permisos para administrar equipos.")
+    return render(
+        request,
+        "server_heatmap/_asset_results.html",
+        _filtered_assets(request.GET),
+    )
+
+
+@login_required
+def server_sections(request):
+    if not can_manage_server_heatmap(request.user):
+        return HttpResponseForbidden("No tenés permisos para administrar secciones.")
+    form = ServerCategoryForm(request.POST or None, prefix="category")
+    if request.method == "POST" and form.is_valid():
+        form.save()
+        messages.success(request, "Sección funcional creada.")
+        return redirect("server_heatmap_sections")
+    return render(request, "server_heatmap/sections.html", {
+        "form": form,
+        "categories": ServerCategory.objects.all(),
+    })
+
+
+@login_required
+def server_naming_rules(request):
+    if not can_manage_server_heatmap(request.user):
+        return HttpResponseForbidden("No tenés permisos para administrar reglas.")
+    form = ServerNamingRuleForm(request.POST or None, prefix="rule")
+    if request.method == "POST" and form.is_valid():
+        form.save()
+        messages.success(request, "Regla de nomenclatura creada.")
+        return redirect("server_heatmap_naming_rules")
+    return render(request, "server_heatmap/naming_rules.html", {
+        "form": form,
+        "rules": ServerNamingRule.objects.all(),
+    })
+
+
 @login_required
 def edit_naming_rule(request, rule_id):
     if not can_manage_server_heatmap(request.user):
@@ -499,7 +589,7 @@ def edit_naming_rule(request, rule_id):
     if request.method == "POST" and form.is_valid():
         form.save()
         messages.success(request, "Regla de nomenclatura actualizada.")
-        return redirect("server_heatmap_administration")
+        return redirect("server_heatmap_naming_rules")
     return render(
         request,
         "server_heatmap/rule_form.html",
@@ -516,7 +606,7 @@ def delete_naming_rule(request, rule_id):
     name = rule.name
     rule.delete()
     messages.success(request, f"Regla «{name}» eliminada.")
-    return redirect("server_heatmap_administration")
+    return redirect("server_heatmap_naming_rules")
 
 
 @login_required
@@ -528,7 +618,7 @@ def edit_server_asset(request, asset_id):
     if request.method == "POST" and form.is_valid():
         form.save()
         messages.success(request, f"Equipo {asset.hostname} actualizado.")
-        return redirect("server_heatmap_administration")
+        return redirect("server_heatmap_sections")
     return render(
         request,
         "server_heatmap/asset_form.html",
@@ -565,7 +655,7 @@ def delete_server_category(request, category_id):
         name = category.name
         category.delete()
         messages.success(request, f"Sección «{name}» eliminada.")
-    return redirect("server_heatmap_administration")
+    return redirect("server_heatmap_sections")
 
 
 @login_required
