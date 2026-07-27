@@ -1,0 +1,15 @@
+{% extends "base.html" %}
+{% block title %}Editar equipo - SOC Control Manager{% endblock %}
+{% block content %}
+<main class="container"><section class="page-shell">
+    <header class="page-header">
+        <div><div class="page-eyebrow">// EQUIPO</div><h1 class="page-title">{{ asset.hostname }}</h1><p class="page-subtitle">Los datos provenientes de AD y SIEM se conservan; acá se administra la clasificación y el estado operativo.</p></div>
+        <a class="btn" href="{% url 'server_heatmap_administration' %}">Volver</a>
+    </header>
+    <section class="detail-card">
+        <form method="post">{% csrf_token %}{{ form.as_p }}
+            <div class="header-actions" style="margin-top:16px"><button class="btn-primary" type="submit">Guardar equipo</button><a class="btn" href="{% url 'server_heatmap_administration' %}">Cancelar</a></div>
+        </form>
+    </section>
+</section></main>
+{% endblock %}
