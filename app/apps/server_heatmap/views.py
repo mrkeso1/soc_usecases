@@ -3,10 +3,13 @@ import csv
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.core.paginator import Paginator
+from django.db import transaction
 from django.db.models import Count, Q
 from django.http import HttpResponse, HttpResponseForbidden
 from django.shortcuts import get_object_or_404, redirect, render
 from django.views.decorators.http import require_POST
+
+from apps.auditlog.service import audit, client_ip
 
 from .connectors.siem import SiemCsvConnector
 from .classification import active_naming_rules, apply_automatic_classification
@@ -23,6 +26,7 @@ from .models import (
     InventorySyncRun,
     ReconciliationIssue,
     ServerAsset,
+    ServerAssetDisableEvent,
     ServerCategory,
     ServerInventoryConfiguration,
     ServerNamingRule,
@@ -136,8 +140,10 @@ def build_server_heatmap_context(params):
             "cells": cells,
         })
 
-    def grouped_coverage(field, labels=None, *, exclude_empty=False):
-        grouped = qs.filter(in_active_directory=True)
+    def grouped_coverage(field, labels=None, *, exclude_empty=False, base_queryset=None):
+        grouped = (
+            base_queryset if base_queryset is not None else qs
+        ).filter(in_active_directory=True)
         if exclude_empty:
             grouped = grouped.exclude(**{f"{field}__isnull": True})
             if field == "application_name":
@@ -215,6 +221,36 @@ def build_server_heatmap_context(params):
         item["key"]: item
         for item in grouped_coverage("os_family", os_labels)
     }
+    windows_coverage = os_coverage_data.get(ServerAsset.OS_WINDOWS, {
+        "ad_count": 0,
+        "covered_count": 0,
+        "gap_count": 0,
+    })
+    linux_members = [
+        os_coverage_data.get(key, {})
+        for key in (ServerAsset.OS_LINUX, ServerAsset.OS_UNIX)
+    ]
+    linux_ad_count = sum(item.get("ad_count", 0) for item in linux_members)
+    linux_covered_count = sum(item.get("covered_count", 0) for item in linux_members)
+    operating_system_rows = [
+        {
+            **windows_coverage,
+            "key": ServerAsset.OS_WINDOWS,
+            "label": "Windows",
+            "percent": _percent(
+                windows_coverage.get("covered_count", 0),
+                windows_coverage.get("ad_count", 0),
+            ),
+        },
+        {
+            "key": ServerAsset.OS_LINUX,
+            "label": "Linux / Unix / AIX",
+            "ad_count": linux_ad_count,
+            "covered_count": linux_covered_count,
+            "gap_count": linux_ad_count - linux_covered_count,
+            "percent": _percent(linux_covered_count, linux_ad_count),
+        },
+    ]
     category_coverage_data = {
         item["key"]: item
         for item in grouped_coverage("category_id", category_labels, exclude_empty=True)
@@ -222,13 +258,7 @@ def build_server_heatmap_context(params):
     return {
         "matrix_rows": matrix_rows,
         "matrix_types": categories,
-        "os_rows": [
-            os_coverage_data.get(key, {
-                "key": key, "label": label, "ad_count": 0,
-                "covered_count": 0, "gap_count": 0, "percent": 0.0,
-            })
-            for key, label in ServerAsset.OS_CHOICES
-        ],
+        "os_rows": operating_system_rows,
         "type_rows": [
             category_coverage_data.get(category.id, {
                 "key": category.id, "label": category.name, "ad_count": 0,
@@ -236,10 +266,6 @@ def build_server_heatmap_context(params):
             })
             for category in categories
         ],
-        "application_rows": sorted(grouped_coverage(
-            "application_name",
-            exclude_empty=True,
-        ), key=lambda item: (-item["ad_count"], str(item["label"]))),
         "gaps": gaps,
         "gap_total": gap_summary["total"],
         "dns_resolved_count": gap_summary["dns_resolved"],
@@ -434,13 +460,45 @@ def server_administration(request):
                 changed = assets.update(is_enabled=True)
                 messages.success(request, f"{changed} equipo(s) habilitado(s).")
             elif action == "disable_assets":
-                changed = assets.update(is_enabled=False)
+                justification = (request.POST.get("disable_justification") or "").strip()
+                if not justification:
+                    messages.error(request, "La justificación es obligatoria para deshabilitar equipos.")
+                    return redirect(request.get_full_path())
+                selected_assets = list(assets.filter(is_enabled=True))
+                with transaction.atomic():
+                    ServerAssetDisableEvent.objects.bulk_create([
+                        ServerAssetDisableEvent(
+                            asset=asset,
+                            hostname=asset.hostname,
+                            actor=request.user,
+                            justification=justification,
+                            previous_enabled=True,
+                            new_enabled=False,
+                            source_ip=client_ip(request) or None,
+                            user_agent=request.META.get("HTTP_USER_AGENT", "")[:500],
+                        )
+                        for asset in selected_assets
+                    ])
+                    changed = ServerAsset.objects.filter(
+                        id__in=[asset.id for asset in selected_assets],
+                    ).update(is_enabled=False)
+                    audit(
+                        request,
+                        "server_assets_disabled",
+                        "server_asset",
+                        ",".join(str(asset.id) for asset in selected_assets),
+                        {
+                            "justification": justification,
+                            "count": changed,
+                            "hostnames": [asset.hostname for asset in selected_assets],
+                        },
+                    )
                 messages.success(request, f"{changed} equipo(s) deshabilitado(s).")
             else:
                 rules = active_naming_rules()
                 changed = 0
-                for asset in assets.filter(classification_source=ServerAsset.CLASSIFICATION_AUTO):
-                    apply_automatic_classification(asset, rules=rules)
+                for asset in assets:
+                    apply_automatic_classification(asset, rules=rules, force=True)
                     changed += 1
                 messages.success(request, f"{changed} equipo(s) reclasificado(s).")
             return redirect(request.get_full_path())
@@ -558,7 +616,7 @@ def server_sections(request):
     if request.method == "POST" and form.is_valid():
         form.save()
         messages.success(request, "Sección funcional creada.")
-        return redirect("server_heatmap_sections")
+        return redirect("server_heatmap_administration")
     return render(request, "server_heatmap/sections.html", {
         "form": form,
         "categories": ServerCategory.objects.all(),
@@ -618,11 +676,15 @@ def edit_server_asset(request, asset_id):
     if request.method == "POST" and form.is_valid():
         form.save()
         messages.success(request, f"Equipo {asset.hostname} actualizado.")
-        return redirect("server_heatmap_sections")
+        return redirect("server_heatmap_administration")
     return render(
         request,
         "server_heatmap/asset_form.html",
-        {"form": form, "asset": asset},
+        {
+            "form": form,
+            "asset": asset,
+            "disable_events": asset.disable_events.select_related("actor")[:20],
+        },
     )
 
 
@@ -635,7 +697,7 @@ def edit_server_category(request, category_id):
     if request.method == "POST" and form.is_valid():
         form.save()
         messages.success(request, "Sección de servidores actualizada.")
-        return redirect("server_heatmap_administration")
+        return redirect("server_heatmap_sections")
     return render(
         request,
         "server_heatmap/category_form.html",
@@ -649,12 +711,16 @@ def delete_server_category(request, category_id):
     if not can_manage_server_heatmap(request.user):
         return HttpResponseForbidden("No tenés permisos para administrar secciones.")
     category = get_object_or_404(ServerCategory, pk=category_id)
-    if category.assets.exists() or category.naming_rules.exists():
-        messages.error(request, "No se puede eliminar una sección que está siendo utilizada.")
-    else:
-        name = category.name
-        category.delete()
-        messages.success(request, f"Sección «{name}» eliminada.")
+    name = category.name
+    asset_count = category.assets.count()
+    rule_count = category.naming_rules.count() + category.inventory_filter_rules.count()
+    category.delete()
+    messages.success(
+        request,
+        f"Sección «{name}» eliminada. "
+        f"{asset_count} equipo(s) quedaron sin sección y "
+        f"{rule_count} regla(s) quedaron sin asignación.",
+    )
     return redirect("server_heatmap_sections")
 
 

@@ -28,6 +28,7 @@ from .models import (
     InventorySyncRun,
     ReconciliationIssue,
     ServerAsset,
+    ServerAssetDisableEvent,
     ServerCategory,
     ServerInventoryConfiguration,
     ServerNamingRule,
@@ -154,6 +155,36 @@ class ServerHeatmapTests(TestCase):
         self.assertEqual(result["received"], 1)
         self.assertEqual(result["excluded"], 1)
         self.assertEqual(InventoryFilterDecision.objects.count(), 0)
+
+    def test_filter_simulation_uses_legacy_as_ad_fallback(self):
+        run = InventorySyncRun.objects.create(
+            source=InventorySyncRun.SOURCE_LEGACY,
+            status=InventorySyncRun.STATUS_SUCCESS,
+        )
+        InventoryObservation.objects.create(
+            sync_run=run,
+            source=InventorySyncRun.SOURCE_LEGACY,
+            external_id="dc-legacy",
+            hostname="dc-legacy",
+            organizational_unit="Domain Controllers",
+        )
+        rule = InventoryFilterRule.objects.create(
+            name="OU DC legacy",
+            source="ad",
+            field="organizational_unit",
+            operator="contains",
+            pattern="Domain Controllers",
+            action="classify",
+            is_active=False,
+        )
+
+        result = simulate_inventory_filters(
+            rules=InventoryFilterRule.objects.filter(pk=rule.pk),
+        )
+
+        self.assertEqual(result["received"], 1)
+        self.assertEqual(result["classified"], 1)
+        self.assertEqual(result["run_rows"][0]["matched"], 1)
 
     def test_invalid_literal_star_dot_filter_is_rejected(self):
         form = InventoryFilterRuleForm(
@@ -453,6 +484,35 @@ class ServerHeatmapTests(TestCase):
         self.assertEqual(database["gap_count"], 3)
         self.assertEqual(database["percent"], 70.0)
 
+    def test_os_coverage_merges_unix_into_linux_and_shows_only_two_rows(self):
+        ServerAsset.objects.create(
+            hostname="linux-covered",
+            os_family=ServerAsset.OS_LINUX,
+            in_active_directory=True,
+            in_siem=True,
+        )
+        ServerAsset.objects.create(
+            hostname="aix-pending",
+            os_family=ServerAsset.OS_UNIX,
+            in_active_directory=True,
+            in_siem=False,
+        )
+        ServerAsset.objects.create(
+            hostname="other-device",
+            os_family=ServerAsset.OS_OTHER,
+            in_active_directory=True,
+            in_siem=True,
+        )
+
+        rows = build_server_heatmap_context({})["os_rows"]
+
+        self.assertEqual([row["key"] for row in rows], ["windows", "linux"])
+        linux = rows[1]
+        self.assertEqual(linux["ad_count"], 2)
+        self.assertEqual(linux["covered_count"], 1)
+        self.assertEqual(linux["gap_count"], 1)
+        self.assertEqual(linux["percent"], 50.0)
+
     def test_admin_role_can_open_server_heatmap(self):
         user = get_user_model().objects.create_user("heatmap-admin", password="pass")
         group, _ = Group.objects.get_or_create(name="Admin")
@@ -569,12 +629,41 @@ class ServerHeatmapTests(TestCase):
 
         response = self.client.post(
             reverse("server_heatmap_administration"),
-            {"action": "disable_assets", "asset_ids": [asset.id]},
+            {
+                "action": "disable_assets",
+                "asset_ids": [asset.id],
+                "disable_justification": "Servidor retirado del inventario operativo.",
+            },
         )
 
         self.assertRedirects(response, reverse("server_heatmap_administration"))
         asset.refresh_from_db()
         self.assertFalse(asset.is_enabled)
+        event = ServerAssetDisableEvent.objects.get(asset=asset)
+        self.assertEqual(event.actor.username, "asset-admin")
+        self.assertEqual(
+            event.justification,
+            "Servidor retirado del inventario operativo.",
+        )
+        self.assertTrue(event.previous_enabled)
+        self.assertFalse(event.new_enabled)
+
+    def test_front_panel_rejects_disable_without_justification(self):
+        user = get_user_model().objects.create_user("asset-admin-no-reason", password="pass")
+        group, _ = Group.objects.get_or_create(name="Admin")
+        user.groups.add(group)
+        self.client.login(username="asset-admin-no-reason", password="pass")
+        asset = ServerAsset.objects.create(hostname="keep-enabled")
+
+        response = self.client.post(
+            reverse("server_heatmap_administration"),
+            {"action": "disable_assets", "asset_ids": [asset.id]},
+        )
+
+        self.assertRedirects(response, reverse("server_heatmap_administration"))
+        asset.refresh_from_db()
+        self.assertTrue(asset.is_enabled)
+        self.assertFalse(ServerAssetDisableEvent.objects.filter(asset=asset).exists())
 
     def test_asset_results_filter_without_rendering_full_panel(self):
         user = get_user_model().objects.create_user("live-admin", password="pass")
@@ -607,6 +696,30 @@ class ServerHeatmapTests(TestCase):
         self.assertContains(sections, "Secciones funcionales")
         self.assertEqual(rules.status_code, 200)
         self.assertContains(rules, "Reglas de nomenclatura")
+
+    def test_used_section_can_be_deleted_and_relations_are_detached(self):
+        user = get_user_model().objects.create_user("delete-section-admin", password="pass")
+        group, _ = Group.objects.get_or_create(name="Admin")
+        user.groups.add(group)
+        self.client.login(username="delete-section-admin", password="pass")
+        category = ServerCategory.objects.create(name="Temporal", code="temporal")
+        asset = ServerAsset.objects.create(hostname="srv-temporal", category=category)
+        rule = ServerNamingRule.objects.create(
+            name="Regla temporal",
+            pattern="tmp*",
+            category=category,
+        )
+
+        response = self.client.post(
+            reverse("server_heatmap_category_delete", args=[category.id]),
+        )
+
+        self.assertRedirects(response, reverse("server_heatmap_sections"))
+        self.assertFalse(ServerCategory.objects.filter(pk=category.id).exists())
+        asset.refresh_from_db()
+        rule.refresh_from_db()
+        self.assertIsNone(asset.category_id)
+        self.assertIsNone(rule.category_id)
 
     @patch(
         "apps.server_heatmap.network_diagnostics.socket.gethostbyaddr",

@@ -11,5 +11,19 @@
             <div class="header-actions" style="margin-top:16px"><button class="btn-primary" type="submit">Guardar equipo</button><a class="btn" href="{% url 'server_heatmap_administration' %}">Cancelar</a></div>
         </form>
     </section>
+    <section class="detail-card" style="margin-top:14px">
+        <h2 class="section-title">Historial de deshabilitaciones</h2>
+        <p class="page-subtitle">Registro inalterable del motivo, usuario y origen de cada deshabilitación realizada desde el panel.</p>
+        <div class="table-wrap"><table>
+            <thead><tr><th>Fecha</th><th>Usuario</th><th>Justificación</th><th>IP de origen</th></tr></thead>
+            <tbody>
+            {% for event in disable_events %}
+                <tr><td>{{ event.created_at|date:"d/m/Y H:i:s" }}</td><td>{{ event.actor.get_username|default:"Usuario eliminado" }}</td><td>{{ event.justification }}</td><td>{{ event.source_ip|default:"-" }}</td></tr>
+            {% empty %}
+                <tr><td colspan="4">Este equipo no tiene deshabilitaciones registradas.</td></tr>
+            {% endfor %}
+            </tbody>
+        </table></div>
+    </section>
 </section></main>
 {% endblock %}

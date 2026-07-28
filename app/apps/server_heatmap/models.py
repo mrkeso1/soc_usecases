@@ -1,5 +1,6 @@
 import re
 
+from django.conf import settings
 from django.core.exceptions import ValidationError
 from django.db import models
 
@@ -159,6 +160,38 @@ class ServerAsset(models.Model):
         if self.reachability_status == self.REACHABILITY_ERROR:
             return "Ping no disponible"
         return "Pendiente de diagnóstico"
+
+
+class ServerAssetDisableEvent(models.Model):
+    asset = models.ForeignKey(
+        ServerAsset,
+        on_delete=models.CASCADE,
+        related_name="disable_events",
+        verbose_name="Equipo",
+    )
+    hostname = models.CharField("Hostname registrado", max_length=255)
+    actor = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        related_name="server_disable_events",
+        null=True,
+        blank=True,
+        verbose_name="Usuario",
+    )
+    justification = models.TextField("Justificación")
+    previous_enabled = models.BooleanField("Estado anterior", default=True)
+    new_enabled = models.BooleanField("Estado nuevo", default=False)
+    source_ip = models.GenericIPAddressField("IP de origen", null=True, blank=True)
+    user_agent = models.CharField("Navegador", max_length=500, blank=True)
+    created_at = models.DateTimeField("Fecha", auto_now_add=True)
+
+    class Meta:
+        ordering = ["-created_at"]
+        verbose_name = "Deshabilitación de servidor"
+        verbose_name_plural = "Deshabilitaciones de servidores"
+
+    def __str__(self):
+        return f"{self.hostname} - {self.created_at:%Y-%m-%d %H:%M}"
 
 
 class InventorySyncRun(models.Model):

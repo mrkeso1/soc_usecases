@@ -7,10 +7,28 @@ from .models import (
     InventorySyncRun,
     ReconciliationIssue,
     ServerAsset,
+    ServerAssetDisableEvent,
     ServerCategory,
     ServerInventoryConfiguration,
     ServerNamingRule,
 )
+
+
+@admin.register(ServerAssetDisableEvent)
+class ServerAssetDisableEventAdmin(admin.ModelAdmin):
+    list_display = ("created_at", "hostname", "actor", "justification", "source_ip")
+    list_filter = ("created_at",)
+    search_fields = ("hostname", "actor__username", "justification", "source_ip")
+    readonly_fields = (
+        "asset", "hostname", "actor", "justification", "previous_enabled",
+        "new_enabled", "source_ip", "user_agent", "created_at",
+    )
+
+    def has_add_permission(self, request):
+        return False
+
+    def has_change_permission(self, request, obj=None):
+        return False
 
 
 @admin.register(ServerCategory)

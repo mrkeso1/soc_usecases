@@ -352,7 +352,18 @@ def retry_issue_name_resolution(issue):
 
 def reprocess_stored_inventory():
     latest_runs = []
-    for source in (InventorySyncRun.SOURCE_AD, InventorySyncRun.SOURCE_SIEM):
+    ad_run = InventorySyncRun.objects.filter(
+        source=InventorySyncRun.SOURCE_AD,
+        status=InventorySyncRun.STATUS_SUCCESS,
+    ).first()
+    if not ad_run:
+        ad_run = InventorySyncRun.objects.filter(
+            source=InventorySyncRun.SOURCE_LEGACY,
+            status=InventorySyncRun.STATUS_SUCCESS,
+        ).first()
+    if ad_run:
+        latest_runs.append(ad_run)
+    for source in (InventorySyncRun.SOURCE_SIEM,):
         run = InventorySyncRun.objects.filter(
             source=source,
             status=InventorySyncRun.STATUS_SUCCESS,
@@ -368,6 +379,21 @@ def reprocess_stored_inventory():
         for run in latest_runs:
             run.issues.all().delete()
             for observation in run.observations.all().iterator(chunk_size=500):
+                if run.source == InventorySyncRun.SOURCE_LEGACY:
+                    asset = observation.asset
+                    if asset:
+                        raw = observation.raw_data or {}
+                        ingested = str(raw.get("ingestado", "")).strip().lower()
+                        asset.in_active_directory = True
+                        asset.in_siem = ingested in {"1", "true", "si", "sí", "yes"}
+                        asset.save(update_fields=[
+                            "in_active_directory",
+                            "in_siem",
+                            "updated_at",
+                        ])
+                        processed += 1
+                        matched += 1
+                    continue
                 asset, _ = reconcile_observation(
                     observation,
                     _record_from_observation(observation),
@@ -379,8 +405,8 @@ def reprocess_stored_inventory():
             run.save(update_fields=["issues_count"])
 
         # También actualiza equipos manualmente cargados que no estén en las últimas observaciones.
-        pending = ServerAsset.objects.filter(classification_source=ServerAsset.CLASSIFICATION_AUTO)
+        pending = ServerAsset.objects.all()
         for asset in pending.iterator(chunk_size=500):
-            apply_automatic_classification(asset, rules=naming_rules)
+            apply_automatic_classification(asset, rules=naming_rules, force=True)
 
     return {"processed": processed, "matched": matched, "runs": len(latest_runs)}

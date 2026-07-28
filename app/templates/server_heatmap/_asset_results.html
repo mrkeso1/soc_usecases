@@ -2,7 +2,7 @@
     {% csrf_token %}
     <div class="admin-actions">
         <button class="btn" name="action" value="enable_assets" type="submit">Habilitar</button>
-        <button class="btn" name="action" value="disable_assets" type="submit">Deshabilitar</button>
+        <button class="btn" data-disable-assets type="button">Deshabilitar</button>
         <button class="btn" name="action" value="reclassify_assets" type="submit">Reclasificar seleccionados</button>
     </div>
     <div class="admin-table-shell" style="margin-top:10px"><table class="admin-table">

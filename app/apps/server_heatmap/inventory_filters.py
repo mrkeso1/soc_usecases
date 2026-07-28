@@ -47,6 +47,8 @@ def load_compiled_filters(*, active_only=True, rules=None):
 
 
 def rule_applies_to_source(rule, source):
+    if source == InventorySyncRun.SOURCE_LEGACY:
+        source = InventorySyncRun.SOURCE_AD
     return rule.source in (InventoryFilterRule.SOURCE_BOTH, source)
 
 
@@ -86,7 +88,18 @@ def evaluate_observation(observation, compiled_filters):
 
 def latest_inventory_runs():
     runs = []
-    for source in (InventorySyncRun.SOURCE_AD, InventorySyncRun.SOURCE_SIEM):
+    ad_run = InventorySyncRun.objects.filter(
+        source=InventorySyncRun.SOURCE_AD,
+        status=InventorySyncRun.STATUS_SUCCESS,
+    ).first()
+    if not ad_run:
+        ad_run = InventorySyncRun.objects.filter(
+            source=InventorySyncRun.SOURCE_LEGACY,
+            status=InventorySyncRun.STATUS_SUCCESS,
+        ).first()
+    if ad_run:
+        runs.append(ad_run)
+    for source in (InventorySyncRun.SOURCE_SIEM,):
         run = InventorySyncRun.objects.filter(
             source=source,
             status=InventorySyncRun.STATUS_SUCCESS,
@@ -112,6 +125,7 @@ def simulate_inventory_filters(*, rules=None, sample_limit=20):
     }
     result = {
         "runs": [],
+        "run_rows": [],
         "received": 0,
         "matched": 0,
         "excluded": 0,
@@ -122,13 +136,25 @@ def simulate_inventory_filters(*, rules=None, sample_limit=20):
     }
     for run in latest_inventory_runs():
         result["runs"].append(run)
+        run_row = {
+            "source": (
+                "Active Directory (carga importada)"
+                if run.source == InventorySyncRun.SOURCE_LEGACY
+                else run.get_source_display()
+            ),
+            "received": 0,
+            "matched": 0,
+        }
+        result["run_rows"].append(run_row)
         observations = run.observations.all().order_by("id")
         for observation in observations.iterator(chunk_size=500):
             result["received"] += 1
+            run_row["received"] += 1
             evaluation = evaluate_observation(observation, compiled)
             matched_rules = evaluation["matched_rules"]
             if matched_rules:
                 result["matched"] += 1
+                run_row["matched"] += 1
             else:
                 result["unmatched"] += 1
             for rule in matched_rules:

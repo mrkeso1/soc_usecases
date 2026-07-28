@@ -37,7 +37,7 @@
     .heat-cell span,.heat-cell small { display:block; margin-top:3px; color:var(--text-muted); font-size:.72rem; }
     .heat-legend { display:flex; flex-wrap:wrap; gap:12px; margin:12px 0; color:var(--text-muted); font-size:.82rem; }
     .heat-legend i { display:inline-block; width:10px; height:10px; margin-right:5px; border-radius:3px; }
-    .server-grid { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:12px; margin-top:14px; }
+    .server-grid { display:grid; grid-template-columns:1fr; gap:12px; margin-top:14px; }
     .server-panel { border:1px solid var(--border); border-radius:14px; background:var(--surface); padding:15px; min-width:0; }
     .server-panel h2 { color:var(--text-strong); font-size:1rem; margin-bottom:3px; }
     .server-panel > small { color:var(--text-muted); }
@@ -126,9 +126,8 @@
     </section>
 
     <section class="server-grid">
-        <article class="server-panel"><h2>Cobertura por sistema operativo</h2><small>Porcentaje de equipos AD que también están en SIEM</small><div class="server-bars">{% for item in os_rows %}<div><div class="server-bar-head"><span>{{ item.label }}</span><strong>{{ item.covered_count }}/{{ item.ad_count }} · {{ item.percent }}%</strong></div><div class="server-bar-track"><span style="width:{{ item.percent|unlocalize }}%"></span></div><small>{{ item.gap_count }} pendientes de ingesta</small></div>{% empty %}<p class="muted">Sin equipos AD.</p>{% endfor %}</div></article>
+        <article class="server-panel"><h2>Cobertura por sistema operativo</h2><small>Windows se muestra por separado. Linux incluye también Unix, AIX y sus variantes.</small><div class="server-bars">{% for item in os_rows %}<div><div class="server-bar-head"><span>{{ item.label }}</span><strong>{{ item.covered_count }}/{{ item.ad_count }} · {{ item.percent }}%</strong></div><div class="server-bar-track"><span style="width:{{ item.percent|unlocalize }}%"></span></div><small>{{ item.gap_count }} pendientes de ingesta</small></div>{% empty %}<p class="muted">Sin equipos AD.</p>{% endfor %}</div></article>
         <article class="server-panel"><h2>Cobertura por sección funcional</h2><small>En cada sección, el total de equipos AD representa el 100%</small><div class="server-bars">{% for item in type_rows %}<div><div class="server-bar-head"><span>{{ item.label }}</span><strong>{{ item.covered_count }}/{{ item.ad_count }} · {{ item.percent }}%</strong></div><div class="server-bar-track"><span style="width:{{ item.percent|unlocalize }}%"></span></div><small>{{ item.gap_count }} pendientes de ingesta</small></div>{% empty %}<p class="muted">Sin equipos AD clasificados.</p>{% endfor %}</div></article>
-        <article class="server-panel"><h2>Cobertura por aplicación interna</h2><small>En cada aplicación, el total de equipos AD representa el 100%</small><div class="server-bars">{% for item in application_rows %}<div><div class="server-bar-head"><span>{{ item.label }}</span><strong>{{ item.covered_count }}/{{ item.ad_count }} · {{ item.percent }}%</strong></div><div class="server-bar-track"><span style="width:{{ item.percent|unlocalize }}%"></span></div><small>{{ item.gap_count }} pendientes de ingesta</small></div>{% empty %}<p class="muted">Sin aplicaciones identificadas en AD.</p>{% endfor %}</div></article>
     </section>
 
     <section class="table-panel" style="margin-top:14px">

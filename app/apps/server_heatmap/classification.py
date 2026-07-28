@@ -40,8 +40,14 @@ def classify_hostname(hostname: str, *, rules=None) -> dict:
     return result
 
 
-def apply_automatic_classification(asset: ServerAsset, *, save=True, rules=None) -> ServerAsset:
-    if asset.classification_source != ServerAsset.CLASSIFICATION_AUTO:
+def apply_automatic_classification(
+    asset: ServerAsset,
+    *,
+    save=True,
+    rules=None,
+    force=False,
+) -> ServerAsset:
+    if not force and asset.classification_source != ServerAsset.CLASSIFICATION_AUTO:
         return asset
     classification = classify_hostname(asset.hostname, rules=rules)
     if classification["os_family"] != ServerAsset.OS_UNKNOWN:

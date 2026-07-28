@@ -26,6 +26,13 @@
     .pagination { display:flex; justify-content:center; gap:8px; margin-top:13px; }
     .live-status { min-height:18px; color:var(--text-muted); font-size:.75rem; }
     #asset-results.is-loading { opacity:.55; pointer-events:none; }
+    .page-header .header-actions form { margin:0; display:flex; }
+    .disable-dialog { position:fixed; inset:0; margin:auto; width:min(560px,calc(100vw - 30px)); max-height:min(620px,calc(100vh - 30px)); overflow:auto; border:1px solid var(--border); border-radius:14px; padding:0; background:var(--surface); color:var(--text); box-shadow:0 24px 70px rgba(0,0,0,.5); }
+    .disable-dialog::backdrop { background:rgba(3,8,16,.72); backdrop-filter:blur(3px); }
+    .disable-dialog-body { padding:20px; }
+    .disable-dialog h2 { margin:0 0 7px; color:var(--text-strong); }
+    .disable-dialog p { margin:0 0 16px; color:var(--text-muted); font-size:.85rem; line-height:1.45; }
+    .disable-dialog textarea { width:100%; min-height:120px; resize:vertical; }
     @media(max-width:900px){.admin-grid{grid-template-columns:1fr}.asset-filters{grid-template-columns:1fr}.admin-card.full{grid-column:auto}}
 </style>
 {% endblock %}
@@ -39,10 +46,7 @@
             <p class="page-subtitle">Configuración, equipos, conflictos y ejecuciones.</p>
         </div>
         <div class="header-actions">
-            <a class="btn" href="{% url 'server_heatmap_sections' %}">Secciones funcionales</a>
-            <a class="btn" href="{% url 'server_heatmap_naming_rules' %}">Reglas</a>
-            <a class="btn" href="{% url 'server_heatmap_filter_list' %}">Filtros de inventario</a>
-            <form method="post" action="{% url 'server_heatmap_reprocess' %}">{% csrf_token %}<button class="btn-primary" type="submit">Cruzar y aplicar reglas</button></form>
+            <form method="post" action="{% url 'server_heatmap_reprocess' %}">{% csrf_token %}<button class="btn" type="submit">Cruzar y aplicar reglas</button></form>
             <a class="btn" href="{% url 'server_heatmap' %}">Volver al mapa</a>
         </div>
     </header>
@@ -62,11 +66,11 @@
 
         <article class="admin-card">
             <h2>Organización y clasificación</h2>
-            <p>Las secciones definen las columnas del mapa. Las reglas clasifican automáticamente los equipos por nomenclatura.</p>
+            <p>Administrá desde acá las secciones del mapa, las reglas de nomenclatura y los filtros aplicados al inventario.</p>
             <div class="admin-actions">
-                <a class="btn-primary" href="{% url 'server_heatmap_sections' %}">Administrar secciones</a>
-                <a class="btn" href="{% url 'server_heatmap_naming_rules' %}">Administrar reglas</a>
-                <a class="btn" href="{% url 'server_heatmap_filter_list' %}">Administrar filtros</a>
+                <a class="btn" href="{% url 'server_heatmap_sections' %}">Secciones funcionales</a>
+                <a class="btn" href="{% url 'server_heatmap_naming_rules' %}">Reglas de nomenclatura</a>
+                <a class="btn" href="{% url 'server_heatmap_filter_list' %}">Filtros de inventario</a>
             </div>
         </article>
 
@@ -107,12 +111,31 @@
     </div>
 </section></main>
 
+<dialog class="disable-dialog" id="disable-assets-dialog">
+    <div class="disable-dialog-body">
+        <h2>Deshabilitar equipos</h2>
+        <p id="disable-assets-summary">Indicá el motivo. La justificación, el usuario, la fecha y los equipos seleccionados quedarán registrados.</p>
+        <div class="field">
+            <label for="disable-assets-justification">Justificación obligatoria</label>
+            <textarea id="disable-assets-justification" maxlength="2000" required placeholder="Ejemplo: equipo dado de baja en Active Directory, reemplazado por…"></textarea>
+        </div>
+        <div class="admin-actions">
+            <button class="btn" type="button" id="cancel-disable-assets">Cancelar</button>
+            <button class="btn-danger" type="button" id="confirm-disable-assets">Confirmar deshabilitación</button>
+        </div>
+    </div>
+</dialog>
+
 <script>
 (() => {
     const filters = document.getElementById("asset-live-filters");
     const results = document.getElementById("asset-results");
     const status = document.getElementById("asset-live-status");
     const endpoint = "{% url 'server_heatmap_asset_results' %}";
+    const disableDialog = document.getElementById("disable-assets-dialog");
+    const disableReason = document.getElementById("disable-assets-justification");
+    const disableSummary = document.getElementById("disable-assets-summary");
+    let pendingDisableForm = null;
     let timer;
     let controller;
 
@@ -153,7 +176,50 @@
         if (event.target.matches("[data-check-all-assets]")) {
             results.querySelectorAll("[name=asset_ids]").forEach(item => item.checked = event.target.checked);
         }
+        const disableButton = event.target.closest("[data-disable-assets]");
+        if (disableButton) {
+            const form = disableButton.closest("form");
+            const selected = form.querySelectorAll("[name=asset_ids]:checked");
+            if (!selected.length) {
+                status.textContent = "Seleccioná al menos un equipo para deshabilitar.";
+                return;
+            }
+            pendingDisableForm = form;
+            disableReason.value = "";
+            disableSummary.textContent = `Vas a deshabilitar ${selected.length} equipo(s). Indicá el motivo; el usuario, la fecha y los equipos quedarán registrados.`;
+            disableDialog.showModal();
+            disableReason.focus();
+        }
     });
+    document.getElementById("cancel-disable-assets").addEventListener("click", () => {
+        pendingDisableForm = null;
+        disableDialog.close();
+    });
+    document.getElementById("confirm-disable-assets").addEventListener("click", () => {
+        const reason = disableReason.value.trim();
+        if (!reason) {
+            disableReason.setCustomValidity("Ingresá una justificación.");
+            disableReason.reportValidity();
+            return;
+        }
+        disableReason.setCustomValidity("");
+        if (!pendingDisableForm) return;
+        pendingDisableForm.querySelectorAll("[data-disable-payload]").forEach(item => item.remove());
+        const action = document.createElement("input");
+        action.type = "hidden";
+        action.name = "action";
+        action.value = "disable_assets";
+        action.dataset.disablePayload = "1";
+        const justification = document.createElement("input");
+        justification.type = "hidden";
+        justification.name = "disable_justification";
+        justification.value = reason;
+        justification.dataset.disablePayload = "1";
+        pendingDisableForm.append(action, justification);
+        disableDialog.close();
+        pendingDisableForm.requestSubmit();
+    });
+    disableReason.addEventListener("input", () => disableReason.setCustomValidity(""));
     document.querySelector("[data-check-all-issues]")?.addEventListener("change", event => {
         document.querySelectorAll("[name=issue_ids]").forEach(item => item.checked = event.target.checked);
     });
