@@ -20,6 +20,7 @@ from apps.usecases.models import UseCase
 from apps.lifecycle.lifecycle import lifecycle_state
 from apps.controls.models import Control
 from apps.sigma_tools.models import UseCaseTechnicalBackup
+from apps.server_heatmap.models import ServerAsset
 from .models import MitreCoverageSnapshot
 
 
@@ -298,6 +299,48 @@ def build_executive_dashboard_context(request):
         },
     ]
 
+    server_heatmap_rows = []
+    try:
+        enabled_ad_assets = ServerAsset.objects.filter(
+            is_enabled=True,
+            in_active_directory=True,
+        )
+        operating_systems = (
+            ("Windows", [ServerAsset.OS_WINDOWS], "#2d7aff"),
+            (
+                "Linux / Unix / AIX",
+                [ServerAsset.OS_LINUX, ServerAsset.OS_UNIX],
+                "#00e5a0",
+            ),
+        )
+        for name, families, color in operating_systems:
+            assets = enabled_ad_assets.filter(os_family__in=families)
+            total = assets.count()
+            covered = assets.filter(in_siem=True).count()
+            percent = _safe_percent(covered, total)
+            server_heatmap_rows.append({
+                "name": name,
+                "code": "WIN" if name == "Windows" else "LNX",
+                "total": total,
+                "covered": covered,
+                "pending": max(total - covered, 0),
+                "percent": percent,
+                "color": color,
+                "gradient": (
+                    f"conic-gradient({color} 0% {percent}%, "
+                    f"rgba(255,71,87,.78) {percent}% 100%)"
+                ),
+            })
+    except (OperationalError, ProgrammingError):
+        server_heatmap_rows = []
+    server_heatmap_total = sum(item["total"] for item in server_heatmap_rows)
+    server_heatmap_covered = sum(item["covered"] for item in server_heatmap_rows)
+    server_heatmap_pending = max(server_heatmap_total - server_heatmap_covered, 0)
+    server_heatmap_percent = _safe_percent(
+        server_heatmap_covered,
+        server_heatmap_total,
+    )
+
     return {
         "today": today,
         "total_cases": total_cases,
@@ -364,6 +407,11 @@ def build_executive_dashboard_context(request):
         ),
         "severity_gradient": _donut_gradient(severity_rows),
         "source_status_gradient": _donut_gradient(source_status_rows),
+        "server_heatmap_rows": server_heatmap_rows,
+        "server_heatmap_total": server_heatmap_total,
+        "server_heatmap_covered": server_heatmap_covered,
+        "server_heatmap_pending": server_heatmap_pending,
+        "server_heatmap_percent": server_heatmap_percent,
     }
 
 

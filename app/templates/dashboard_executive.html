@@ -6,8 +6,33 @@
 <link rel="stylesheet" href="{% static 'css/dashboard-executive.css' %}?v=20260716-3">
 <style>
     .ops-kpi-grid.case-summary-grid { grid-template-columns:repeat(5, minmax(0, 1fr)); }
+    .heat-overview-grid { display:grid; grid-template-columns:minmax(260px,.72fr) repeat(2,minmax(280px,1fr)); gap:14px; }
+    .heat-summary-card,.heat-os-card { min-height:410px; display:flex; flex-direction:column; border:1px solid var(--border); border-radius:12px; background:var(--surface); box-shadow:0 14px 36px rgba(0,0,0,.16); padding:22px; overflow:hidden; position:relative; }
+    .heat-summary-card::before,.heat-os-card::before { content:""; position:absolute; inset:0 0 auto; height:3px; background:linear-gradient(90deg,transparent,var(--heat-color,var(--ops-accent)),transparent); }
+    .heat-card-kicker { color:var(--text-muted); font:900 10px 'JetBrains Mono',monospace; letter-spacing:.09em; text-transform:uppercase; }
+    .heat-summary-card h2,.heat-os-card h2 { margin:7px 0 4px; color:var(--text-strong); font-size:1.15rem; }
+    .heat-summary-card > p,.heat-os-card > p { margin:0; color:var(--text-muted); font-size:.8rem; line-height:1.4; }
+    .heat-thermometer-wrap { flex:1; display:grid; place-items:center; padding:22px 0 16px; }
+    .heat-thermometer { position:relative; width:58px; height:230px; border:1px solid var(--border-bright); border-radius:32px; background:var(--surface-3); padding:5px; box-shadow:inset 0 0 18px rgba(0,0,0,.35); overflow:hidden; }
+    .heat-thermometer-fill { position:absolute; inset:auto 5px 5px; height:var(--heat-value); border-radius:25px; background:linear-gradient(to top,#ff4757 0%,#f5a623 38%,#d8ef00 67%,#00c878 100%); box-shadow:0 0 22px rgba(0,229,160,.24); }
+    .heat-thermometer-scale { position:absolute; inset:9px 7px; display:flex; flex-direction:column; justify-content:space-between; pointer-events:none; }
+    .heat-thermometer-scale i { height:1px; background:rgba(255,255,255,.18); }
+    .heat-total-percent { text-align:center; color:var(--text-strong); font:900 2.35rem 'JetBrains Mono',monospace; }
+    .heat-total-percent small { font-size:.8rem; color:var(--text-muted); }
+    .heat-os-visual { position:relative; flex:1; display:grid; place-items:center; padding:22px 0; }
+    .heat-ring { width:min(230px,70vw); aspect-ratio:1; border-radius:50%; display:grid; place-items:center; background:var(--heat-gradient); box-shadow:0 0 40px color-mix(in srgb,var(--heat-color) 18%,transparent); }
+    .heat-ring::before { content:""; width:70%; aspect-ratio:1; border-radius:50%; background:var(--surface); border:1px solid var(--border); box-shadow:inset 0 0 26px rgba(0,0,0,.3); }
+    .heat-ring-value { position:absolute; left:50%; top:50%; transform:translate(-50%,-50%); text-align:center; color:var(--text-strong); font:900 2rem 'JetBrains Mono',monospace; }
+    .heat-ring-value small { display:block; margin-top:3px; color:var(--text-muted); font-size:.68rem; text-transform:uppercase; letter-spacing:.07em; }
+    .heat-card-stats { display:grid; grid-template-columns:repeat(3,1fr); gap:8px; }
+    .heat-card-stats div { padding:10px; border:1px solid var(--border); border-radius:8px; background:var(--surface-2); }
+    .heat-card-stats span { display:block; color:var(--text-muted); font-size:.68rem; }
+    .heat-card-stats strong { display:block; margin-top:4px; color:var(--text-strong); font:900 1rem 'JetBrains Mono',monospace; }
+    .heat-legend-inline { display:flex; gap:14px; flex-wrap:wrap; margin-top:12px; color:var(--text-muted); font-size:.72rem; }
+    .heat-legend-inline i { display:inline-block; width:8px; height:8px; margin-right:5px; border-radius:50%; }
     @media(max-width:1100px) { .ops-kpi-grid.case-summary-grid { grid-template-columns:repeat(2, minmax(0, 1fr)); } }
-    @media(max-width:760px) { .ops-kpi-grid.case-summary-grid { grid-template-columns:1fr; } }
+    @media(max-width:1100px) { .heat-overview-grid { grid-template-columns:1fr 1fr; }.heat-summary-card{grid-column:1/-1;min-height:340px}.heat-thermometer{height:170px} }
+    @media(max-width:760px) { .ops-kpi-grid.case-summary-grid,.heat-overview-grid { grid-template-columns:1fr; }.heat-summary-card{grid-column:auto}.heat-summary-card,.heat-os-card{min-height:auto} }
 </style>
 {% endblock %}
 
@@ -28,6 +53,7 @@
             <button class="ops-tab-link" type="button" data-tab="controles">Controles</button>
             <button class="ops-tab-link" type="button" data-tab="fuentes">Fuentes</button>
             <button class="ops-tab-link" type="button" data-tab="ciclo">Ciclo de vida</button>
+            <button class="ops-tab-link" type="button" data-tab="mapa-calor">Mapa de calor</button>
             <a class="ops-tab-link" href="{% url 'dashboard_mitre' %}">MITRE</a>
         </nav>
 
@@ -246,6 +272,50 @@
             <div class="ops-split-grid">
                 <section class="ops-panel"><div class="ops-panel-title"><div><h2>Salud de detecciones</h2><small>Actividad reciente de las reglas inventariadas</small></div></div><div class="ops-progress-list">{% for item in health_rows %}<div class="ops-row"><span>{{ item.name }}</span><strong>{{ item.value }} · {{ item.percent }}%</strong><div class="ops-progress"><span style="width: {{ item.percent|unlocalize }}%; --bar-color: {{ item.color }}"></span></div></div>{% empty %}<p class="muted">No hay metricas de salud registradas.</p>{% endfor %}</div></section>
                 <section class="ops-panel"><div class="ops-panel-title"><div><h2>Trabajo operativo</h2><small>Foco del periodo activo</small></div></div><div class="ops-summary-grid"><article><small>Revisados</small><strong>{{ active_period.reviewed_use_cases|default:0 }}</strong></article><article><small>Pendientes</small><strong>{{ active_period.pending_use_cases|default:0 }}</strong></article><article><small>Estado</small><strong>{{ active_period.state|default:"-" }}</strong></article></div></section>
+            </div>
+        </section>
+
+        <section class="ops-tab-panel" data-panel="mapa-calor" hidden>
+            <div class="heat-overview-grid">
+                <article class="heat-summary-card" style="--heat-color:#00e5a0">
+                    <span class="heat-card-kicker">AD × SIEM</span>
+                    <h2>Cobertura general</h2>
+                    <p>Solo servidores Windows y Linux/Unix/AIX habilitados.</p>
+                    <div class="heat-thermometer-wrap">
+                        <div class="heat-thermometer" style="--heat-value:{{ server_heatmap_percent|unlocalize }}%" role="img" aria-label="Cobertura general {{ server_heatmap_percent }}%">
+                            <div class="heat-thermometer-fill"></div>
+                            <div class="heat-thermometer-scale"><i></i><i></i><i></i><i></i><i></i></div>
+                        </div>
+                    </div>
+                    <div class="heat-total-percent">{{ server_heatmap_percent }}%<small> de ingesta</small></div>
+                    <div class="heat-card-stats" style="margin-top:14px">
+                        <div><span>Total AD</span><strong>{{ server_heatmap_total }}</strong></div>
+                        <div><span>En SIEM</span><strong>{{ server_heatmap_covered }}</strong></div>
+                        <div><span>Pendientes</span><strong>{{ server_heatmap_pending }}</strong></div>
+                    </div>
+                </article>
+                {% for item in server_heatmap_rows %}
+                    <article class="heat-os-card" style="--heat-color:{{ item.color }};--heat-gradient:{{ item.gradient }}">
+                        <span class="heat-card-kicker">{{ item.code }} · Cobertura</span>
+                        <h2>{{ item.name }}</h2>
+                        <p>Porcentaje de servidores AD con ingesta confirmada en SIEM.</p>
+                        <div class="heat-os-visual">
+                            <div class="heat-ring" role="img" aria-label="{{ item.name }}: {{ item.percent }}% de cobertura"></div>
+                            <div class="heat-ring-value">{{ item.percent }}%<small>cubierto</small></div>
+                        </div>
+                        <div class="heat-card-stats">
+                            <div><span>Total AD</span><strong>{{ item.total }}</strong></div>
+                            <div><span>En SIEM</span><strong>{{ item.covered }}</strong></div>
+                            <div><span>Pendientes</span><strong>{{ item.pending }}</strong></div>
+                        </div>
+                        <div class="heat-legend-inline">
+                            <span><i style="background:{{ item.color }}"></i>Con ingesta</span>
+                            <span><i style="background:#ff4757"></i>Pendiente</span>
+                        </div>
+                    </article>
+                {% empty %}
+                    <section class="ops-panel"><p class="muted">Todavía no hay inventario de servidores disponible.</p></section>
+                {% endfor %}
             </div>
         </section>
     </section>

@@ -17,6 +17,7 @@ from apps.dashboard.reports import build_dashboard_pdf
 from apps.dashboard.models import MitreCoverageSnapshot
 from apps.mitre.models import D3Fend, MitreAttack
 from apps.usecases.models import UseCase
+from apps.server_heatmap.models import ServerAsset
 
 
 class DashboardPdfReportTests(TestCase):
@@ -98,6 +99,45 @@ class DashboardInventoryScopeTests(TestCase):
         self.assertEqual(rows[UseCase.STATUS_DEVELOPMENT]["percent"], 0)
         self.assertEqual(rows[UseCase.STATUS_RETIRED]["value"], 0)
         self.assertEqual(rows[UseCase.STATUS_RETIRED]["percent"], 0)
+
+    def test_executive_heatmap_contains_only_windows_and_linux_unix(self):
+        ServerAsset.objects.create(
+            hostname="win-covered",
+            os_family=ServerAsset.OS_WINDOWS,
+            in_active_directory=True,
+            in_siem=True,
+        )
+        ServerAsset.objects.create(
+            hostname="linux-pending",
+            os_family=ServerAsset.OS_LINUX,
+            in_active_directory=True,
+            in_siem=False,
+        )
+        ServerAsset.objects.create(
+            hostname="aix-covered",
+            os_family=ServerAsset.OS_UNIX,
+            in_active_directory=True,
+            in_siem=True,
+        )
+        ServerAsset.objects.create(
+            hostname="other-ignored",
+            os_family=ServerAsset.OS_OTHER,
+            in_active_directory=True,
+            in_siem=True,
+        )
+
+        context = build_executive_dashboard_context(self._request("/dashboard/?tab=mapa-calor"))
+
+        self.assertEqual([item["name"] for item in context["server_heatmap_rows"]], [
+            "Windows",
+            "Linux / Unix / AIX",
+        ])
+        self.assertEqual(context["server_heatmap_total"], 3)
+        self.assertEqual(context["server_heatmap_covered"], 2)
+        self.assertEqual(context["server_heatmap_pending"], 1)
+        self.assertEqual(context["server_heatmap_percent"], 66.7)
+        self.assertEqual(context["server_heatmap_rows"][1]["total"], 2)
+        self.assertEqual(context["server_heatmap_rows"][1]["covered"], 1)
 
     def test_executive_distribution_bars_use_total_cases_as_one_hundred_percent(self):
         UseCase.objects.create(name="ICBC 1", status=UseCase.STATUS_PRODUCTION, owner_name="ICBC")
