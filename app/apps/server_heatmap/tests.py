@@ -17,6 +17,7 @@ from .connectors.base import InventoryRecord
 from .connectors.siem import SiemCsvConnector
 from .forms import InventoryFilterRuleForm
 from .inventory_filters import (
+    apply_inventory_filters,
     evaluate_observation,
     load_compiled_filters,
     simulate_inventory_filters,
@@ -291,6 +292,55 @@ class ServerHeatmapTests(TestCase):
 
         self.assertFalse(ServerAsset.objects.filter(pk=zombie.pk).exists())
         self.assertEqual(run.metadata["deleted_stale_assets"], 1)
+
+    def test_inventory_sync_does_not_reenable_manually_disabled_asset(self):
+        asset = ServerAsset.objects.create(hostname="disabled01", is_enabled=False)
+
+        class Connector:
+            def collect(self):
+                return [
+                    InventoryRecord(
+                        external_id="disabled01.example.local",
+                        hostname="disabled01",
+                        observed_at=datetime.now(timezone.utc),
+                    ),
+                ]
+
+        synchronize_inventory(InventorySyncRun.SOURCE_AD, Connector())
+
+        asset.refresh_from_db()
+        self.assertFalse(asset.is_enabled)
+        self.assertTrue(asset.in_active_directory)
+
+    def test_active_filter_is_applied_to_coverage(self):
+        asset = ServerAsset.objects.create(hostname="workstation01")
+        run = InventorySyncRun.objects.create(
+            source=InventorySyncRun.SOURCE_AD,
+            status=InventorySyncRun.STATUS_SUCCESS,
+        )
+        InventoryObservation.objects.create(
+            sync_run=run,
+            asset=asset,
+            source=InventorySyncRun.SOURCE_AD,
+            external_id="workstation01",
+            hostname="workstation01",
+        )
+        InventoryFilterRule.objects.create(
+            name="Excluir estaciones",
+            source=InventorySyncRun.SOURCE_AD,
+            field=InventoryFilterRule.FIELD_HOSTNAME,
+            operator=InventoryFilterRule.OP_WILDCARD,
+            pattern="workstation*",
+            action=InventoryFilterRule.ACTION_EXCLUDE,
+            is_active=True,
+        )
+
+        result = apply_inventory_filters()
+
+        asset.refresh_from_db()
+        self.assertFalse(asset.in_active_directory)
+        self.assertEqual(result["excluded"], 1)
+        self.assertEqual(InventoryFilterDecision.objects.count(), 1)
 
     def test_reprocess_button_does_not_require_new_inventory(self):
         user = get_user_model().objects.create_user("reprocess-admin", password="pass")

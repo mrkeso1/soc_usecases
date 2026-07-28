@@ -2,7 +2,9 @@ import fnmatch
 import re
 from dataclasses import dataclass
 
-from .models import InventoryFilterRule, InventorySyncRun
+from django.db import transaction
+
+from .models import InventoryFilterDecision, InventoryFilterRule, InventorySyncRun, ServerAsset
 
 
 @dataclass(frozen=True)
@@ -107,6 +109,91 @@ def latest_inventory_runs():
         if run:
             runs.append(run)
     return runs
+
+
+def apply_inventory_filters():
+    """Aplica reglas activas a las últimas cargas y actualiza los cálculos base."""
+    compiled = load_compiled_filters()
+    runs = latest_inventory_runs()
+    ad_asset_ids = set()
+    siem_asset_ids = set()
+    classification_by_asset = {}
+    decisions = []
+    processed = 0
+    excluded = 0
+    has_ad_run = any(
+        run.source in (InventorySyncRun.SOURCE_AD, InventorySyncRun.SOURCE_LEGACY)
+        for run in runs
+    )
+    has_siem_run = any(run.source == InventorySyncRun.SOURCE_SIEM for run in runs)
+
+    for run in runs:
+        source = InventorySyncRun.SOURCE_AD if run.source == InventorySyncRun.SOURCE_LEGACY else run.source
+        for observation in run.observations.select_related("asset").order_by("id").iterator(chunk_size=1000):
+            processed += 1
+            evaluation = evaluate_observation(observation, compiled)
+            identifier = (
+                observation.hostname
+                or observation.fqdn
+                or str(observation.ip_address or "")
+                or observation.external_id
+            )
+            for rule in evaluation["matched_rules"]:
+                decisions.append(
+                    InventoryFilterDecision(
+                        sync_run=run,
+                        rule=rule,
+                        source=source,
+                        identifier=identifier,
+                        action=rule.action,
+                        reason=rule.reason,
+                        raw_data={"observation_id": observation.id},
+                    )
+                )
+            if evaluation["excluded"]:
+                excluded += 1
+                continue
+            asset = observation.asset
+            if not asset:
+                continue
+            if source == InventorySyncRun.SOURCE_AD:
+                ad_asset_ids.add(asset.id)
+            elif source == InventorySyncRun.SOURCE_SIEM:
+                siem_asset_ids.add(asset.id)
+
+            assignments = classification_by_asset.setdefault(asset.id, {})
+            for rule in evaluation["classification_rules"]:
+                if rule.category_id and "category_id" not in assignments:
+                    assignments["category_id"] = rule.category_id
+                if rule.os_family and "os_family" not in assignments:
+                    assignments["os_family"] = rule.os_family
+                if rule.environment_value and "environment" not in assignments:
+                    assignments["environment"] = rule.environment_value
+
+    with transaction.atomic():
+        if has_ad_run:
+            ServerAsset.objects.update(in_active_directory=False)
+            if ad_asset_ids:
+                ServerAsset.objects.filter(id__in=ad_asset_ids).update(in_active_directory=True)
+        if has_siem_run:
+            ServerAsset.objects.update(in_siem=False)
+            if siem_asset_ids:
+                ServerAsset.objects.filter(id__in=siem_asset_ids).update(in_siem=True)
+        for asset_id, assignments in classification_by_asset.items():
+            ServerAsset.objects.filter(
+                id=asset_id,
+                classification_source=ServerAsset.CLASSIFICATION_AUTO,
+            ).update(**assignments)
+        InventoryFilterDecision.objects.filter(sync_run__in=runs).delete()
+        InventoryFilterDecision.objects.bulk_create(decisions, batch_size=1000)
+
+    return {
+        "processed": processed,
+        "excluded": excluded,
+        "classified": len(classification_by_asset),
+        "decisions": len(decisions),
+        "runs": len(runs),
+    }
 
 
 def simulate_inventory_filters(*, rules=None, sample_limit=20):

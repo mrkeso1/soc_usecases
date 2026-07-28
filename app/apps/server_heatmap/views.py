@@ -32,7 +32,7 @@ from .models import (
     ServerNamingRule,
 )
 from .network_diagnostics import diagnose_ingestion_gaps
-from .inventory_filters import simulate_inventory_filters
+from .inventory_filters import apply_inventory_filters, simulate_inventory_filters
 from .permissions import can_access_server_heatmap, can_manage_server_heatmap
 from .reconciliation import (
     reprocess_stored_inventory,
@@ -748,9 +748,11 @@ def inventory_filter_create(request):
     form = InventoryFilterRuleForm(request.POST or None)
     if request.method == "POST" and form.is_valid():
         rule = form.save()
+        application = apply_inventory_filters()
         messages.success(
             request,
-            f"Filtro «{rule.name}» creado {'activo' if rule.is_active else 'inactivo'}.",
+            f"Filtro «{rule.name}» creado {'activo' if rule.is_active else 'inactivo'}. "
+            f"Se recalcularon {application['processed']} observaciones.",
         )
         return redirect("server_heatmap_filter_edit", rule_id=rule.id)
     return render(
@@ -768,7 +770,12 @@ def inventory_filter_edit(request, rule_id):
     form = InventoryFilterRuleForm(request.POST or None, instance=rule)
     if request.method == "POST" and form.is_valid():
         form.save()
-        messages.success(request, "Filtro actualizado.")
+        application = apply_inventory_filters()
+        messages.success(
+            request,
+            "Filtro actualizado y aplicado. "
+            f"Se recalcularon {application['processed']} observaciones.",
+        )
         return redirect("server_heatmap_filter_edit", rule_id=rule.id)
     preview = None
     if request.GET.get("preview") == "1":
@@ -790,5 +797,10 @@ def inventory_filter_delete(request, rule_id):
     rule = get_object_or_404(InventoryFilterRule, pk=rule_id)
     name = rule.name
     rule.delete()
-    messages.success(request, f"Filtro «{name}» eliminado.")
+    application = apply_inventory_filters()
+    messages.success(
+        request,
+        f"Filtro «{name}» eliminado. "
+        f"Se recalcularon {application['processed']} observaciones.",
+    )
     return redirect("server_heatmap_filter_list")

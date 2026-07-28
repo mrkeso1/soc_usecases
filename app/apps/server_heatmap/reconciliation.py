@@ -7,6 +7,7 @@ from django.utils import timezone
 
 from .classification import active_naming_rules, apply_automatic_classification
 from .connectors.base import InventoryRecord
+from .inventory_filters import apply_inventory_filters
 from .models import (
     AssetIdentifier,
     InventoryObservation,
@@ -203,7 +204,6 @@ def reconcile_observation(observation, record, *, naming_rules=None):
         if asset.classification_source == ServerAsset.CLASSIFICATION_AUTO:
             asset.os_family = os_family_from_name(record.os_name)
     asset.inventory_source = source
-    asset.is_enabled = True
     if asset.classification_source == ServerAsset.CLASSIFICATION_AUTO:
         apply_automatic_classification(asset, save=False, rules=naming_rules)
     asset.save()
@@ -216,7 +216,7 @@ def reconcile_observation(observation, record, *, naming_rules=None):
     return asset, created
 
 
-def synchronize_inventory(source, connector, *, metadata=None):
+def synchronize_inventory(source, connector, *, metadata=None, apply_filters_after=True):
     run = InventorySyncRun.objects.create(source=source, metadata=metadata or {})
     try:
         collected_records = connector.collect()
@@ -280,6 +280,8 @@ def synchronize_inventory(source, connector, *, metadata=None):
                     stale_assets.delete()
                 run.metadata["deleted_stale_assets"] = deleted_assets
             run.save()
+        if apply_filters_after:
+            apply_inventory_filters()
         return run
     except Exception as exc:
         run.status = InventorySyncRun.STATUS_FAILED

@@ -65,6 +65,20 @@ def build_ad_connector():
     )
 
 
+def build_siem_connector(*, path=None):
+    url = getattr(settings, "SERVER_INVENTORY_SIEM_URL", "")
+    return SiemCsvConnector(
+        path=path,
+        url=None if path else url,
+        timeout=getattr(settings, "SERVER_INVENTORY_CONNECT_TIMEOUT", 30),
+        use_environment_proxy=getattr(
+            settings,
+            "SERVER_INVENTORY_SIEM_USE_PROXY",
+            False,
+        ),
+    )
+
+
 class Command(BaseCommand):
     help = "Sincroniza el inventario de servidores desde SIEM o Active Directory."
 
@@ -76,18 +90,7 @@ class Command(BaseCommand):
         source = options["source"]
         try:
             if source == "siem":
-                path = options.get("file")
-                url = getattr(settings, "SERVER_INVENTORY_SIEM_URL", "")
-                connector = SiemCsvConnector(
-                    path=path,
-                    url=None if path else url,
-                    timeout=getattr(settings, "SERVER_INVENTORY_CONNECT_TIMEOUT", 30),
-                    use_environment_proxy=getattr(
-                        settings,
-                        "SERVER_INVENTORY_SIEM_USE_PROXY",
-                        False,
-                    ),
-                )
+                connector = build_siem_connector(path=options.get("file"))
                 source_code = InventorySyncRun.SOURCE_SIEM
             else:
                 connector = build_ad_connector()
