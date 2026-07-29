@@ -2,7 +2,8 @@ import re
 
 from django.conf import settings
 from django.core.exceptions import ValidationError
-from django.db import models
+from django.db import models, transaction
+from django.utils import timezone
 
 
 class ServerAsset(models.Model):
@@ -63,7 +64,7 @@ class ServerAsset(models.Model):
     CLASSIFICATION_AUTO = "auto"
     CLASSIFICATION_MANUAL = "manual"
     CLASSIFICATION_CHOICES = [
-        (CLASSIFICATION_AUTO, "Automática por nomenclatura"),
+        (CLASSIFICATION_AUTO, "Automática por reglas"),
         (CLASSIFICATION_MANUAL, "Manual"),
     ]
 
@@ -232,6 +233,87 @@ class InventorySyncRun(models.Model):
         return f"{self.get_source_display()} - {self.started_at:%Y-%m-%d %H:%M}"
 
 
+class InventoryJob(models.Model):
+    TYPE_FULL_SYNC = "full_sync"
+    TYPE_REPROCESS = "reprocess"
+    TYPE_APPLY_FILTERS = "apply_filters"
+    TYPE_CHOICES = [
+        (TYPE_FULL_SYNC, "Actualizar AD y SIEM"),
+        (TYPE_REPROCESS, "Cruzar inventario almacenado"),
+        (TYPE_APPLY_FILTERS, "Aplicar filtros"),
+    ]
+    STATUS_PENDING = "pending"
+    STATUS_RUNNING = "running"
+    STATUS_RETRYING = "retrying"
+    STATUS_COMPLETED = "completed"
+    STATUS_FAILED = "failed"
+    STATUS_CANCELLED = "cancelled"
+    ACTIVE_STATUSES = [STATUS_PENDING, STATUS_RUNNING, STATUS_RETRYING]
+    STATUS_CHOICES = [
+        (STATUS_PENDING, "Pendiente"),
+        (STATUS_RUNNING, "En ejecución"),
+        (STATUS_RETRYING, "Reintentando"),
+        (STATUS_COMPLETED, "Finalizado"),
+        (STATUS_FAILED, "Fallido"),
+        (STATUS_CANCELLED, "Cancelado"),
+    ]
+
+    job_type = models.CharField("Tipo", max_length=30, choices=TYPE_CHOICES, db_index=True)
+    idempotency_key = models.CharField(
+        "Clave de idempotencia",
+        max_length=100,
+        unique=True,
+    )
+    status = models.CharField(
+        "Estado",
+        max_length=20,
+        choices=STATUS_CHOICES,
+        default=STATUS_PENDING,
+        db_index=True,
+    )
+    payload = models.JSONField("Parámetros", default=dict, blank=True)
+    result = models.JSONField("Resultado", default=dict, blank=True)
+    progress = models.JSONField("Progreso", default=dict, blank=True)
+    attempts = models.PositiveSmallIntegerField("Intentos", default=0)
+    max_attempts = models.PositiveSmallIntegerField("Máximo de intentos", default=3)
+    rerun_requested = models.BooleanField("Repetición solicitada", default=False)
+    available_at = models.DateTimeField("Disponible desde", default=timezone.now, db_index=True)
+    started_at = models.DateTimeField("Inicio", null=True, blank=True)
+    heartbeat_at = models.DateTimeField("Último heartbeat", null=True, blank=True)
+    lease_expires_at = models.DateTimeField("Vencimiento de lease", null=True, blank=True, db_index=True)
+    finished_at = models.DateTimeField("Fin", null=True, blank=True)
+    worker_id = models.CharField("Worker", max_length=150, blank=True)
+    last_error = models.TextField("Último error", blank=True)
+    requested_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name="server_inventory_jobs",
+        verbose_name="Solicitado por",
+    )
+    created_at = models.DateTimeField("Creado", auto_now_add=True)
+    updated_at = models.DateTimeField("Actualizado", auto_now=True)
+
+    class Meta:
+        ordering = ["-created_at"]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["job_type"],
+                condition=models.Q(status__in=["pending", "running", "retrying"]),
+                name="uniq_active_inventory_job_type",
+            ),
+        ]
+        indexes = [
+            models.Index(fields=["status", "available_at"]),
+        ]
+        verbose_name = "Trabajo de inventario"
+        verbose_name_plural = "Trabajos de inventario"
+
+    def __str__(self):
+        return f"{self.get_job_type_display()} - {self.get_status_display()}"
+
+
 class InventoryObservation(models.Model):
     sync_run = models.ForeignKey(
         InventorySyncRun,
@@ -378,11 +460,15 @@ class ServerNamingRule(models.Model):
 
     class Meta:
         ordering = ["priority", "name"]
-        verbose_name = "Regla de nomenclatura"
-        verbose_name_plural = "Reglas de nomenclatura"
+        verbose_name = "Nomenclatura anterior"
+        verbose_name_plural = "Nomenclaturas anteriores"
 
     def __str__(self):
         return f"{self.priority} - {self.name}"
+
+    def save(self, *args, **kwargs):
+        with transaction.atomic():
+            return super().save(*args, **kwargs)
 
 
 class ServerCategory(models.Model):
@@ -421,6 +507,22 @@ class ServerInventoryConfiguration(models.Model):
         help_text=(
             "Después de una sincronización AD exitosa se eliminan los equipos cuya última "
             "actividad AD sea anterior a este período. Use 0 para no eliminar."
+        ),
+    )
+    inventory_history_days = models.PositiveSmallIntegerField(
+        "Conservar ejecuciones de inventario (días)",
+        default=180,
+        help_text=(
+            "El mantenimiento elimina ejecuciones y observaciones más antiguas, "
+            "pero siempre conserva la última ejecución de cada origen. Use 0 para no eliminar."
+        ),
+    )
+    job_history_days = models.PositiveSmallIntegerField(
+        "Conservar trabajos finalizados (días)",
+        default=90,
+        help_text=(
+            "El mantenimiento elimina trabajos finalizados, fallidos o cancelados más antiguos. "
+            "Los trabajos activos nunca se eliminan. Use 0 para no eliminar."
         ),
     )
     updated_at = models.DateTimeField(auto_now=True)
@@ -526,6 +628,20 @@ class InventoryFilterRule(models.Model):
         max_length=80,
         blank=True,
     )
+    server_type_value = models.CharField(
+        "Tipo interno asignado",
+        max_length=30,
+        choices=ServerAsset.SERVER_TYPE_CHOICES,
+        blank=True,
+    )
+    legacy_naming_rule_id = models.PositiveBigIntegerField(
+        "ID de nomenclatura anterior",
+        null=True,
+        blank=True,
+        unique=True,
+        editable=False,
+        help_text="Referencia de transición para reglas migradas desde el motor anterior.",
+    )
     priority = models.PositiveIntegerField(
         "Prioridad",
         default=100,
@@ -538,8 +654,8 @@ class InventoryFilterRule(models.Model):
 
     class Meta:
         ordering = ["priority", "name"]
-        verbose_name = "Filtro de inventario"
-        verbose_name_plural = "Filtros de inventario"
+        verbose_name = "Regla de inventario"
+        verbose_name_plural = "Reglas de inventario"
 
     def clean(self):
         super().clean()
@@ -549,7 +665,10 @@ class InventoryFilterRule(models.Model):
             except re.error as exc:
                 raise ValidationError({"pattern": f"Expresión regular inválida: {exc}"}) from exc
         if self.action == self.ACTION_CLASSIFY and not (
-            self.category_id or self.os_family or self.environment_value
+            self.category_id
+            or self.os_family
+            or self.environment_value
+            or self.server_type_value
         ):
             raise ValidationError(
                 "Una regla de clasificación debe asignar sección, sistema operativo o ambiente."
@@ -557,6 +676,66 @@ class InventoryFilterRule(models.Model):
 
     def __str__(self):
         return f"{self.priority} - {self.name}"
+
+    def save(self, *args, **kwargs):
+        with transaction.atomic():
+            return super().save(*args, **kwargs)
+
+
+class InventoryRuleRevision(models.Model):
+    TYPE_NAMING = "naming"
+    TYPE_FILTER = "filter"
+    TYPE_CHOICES = [
+        (TYPE_NAMING, "Nomenclatura anterior"),
+        (TYPE_FILTER, "Regla de inventario"),
+    ]
+    ACTION_BASELINE = "baseline"
+    ACTION_CREATED = "created"
+    ACTION_UPDATED = "updated"
+    ACTION_DELETED = "deleted"
+    ACTION_CHOICES = [
+        (ACTION_BASELINE, "Estado inicial"),
+        (ACTION_CREATED, "Creación"),
+        (ACTION_UPDATED, "Modificación"),
+        (ACTION_DELETED, "Eliminación"),
+    ]
+
+    rule_type = models.CharField("Tipo de regla", max_length=20, choices=TYPE_CHOICES)
+    rule_object_id = models.PositiveBigIntegerField("ID original")
+    rule_name = models.CharField("Nombre de la regla", max_length=140)
+    version = models.PositiveIntegerField("Versión")
+    action = models.CharField("Acción", max_length=20, choices=ACTION_CHOICES)
+    before_snapshot = models.JSONField("Valores anteriores", default=dict, blank=True)
+    after_snapshot = models.JSONField("Valores nuevos", default=dict, blank=True)
+    changed_fields = models.JSONField("Campos modificados", default=list, blank=True)
+    changed_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name="inventory_rule_revisions",
+        verbose_name="Modificado por",
+    )
+    request_id = models.CharField("ID de solicitud", max_length=128, blank=True)
+    created_at = models.DateTimeField("Fecha", auto_now_add=True)
+
+    class Meta:
+        ordering = ["-created_at", "-id"]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["rule_type", "rule_object_id", "version"],
+                name="uniq_inventory_rule_revision_version",
+            ),
+        ]
+        indexes = [
+            models.Index(fields=["rule_type", "rule_object_id", "-version"]),
+            models.Index(fields=["changed_by", "-created_at"]),
+        ]
+        verbose_name = "Versión de regla de inventario"
+        verbose_name_plural = "Versiones de reglas de inventario"
+
+    def __str__(self):
+        return f"{self.rule_name} · v{self.version}"
 
 
 class InventoryFilterDecision(models.Model):

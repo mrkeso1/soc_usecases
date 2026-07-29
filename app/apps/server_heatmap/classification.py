@@ -1,11 +1,14 @@
-import fnmatch
-import re
-
-from .models import ServerAsset, ServerNamingRule
+from .inventory_filters import load_compiled_filters
+from .models import InventoryFilterRule, ServerAsset
 
 
-def active_naming_rules():
-    return list(ServerNamingRule.objects.filter(is_active=True).order_by("priority", "name"))
+def active_classification_rules():
+    rules = InventoryFilterRule.objects.filter(
+        is_active=True,
+        action=InventoryFilterRule.ACTION_CLASSIFY,
+        field=InventoryFilterRule.FIELD_HOSTNAME,
+    )
+    return load_compiled_filters(rules=rules)
 
 
 def classify_hostname(hostname: str, *, rules=None) -> dict:
@@ -15,21 +18,18 @@ def classify_hostname(hostname: str, *, rules=None) -> dict:
         "category": None,
         "matched_rules": [],
     }
-    for rule in active_naming_rules() if rules is None else rules:
-        if rule.match_type == ServerNamingRule.MATCH_WILDCARD:
-            matched = fnmatch.fnmatch((hostname or "").lower(), rule.pattern.lower())
-        else:
-            try:
-                matched = re.search(rule.pattern, hostname or "", flags=re.IGNORECASE)
-            except re.error:
-                continue
-        if not matched:
+    for compiled in active_classification_rules() if rules is None else rules:
+        rule = compiled.rule
+        if not compiled.matches(hostname):
             continue
         result["matched_rules"].append(rule.name)
         if rule.os_family and result["os_family"] == ServerAsset.OS_UNKNOWN:
             result["os_family"] = rule.os_family
-        if rule.server_type and result["server_type"] == ServerAsset.TYPE_UNKNOWN:
-            result["server_type"] = rule.server_type
+        if (
+            rule.server_type_value
+            and result["server_type"] == ServerAsset.TYPE_UNKNOWN
+        ):
+            result["server_type"] = rule.server_type_value
         if rule.category and result["category"] is None:
             result["category"] = rule.category
         if (

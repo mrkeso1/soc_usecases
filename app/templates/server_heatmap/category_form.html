@@ -3,6 +3,6 @@
 {% block content %}
 <main class="container"><section class="page-shell">
     <header class="page-header"><div><div class="page-eyebrow">// SECCIÓN FUNCIONAL</div><h1 class="page-title">{{ category.name }}</h1></div><a class="btn" href="{% url 'server_heatmap_administration' %}">Volver</a></header>
-    <section class="detail-card"><form method="post">{% csrf_token %}{{ form.as_p }}<div class="header-actions" style="margin-top:16px"><button class="btn-primary" type="submit">Guardar sección</button><a class="btn" href="{% url 'server_heatmap_administration' %}">Cancelar</a></div></form></section>
+    <section class="detail-card"><form method="post" data-submit-once>{% csrf_token %}{{ form.as_p }}<div class="header-actions" style="margin-top:16px"><button class="btn-primary" type="submit" data-busy-text="Guardando…">Guardar sección</button><a class="btn" href="{% url 'server_heatmap_administration' %}">Cancelar</a></div></form></section>
 </section></main>
 {% endblock %}

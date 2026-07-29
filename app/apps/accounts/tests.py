@@ -9,7 +9,10 @@ from unittest.mock import patch
 from .admin import LDAPSettingsAdminForm
 from .ldap_utils import escape_ldap_dn_value, escape_ldap_filter_value, safe_ldap_error_message
 from .backends import AdminConfiguredLDAPBackend
-from .models import LDAPSettings, LDAP_SECRET_PREFIX
+from .models import (
+    LDAPSettings,
+    LDAP_SECRET_PREFIX,
+)
 
 
 class LDAPUtilsTests(SimpleTestCase):
@@ -152,8 +155,6 @@ class LDAPSettingsAdminTests(TestCase):
         target.refresh_from_db()
         self.assertFalse(active.is_enabled)
         self.assertTrue(target.is_enabled)
-
-
 class LDAPAutoProvisioningTests(TestCase):
     def test_successful_ldap_login_creates_user_without_default_role_and_logs_pending_review(self):
         LDAPSettings.objects.create(

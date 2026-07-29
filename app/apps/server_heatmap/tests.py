@@ -1,5 +1,6 @@
 import tempfile
 from datetime import datetime, timedelta, timezone
+from io import StringIO
 from pathlib import Path
 from unittest.mock import patch
 
@@ -7,12 +8,12 @@ from django.contrib.auth import get_user_model
 from django.contrib.auth.models import Group
 from django.core.management import call_command
 from django.core.files.uploadedfile import SimpleUploadedFile
-from django.test import override_settings
-from django.test import RequestFactory, TestCase
+from django.test import Client, RequestFactory, TestCase, override_settings
 from django.urls import reverse
+from django.utils import timezone as django_timezone
 
 from .classification import apply_automatic_classification
-from .connectors.ad import _active_computer_filter
+from .connectors.ad import _active_computer_filter, _ldap_server_address
 from .connectors.base import InventoryRecord
 from .connectors.siem import SiemCsvConnector
 from .forms import InventoryFilterRuleForm
@@ -25,18 +26,27 @@ from .inventory_filters import (
 from .models import (
     InventoryFilterDecision,
     InventoryFilterRule,
+    InventoryJob,
     InventoryObservation,
+    InventoryRuleRevision,
     InventorySyncRun,
     ReconciliationIssue,
     ServerAsset,
     ServerAssetDisableEvent,
     ServerCategory,
     ServerInventoryConfiguration,
-    ServerNamingRule,
 )
+from .jobs import (
+    claim_next_inventory_job,
+    enqueue_inventory_job,
+    execute_inventory_job,
+    recover_zombie_jobs,
+)
+from .maintenance import maintain_server_inventory
 from .network_diagnostics import diagnose_asset, diagnose_ingestion_gaps
 from .reconciliation import synchronize_inventory
 from apps.accounts.models import LDAPSettings
+from apps.auditlog.models import ActionRateLimit, OperationalAlert
 from .management.commands.sync_server_inventory import (
     _domain_base_from_dn,
     build_ad_connector,
@@ -222,13 +232,51 @@ class ServerHeatmapTests(TestCase):
         response.raise_for_status.assert_called_once()
         self.assertEqual(len(records), 1)
 
+    @patch(
+        "apps.server_heatmap.connectors.siem.resolve_hostname_from_ip",
+        return_value="pv1plnxapp0085.ardp.local",
+    )
+    def test_siem_resolves_linux_ip_before_reconciliation(self, resolver):
+        connector = SiemCsvConnector(
+            text=(
+                "TipoDispositivo,Ip-Hostname,UltimaFechaIngesta,GruposAsociados\n"
+                "rhlinux,123.176.49.190,2026-07-27 07:25:13,['Unknown']\n"
+            ),
+        )
+
+        records = connector.collect()
+
+        resolver.assert_called_once_with("123.176.49.190", timeout=3)
+        self.assertEqual(records[0].hostname, "pv1plnxapp0085")
+        self.assertEqual(records[0].fqdn, "pv1plnxapp0085.ardp.local")
+        self.assertEqual(records[0].ip_address, "123.176.49.190")
+        self.assertTrue(records[0].raw_data["dns_resolution_attempted"])
+
+    @patch("apps.server_heatmap.connectors.siem.resolve_hostname_from_ip")
+    def test_siem_does_not_resolve_windows_hostname(self, resolver):
+        connector = SiemCsvConnector(
+            text=(
+                "TipoDispositivo,Ip-Hostname,UltimaFechaIngesta,GruposAsociados\n"
+                "winevent_nic,SERVER01.ARDP.LOCAL,2026-07-27 07:25:13,[]\n"
+            ),
+        )
+
+        records = connector.collect()
+
+        resolver.assert_not_called()
+        self.assertEqual(records[0].hostname, "server01")
+
     def test_simple_wildcard_rule_classifies_domain_controllers(self):
-        ServerNamingRule.objects.create(
+        InventoryFilterRule.objects.create(
             name="Controladores ARPADS",
+            source=InventoryFilterRule.SOURCE_BOTH,
+            field=InventoryFilterRule.FIELD_HOSTNAME,
+            operator=InventoryFilterRule.OP_WILDCARD,
             pattern="arpads*",
-            match_type=ServerNamingRule.MATCH_WILDCARD,
-            server_type=ServerAsset.TYPE_AD,
+            action=InventoryFilterRule.ACTION_CLASSIFY,
+            server_type_value=ServerAsset.TYPE_AD,
             priority=1,
+            is_active=True,
         )
         asset = ServerAsset.objects.create(hostname="ARPADS12")
 
@@ -244,6 +292,104 @@ class ServerHeatmapTests(TestCase):
 
         self.assertEqual(ServerInventoryConfiguration.load().ad_active_days, 45)
         self.assertEqual(ServerInventoryConfiguration.objects.count(), 1)
+
+    def test_inventory_maintenance_is_dry_run_by_default_and_preserves_latest(self):
+        now = django_timezone.now()
+        old_run = InventorySyncRun.objects.create(
+            source=InventorySyncRun.SOURCE_AD,
+            status=InventorySyncRun.STATUS_SUCCESS,
+        )
+        InventorySyncRun.objects.filter(pk=old_run.pk).update(
+            started_at=now - timedelta(days=200),
+        )
+        InventoryObservation.objects.create(
+            sync_run=old_run,
+            source=InventorySyncRun.SOURCE_AD,
+            external_id="old-maintenance",
+            hostname="old-maintenance",
+        )
+        latest_run = InventorySyncRun.objects.create(
+            source=InventorySyncRun.SOURCE_AD,
+            status=InventorySyncRun.STATUS_SUCCESS,
+        )
+        InventorySyncRun.objects.filter(pk=latest_run.pk).update(
+            started_at=now - timedelta(days=190),
+        )
+        old_job = InventoryJob.objects.create(
+            job_type=InventoryJob.TYPE_APPLY_FILTERS,
+            idempotency_key="maintenance-old-job",
+            status=InventoryJob.STATUS_COMPLETED,
+            finished_at=now - timedelta(days=100),
+        )
+        active_job = InventoryJob.objects.create(
+            job_type=InventoryJob.TYPE_FULL_SYNC,
+            idempotency_key="maintenance-active-job",
+            status=InventoryJob.STATUS_PENDING,
+        )
+        alert = OperationalAlert.objects.create(
+            code="maintenance",
+            fingerprint="maintenance-resolved",
+            status=OperationalAlert.STATUS_RESOLVED,
+            title="Resuelta",
+            message="Histórica",
+            resolved_at=now - timedelta(days=200),
+        )
+        user = get_user_model().objects.create_user("maintenance-user")
+        rate_limit = ActionRateLimit.objects.create(
+            user=user,
+            scope="maintenance",
+            window_started_at=now - timedelta(days=10),
+            last_request_at=now - timedelta(days=10),
+        )
+
+        preview = maintain_server_inventory(
+            dry_run=True,
+            now=now,
+            inventory_days=180,
+            job_days=90,
+            resolved_alert_days=180,
+            rate_limit_days=7,
+        )
+
+        self.assertEqual(preview["inventory_runs"], 1)
+        self.assertEqual(preview["inventory_observations"], 1)
+        self.assertEqual(preview["inventory_jobs"], 1)
+        self.assertEqual(preview["resolved_alerts"], 1)
+        self.assertEqual(preview["rate_limit_rows"], 1)
+        self.assertTrue(InventorySyncRun.objects.filter(pk=old_run.pk).exists())
+
+        maintain_server_inventory(
+            dry_run=False,
+            now=now,
+            inventory_days=180,
+            job_days=90,
+            resolved_alert_days=180,
+            rate_limit_days=7,
+        )
+
+        self.assertFalse(InventorySyncRun.objects.filter(pk=old_run.pk).exists())
+        self.assertTrue(InventorySyncRun.objects.filter(pk=latest_run.pk).exists())
+        self.assertFalse(InventoryJob.objects.filter(pk=old_job.pk).exists())
+        self.assertTrue(InventoryJob.objects.filter(pk=active_job.pk).exists())
+        self.assertFalse(OperationalAlert.objects.filter(pk=alert.pk).exists())
+        self.assertFalse(ActionRateLimit.objects.filter(pk=rate_limit.pk).exists())
+
+    def test_benchmark_rolls_back_synthetic_data(self):
+        before_assets = ServerAsset.objects.count()
+        output = StringIO()
+
+        call_command(
+            "benchmark_server_inventory",
+            records=10,
+            coverage_percent=80,
+            lookup_sample=5,
+            confirm=True,
+            stdout=output,
+        )
+
+        self.assertEqual(ServerAsset.objects.count(), before_assets)
+        self.assertIn('"persisted": false', output.getvalue())
+        self.assertIn("no quedaron datos sintéticos", output.getvalue())
 
     def test_ad_sync_removes_assets_older_than_retention_period(self):
         configuration = ServerInventoryConfiguration.load()
@@ -312,6 +458,20 @@ class ServerHeatmapTests(TestCase):
         self.assertFalse(asset.is_enabled)
         self.assertTrue(asset.in_active_directory)
 
+    def test_inventory_sync_failure_creates_operational_alert(self):
+        class FailingConnector:
+            def collect(self):
+                raise OSError("LDAP no disponible")
+
+        with self.assertRaises(OSError):
+            synchronize_inventory(InventorySyncRun.SOURCE_AD, FailingConnector())
+
+        alert = OperationalAlert.objects.get(
+            fingerprint="inventory_sync_failed:ad",
+        )
+        self.assertEqual(alert.severity, OperationalAlert.SEVERITY_ERROR)
+        self.assertIn("LDAP no disponible", alert.message)
+
     def test_active_filter_is_applied_to_coverage(self):
         asset = ServerAsset.objects.create(hostname="workstation01")
         run = InventorySyncRun.objects.create(
@@ -342,26 +502,308 @@ class ServerHeatmapTests(TestCase):
         self.assertEqual(result["excluded"], 1)
         self.assertEqual(InventoryFilterDecision.objects.count(), 1)
 
-    def test_reprocess_button_does_not_require_new_inventory(self):
+    def test_reprocess_button_enqueues_background_job(self):
         user = get_user_model().objects.create_user("reprocess-admin", password="pass")
         group, _ = Group.objects.get_or_create(name="Admin")
         user.groups.add(group)
         self.client.login(username="reprocess-admin", password="pass")
         ServerAsset.objects.create(hostname="arpads99")
-        ServerNamingRule.objects.create(
+        InventoryFilterRule.objects.create(
             name="DC ARPADS",
+            source=InventoryFilterRule.SOURCE_BOTH,
+            field=InventoryFilterRule.FIELD_HOSTNAME,
+            operator=InventoryFilterRule.OP_WILDCARD,
             pattern="arpads*",
-            server_type=ServerAsset.TYPE_AD,
+            action=InventoryFilterRule.ACTION_CLASSIFY,
+            server_type_value=ServerAsset.TYPE_AD,
             priority=1,
+            is_active=True,
         )
 
         response = self.client.post(reverse("server_heatmap_reprocess"))
 
-        self.assertRedirects(response, reverse("server_heatmap"))
+        self.assertRedirects(response, reverse("server_heatmap_administration"))
+        job = InventoryJob.objects.get(job_type=InventoryJob.TYPE_REPROCESS)
+        self.assertEqual(job.status, InventoryJob.STATUS_PENDING)
+        self.assertEqual(job.requested_by, user)
+
+    @override_settings(
+        ADMIN_ACTION_RATE_LIMIT_SYNC=2,
+        ADMIN_ACTION_RATE_LIMIT_WINDOW_SECONDS=60,
+    )
+    def test_sync_actions_are_rate_limited_per_user(self):
+        user = get_user_model().objects.create_user("sync-rate-admin", password="pass")
+        group, _ = Group.objects.get_or_create(name="Admin")
+        user.groups.add(group)
+        self.client.login(username="sync-rate-admin", password="pass")
+
+        first = self.client.post(reverse("server_heatmap_sync"))
+        second = self.client.post(reverse("server_heatmap_sync"))
+        blocked = self.client.post(reverse("server_heatmap_sync"))
+
+        self.assertEqual(first.status_code, 302)
+        self.assertEqual(second.status_code, 302)
+        self.assertEqual(blocked.status_code, 429)
+        self.assertEqual(blocked["Retry-After"], "60")
         self.assertEqual(
-            ServerAsset.objects.get(hostname="arpads99").server_type,
-            ServerAsset.TYPE_AD,
+            InventoryJob.objects.filter(job_type=InventoryJob.TYPE_FULL_SYNC).count(),
+            1,
         )
+
+    def test_sync_endpoint_rejects_post_without_csrf_token(self):
+        user = get_user_model().objects.create_user("csrf-admin", password="pass")
+        group, _ = Group.objects.get_or_create(name="Admin")
+        user.groups.add(group)
+        csrf_client = Client(enforce_csrf_checks=True)
+        csrf_client.force_login(user)
+
+        response = csrf_client.post(reverse("server_heatmap_sync"))
+
+        self.assertEqual(response.status_code, 403)
+        self.assertFalse(
+            InventoryJob.objects.filter(job_type=InventoryJob.TYPE_FULL_SYNC).exists(),
+        )
+
+    def test_inventory_job_enqueue_deduplicates_active_type(self):
+        first, created = enqueue_inventory_job(
+            InventoryJob.TYPE_FULL_SYNC,
+            idempotency_key="request-1",
+        )
+        second, second_created = enqueue_inventory_job(
+            InventoryJob.TYPE_FULL_SYNC,
+            idempotency_key="request-2",
+        )
+
+        self.assertTrue(created)
+        self.assertFalse(second_created)
+        self.assertEqual(first.pk, second.pk)
+        self.assertEqual(InventoryJob.objects.count(), 1)
+
+    def test_unified_rule_revisions_capture_create_update_and_delete(self):
+        rule = InventoryFilterRule.objects.create(
+            name="Regla versionada",
+            source=InventoryFilterRule.SOURCE_BOTH,
+            field=InventoryFilterRule.FIELD_HOSTNAME,
+            operator=InventoryFilterRule.OP_WILDCARD,
+            pattern="srv*",
+            action=InventoryFilterRule.ACTION_CLASSIFY,
+            server_type_value=ServerAsset.TYPE_APPLICATION,
+            priority=10,
+        )
+        created = InventoryRuleRevision.objects.get(
+            rule_type=InventoryRuleRevision.TYPE_FILTER,
+            rule_object_id=rule.pk,
+            version=1,
+        )
+        self.assertEqual(created.action, InventoryRuleRevision.ACTION_CREATED)
+        self.assertEqual(created.after_snapshot["pattern"], "srv*")
+
+        rule.pattern = "app*"
+        rule.priority = 20
+        rule.save()
+        updated = InventoryRuleRevision.objects.get(
+            rule_type=InventoryRuleRevision.TYPE_FILTER,
+            rule_object_id=rule.pk,
+            version=2,
+        )
+        self.assertEqual(updated.action, InventoryRuleRevision.ACTION_UPDATED)
+        self.assertEqual(updated.before_snapshot["pattern"], "srv*")
+        self.assertEqual(updated.after_snapshot["pattern"], "app*")
+        self.assertIn("pattern", updated.changed_fields)
+        self.assertIn("priority", updated.changed_fields)
+
+        rule.save()
+        self.assertEqual(
+            InventoryRuleRevision.objects.filter(
+                rule_type=InventoryRuleRevision.TYPE_FILTER,
+                rule_object_id=rule.pk,
+            ).count(),
+            2,
+        )
+
+        rule_id = rule.pk
+        rule.delete()
+        deleted = InventoryRuleRevision.objects.get(
+            rule_type=InventoryRuleRevision.TYPE_FILTER,
+            rule_object_id=rule_id,
+            version=3,
+        )
+        self.assertEqual(deleted.action, InventoryRuleRevision.ACTION_DELETED)
+        self.assertEqual(deleted.before_snapshot["name"], "Regla versionada")
+        self.assertEqual(deleted.after_snapshot, {})
+
+    def test_filter_rule_revisions_capture_functional_changes(self):
+        rule = InventoryFilterRule.objects.create(
+            name="Filtro versionado",
+            source=InventoryFilterRule.SOURCE_BOTH,
+            field=InventoryFilterRule.FIELD_HOSTNAME,
+            operator=InventoryFilterRule.OP_WILDCARD,
+            pattern="old*",
+            action=InventoryFilterRule.ACTION_EXCLUDE,
+        )
+        rule.pattern = "new*"
+        rule.reason = "Ajuste de alcance"
+        rule.save()
+
+        revision = InventoryRuleRevision.objects.get(
+            rule_type=InventoryRuleRevision.TYPE_FILTER,
+            rule_object_id=rule.pk,
+            version=2,
+        )
+        self.assertEqual(revision.before_snapshot["pattern"], "old*")
+        self.assertEqual(revision.after_snapshot["pattern"], "new*")
+        self.assertEqual(revision.after_snapshot["reason"], "Ajuste de alcance")
+
+    def test_django_admin_rule_change_records_authenticated_actor(self):
+        admin_user = get_user_model().objects.create_superuser(
+            "django-rule-admin",
+            "rule-admin@example.local",
+            "pass",
+        )
+        rule = InventoryFilterRule.objects.create(
+            name="Regla desde Django Admin",
+            source=InventoryFilterRule.SOURCE_BOTH,
+            field=InventoryFilterRule.FIELD_HOSTNAME,
+            operator=InventoryFilterRule.OP_WILDCARD,
+            pattern="before*",
+            action=InventoryFilterRule.ACTION_CLASSIFY,
+            server_type_value=ServerAsset.TYPE_APPLICATION,
+            priority=10,
+        )
+        self.client.force_login(admin_user)
+
+        response = self.client.post(
+            reverse("admin:server_heatmap_inventoryfilterrule_change", args=[rule.pk]),
+            {
+                "name": rule.name,
+                "source": InventoryFilterRule.SOURCE_BOTH,
+                "field": InventoryFilterRule.FIELD_HOSTNAME,
+                "operator": InventoryFilterRule.OP_WILDCARD,
+                "pattern": "after*",
+                "action": InventoryFilterRule.ACTION_CLASSIFY,
+                "os_family": "",
+                "server_type_value": ServerAsset.TYPE_APPLICATION,
+                "category": "",
+                "environment_value": "",
+                "priority": 10,
+                "is_active": "on",
+                "reason": "",
+                "_save": "Guardar",
+            },
+        )
+
+        self.assertEqual(response.status_code, 302)
+        revision = InventoryRuleRevision.objects.get(
+            rule_type=InventoryRuleRevision.TYPE_FILTER,
+            rule_object_id=rule.pk,
+            version=2,
+        )
+        self.assertEqual(revision.changed_by, admin_user)
+        self.assertEqual(revision.after_snapshot["pattern"], "after*")
+
+    def test_inventory_job_duplicate_running_requests_rerun(self):
+        job, _ = enqueue_inventory_job(InventoryJob.TYPE_APPLY_FILTERS)
+        job.status = InventoryJob.STATUS_RUNNING
+        job.worker_id = "worker-1"
+        job.lease_expires_at = django_timezone.now() + timedelta(minutes=5)
+        job.save()
+
+        duplicate, created = enqueue_inventory_job(InventoryJob.TYPE_APPLY_FILTERS)
+
+        self.assertFalse(created)
+        self.assertEqual(duplicate.pk, job.pk)
+        duplicate.refresh_from_db()
+        self.assertTrue(duplicate.rerun_requested)
+
+    def test_worker_claims_job_with_lease(self):
+        job, _ = enqueue_inventory_job(InventoryJob.TYPE_APPLY_FILTERS)
+
+        claimed = claim_next_inventory_job("worker-test")
+
+        self.assertEqual(claimed.pk, job.pk)
+        self.assertEqual(claimed.status, InventoryJob.STATUS_RUNNING)
+        self.assertEqual(claimed.attempts, 1)
+        self.assertEqual(claimed.worker_id, "worker-test")
+        self.assertIsNotNone(claimed.lease_expires_at)
+
+    @patch("apps.server_heatmap.jobs._execute", return_value={"processed": 10})
+    def test_worker_completes_job(self, execute):
+        job, _ = enqueue_inventory_job(InventoryJob.TYPE_APPLY_FILTERS)
+        claimed = claim_next_inventory_job("worker-test")
+
+        completed = execute_inventory_job(claimed, "worker-test")
+
+        execute.assert_called_once()
+        self.assertEqual(completed.status, InventoryJob.STATUS_COMPLETED)
+        self.assertEqual(completed.result, {"processed": 10})
+        self.assertIsNotNone(completed.finished_at)
+
+    @patch("apps.server_heatmap.jobs._execute", side_effect=OSError("SIEM no disponible"))
+    def test_worker_retries_failed_job_without_losing_it(self, execute):
+        job, _ = enqueue_inventory_job(
+            InventoryJob.TYPE_FULL_SYNC,
+            max_attempts=3,
+        )
+        claimed = claim_next_inventory_job("worker-test")
+
+        retried = execute_inventory_job(claimed, "worker-test")
+
+        execute.assert_called_once()
+        self.assertEqual(retried.status, InventoryJob.STATUS_RETRYING)
+        self.assertEqual(retried.attempts, 1)
+        self.assertEqual(retried.last_error, "SIEM no disponible")
+        self.assertGreater(retried.available_at, django_timezone.now())
+        self.assertIsNone(retried.finished_at)
+
+    @patch("apps.server_heatmap.jobs._execute", return_value={"processed": 10})
+    def test_worker_schedules_rerun_requested_during_execution(self, execute):
+        job, _ = enqueue_inventory_job(InventoryJob.TYPE_APPLY_FILTERS)
+        claimed = claim_next_inventory_job("worker-test")
+        InventoryJob.objects.filter(pk=job.pk).update(rerun_requested=True)
+
+        completed = execute_inventory_job(claimed, "worker-test")
+
+        self.assertEqual(completed.status, InventoryJob.STATUS_COMPLETED)
+        queued = InventoryJob.objects.exclude(pk=job.pk).get()
+        self.assertEqual(queued.job_type, InventoryJob.TYPE_APPLY_FILTERS)
+        self.assertEqual(queued.status, InventoryJob.STATUS_PENDING)
+
+    def test_expired_job_is_recovered(self):
+        job, _ = enqueue_inventory_job(InventoryJob.TYPE_FULL_SYNC)
+        InventoryJob.objects.filter(pk=job.pk).update(
+            status=InventoryJob.STATUS_RUNNING,
+            attempts=1,
+            worker_id="dead-worker",
+            heartbeat_at=django_timezone.now() - timedelta(minutes=10),
+            lease_expires_at=django_timezone.now() - timedelta(minutes=5),
+        )
+
+        result = recover_zombie_jobs()
+
+        job.refresh_from_db()
+        self.assertEqual(result["recovered"], 1)
+        self.assertEqual(job.status, InventoryJob.STATUS_RETRYING)
+        self.assertEqual(job.worker_id, "")
+
+    def test_expired_job_exhausting_attempts_is_failed(self):
+        job, _ = enqueue_inventory_job(
+            InventoryJob.TYPE_FULL_SYNC,
+            max_attempts=1,
+        )
+        InventoryJob.objects.filter(pk=job.pk).update(
+            status=InventoryJob.STATUS_RUNNING,
+            attempts=1,
+            worker_id="dead-worker",
+            heartbeat_at=django_timezone.now() - timedelta(minutes=10),
+            lease_expires_at=django_timezone.now() - timedelta(minutes=5),
+        )
+
+        result = recover_zombie_jobs()
+
+        job.refresh_from_db()
+        self.assertEqual(result["failed"], 1)
+        self.assertEqual(job.status, InventoryJob.STATUS_FAILED)
+        self.assertIsNotNone(job.finished_at)
 
     def test_ad_filter_only_includes_enabled_computers_active_in_period(self):
         search_filter = _active_computer_filter(
@@ -372,6 +814,16 @@ class ServerHeatmapTests(TestCase):
         self.assertIn("(objectCategory=computer)", search_filter)
         self.assertIn("(!(userAccountControl:1.2.840.113556.1.4.803:=2))", search_filter)
         self.assertIn("(lastLogonTimestamp>=", search_filter)
+
+    def test_ldap_uri_is_split_into_host_port_and_ssl(self):
+        self.assertEqual(
+            _ldap_server_address("ldap://ARPADS014.ardp.local:389", True),
+            ("arpads014.ardp.local", 389, False),
+        )
+        self.assertEqual(
+            _ldap_server_address("ldaps://ldap.example.local:636", False),
+            ("ldap.example.local", 636, True),
+        )
 
     def test_domain_base_is_derived_from_existing_ldap_search_dn(self):
         self.assertEqual(
@@ -474,12 +926,16 @@ class ServerHeatmapTests(TestCase):
         self.assertEqual(cell["level"], "no_baseline")
         self.assertEqual(cell["siem_count"], 1)
 
-    def test_heatmap_always_includes_all_os_and_active_categories(self):
+    def test_heatmap_groups_os_into_windows_linux_and_unknown(self):
         context = build_server_heatmap_context({})
 
         self.assertEqual(
             [row["key"] for row in context["matrix_rows"]],
-            [key for key, _ in ServerAsset.OS_CHOICES],
+            [
+                ServerAsset.OS_WINDOWS,
+                ServerAsset.OS_LINUX,
+                ServerAsset.OS_UNKNOWN,
+            ],
         )
         self.assertEqual(
             [category.id for category in context["matrix_types"]],
@@ -563,6 +1019,62 @@ class ServerHeatmapTests(TestCase):
         self.assertEqual(linux["gap_count"], 1)
         self.assertEqual(linux["percent"], 50.0)
 
+    def test_gap_and_conflict_tables_paginate_independently(self):
+        ServerAsset.objects.bulk_create(
+            [
+                ServerAsset(
+                    hostname=f"gap-{number:03}",
+                    in_active_directory=True,
+                    in_siem=False,
+                )
+                for number in range(55)
+            ]
+        )
+        run = InventorySyncRun.objects.create(
+            source=InventorySyncRun.SOURCE_SIEM,
+            status=InventorySyncRun.STATUS_SUCCESS,
+        )
+        observations = InventoryObservation.objects.bulk_create(
+            [
+                InventoryObservation(
+                    sync_run=run,
+                    source=InventorySyncRun.SOURCE_SIEM,
+                    external_id=f"siem-{number:03}",
+                    hostname=f"orphan-{number:03}",
+                )
+                for number in range(55)
+            ]
+        )
+        ReconciliationIssue.objects.bulk_create(
+            [
+                ReconciliationIssue(
+                    sync_run=run,
+                    observation=observation,
+                    issue_type=ReconciliationIssue.TYPE_NOT_IN_AD,
+                    identifier=observation.external_id,
+                )
+                for observation in observations
+            ]
+        )
+        user = get_user_model().objects.create_user("pagination-admin", password="pass")
+        group, _ = Group.objects.get_or_create(name="Admin")
+        user.groups.add(group)
+        self.client.login(username="pagination-admin", password="pass")
+
+        response = self.client.get(
+            reverse("server_heatmap"),
+            {"gap_page": 2, "conflict_page": 2},
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.context["gap_page"].number, 2)
+        self.assertEqual(response.context["unmatched_siem_page"].number, 2)
+        self.assertEqual(len(response.context["gap_page"]), 5)
+        self.assertEqual(len(response.context["unmatched_siem_page"]), 5)
+        self.assertContains(response, 'aria-label="Paginación de equipos pendientes"')
+        self.assertContains(response, 'aria-label="Paginación de conflictos SIEM"')
+        self.assertContains(response, "Página 2 de 2", count=2)
+
     def test_admin_role_can_open_server_heatmap(self):
         user = get_user_model().objects.create_user("heatmap-admin", password="pass")
         group, _ = Group.objects.get_or_create(name="Admin")
@@ -609,11 +1121,11 @@ class ServerHeatmapTests(TestCase):
         )
 
         self.assertEqual(response.status_code, 200)
-        self.assertContains(response, "Filtros de inventario")
+        self.assertContains(response, "Reglas de inventario")
         self.assertContains(response, "Resultado de la simulación")
         self.assertContains(response, "LTP-PREVIEW")
 
-    def test_front_panel_updates_configuration_and_creates_rule(self):
+    def test_front_panel_updates_configuration_and_links_unified_rules(self):
         user = get_user_model().objects.create_user("settings-admin", password="pass")
         group, _ = Group.objects.get_or_create(name="Admin")
         user.groups.add(group)
@@ -625,29 +1137,43 @@ class ServerHeatmapTests(TestCase):
                 "action": "save_configuration",
                 "ad_active_days": 45,
                 "retention_days": 120,
+                "inventory_history_days": 180,
+                "job_history_days": 90,
             },
         )
         self.assertRedirects(response, reverse("server_heatmap_administration"))
         configuration = ServerInventoryConfiguration.load()
         self.assertEqual(configuration.ad_active_days, 45)
         self.assertEqual(configuration.retention_days, 120)
+        response = self.client.get(reverse("server_heatmap_administration"))
+        self.assertContains(response, "Reglas de inventario")
+        self.assertContains(response, reverse("server_heatmap_filter_list"))
+        self.assertNotContains(response, "Reglas de nomenclatura")
+
+    def test_global_notification_is_rendered_once_and_does_not_accumulate(self):
+        user = get_user_model().objects.create_user("notification-admin", password="pass")
+        group, _ = Group.objects.get_or_create(name="Admin")
+        user.groups.add(group)
+        self.client.login(username="notification-admin", password="pass")
 
         response = self.client.post(
             reverse("server_heatmap_administration"),
             {
-                "action": "create_rule",
-                "rule-name": "Controladores front",
-                "rule-pattern": "arpads*",
-                "rule-match_type": ServerNamingRule.MATCH_WILDCARD,
-                "rule-os_family": "",
-                "rule-server_type": ServerAsset.TYPE_AD,
-                "rule-priority": 5,
-                "rule-is_active": "on",
-                "rule-notes": "",
+                "action": "save_configuration",
+                "ad_active_days": 45,
+                "retention_days": 120,
+                "inventory_history_days": 180,
+                "job_history_days": 90,
             },
+            follow=True,
         )
-        self.assertRedirects(response, reverse("server_heatmap_administration"))
-        self.assertTrue(ServerNamingRule.objects.filter(name="Controladores front").exists())
+
+        self.assertContains(response, "Configuración del inventario actualizada.")
+        self.assertContains(response, "data-server-message", count=1)
+
+        next_page = self.client.get(reverse("source_list"))
+        self.assertNotContains(next_page, "Configuración del inventario actualizada.")
+        self.assertNotContains(next_page, "data-server-message")
 
     def test_front_panel_can_create_dynamic_server_category(self):
         user = get_user_model().objects.create_user("category-admin", password="pass")
@@ -733,7 +1259,7 @@ class ServerHeatmapTests(TestCase):
         self.assertNotContains(response, "srv-unrelated")
         self.assertNotContains(response, "Panel de administración")
 
-    def test_sections_and_rules_have_dedicated_pages(self):
+    def test_sections_page_and_legacy_rule_route_use_unified_rules(self):
         user = get_user_model().objects.create_user("catalog-admin", password="pass")
         group, _ = Group.objects.get_or_create(name="Admin")
         user.groups.add(group)
@@ -744,8 +1270,7 @@ class ServerHeatmapTests(TestCase):
 
         self.assertEqual(sections.status_code, 200)
         self.assertContains(sections, "Secciones funcionales")
-        self.assertEqual(rules.status_code, 200)
-        self.assertContains(rules, "Reglas de nomenclatura")
+        self.assertRedirects(rules, reverse("server_heatmap_filter_list"))
 
     def test_used_section_can_be_deleted_and_relations_are_detached(self):
         user = get_user_model().objects.create_user("delete-section-admin", password="pass")
@@ -754,9 +1279,13 @@ class ServerHeatmapTests(TestCase):
         self.client.login(username="delete-section-admin", password="pass")
         category = ServerCategory.objects.create(name="Temporal", code="temporal")
         asset = ServerAsset.objects.create(hostname="srv-temporal", category=category)
-        rule = ServerNamingRule.objects.create(
+        rule = InventoryFilterRule.objects.create(
             name="Regla temporal",
+            source=InventoryFilterRule.SOURCE_BOTH,
+            field=InventoryFilterRule.FIELD_HOSTNAME,
+            operator=InventoryFilterRule.OP_WILDCARD,
             pattern="tmp*",
+            action=InventoryFilterRule.ACTION_CLASSIFY,
             category=category,
         )
 
@@ -770,6 +1299,45 @@ class ServerHeatmapTests(TestCase):
         rule.refresh_from_db()
         self.assertIsNone(asset.category_id)
         self.assertIsNone(rule.category_id)
+        category_revision = InventoryRuleRevision.objects.get(
+            rule_type=InventoryRuleRevision.TYPE_FILTER,
+            rule_object_id=rule.pk,
+            version=2,
+        )
+        self.assertIn("category", category_revision.changed_fields)
+        self.assertIsNone(category_revision.after_snapshot["category_id"])
+
+    def test_rule_history_page_lists_versions_and_requires_management_permission(self):
+        admin_user = get_user_model().objects.create_user("history-admin", password="pass")
+        admin_group, _ = Group.objects.get_or_create(name="Admin")
+        admin_user.groups.add(admin_group)
+        readonly_user = get_user_model().objects.create_user("history-readonly", password="pass")
+        readonly_group, _ = Group.objects.get_or_create(name="ReadOnly")
+        readonly_user.groups.add(readonly_group)
+        rule = InventoryFilterRule.objects.create(
+            name="Regla visible en historial",
+            source=InventoryFilterRule.SOURCE_BOTH,
+            field=InventoryFilterRule.FIELD_HOSTNAME,
+            operator=InventoryFilterRule.OP_WILDCARD,
+            pattern="history*",
+            action=InventoryFilterRule.ACTION_CLASSIFY,
+            server_type_value=ServerAsset.TYPE_APPLICATION,
+        )
+
+        self.client.login(username="history-admin", password="pass")
+        response = self.client.get(
+            reverse("server_heatmap_rule_history"),
+            {"type": "filter", "id": rule.pk},
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Regla visible en historial")
+        self.assertContains(response, "v1")
+
+        self.client.logout()
+        self.client.login(username="history-readonly", password="pass")
+        forbidden = self.client.get(reverse("server_heatmap_rule_history"))
+        self.assertEqual(forbidden.status_code, 403)
 
     @patch(
         "apps.server_heatmap.network_diagnostics.socket.gethostbyaddr",

@@ -28,6 +28,9 @@ PAGES = [
     ("reports", "/reports/", ".report-grid"),
     ("audit", "/audit/", ".data-table"),
     ("sigma", "/sigma/epl-to-sigma/", "form"),
+    ("server-heatmap", "/servers/", ".heatmap-shell"),
+    ("server-administration", "/servers/administration/", ".admin-grid"),
+    ("server-rules", "/servers/administration/filters/", ".filter-table-shell"),
 ]
 
 

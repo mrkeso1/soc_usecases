@@ -344,20 +344,6 @@
         .badge.bad { border-color: rgba(255,71,87,.28); background: rgba(255,71,87,.10); color: var(--bad); }
         .badge.accent { border-color: rgba(45,122,255,.35); background: var(--accent-dim); color: #a8c8ff; }
 
-        .messages {
-            display: grid;
-            gap: 8px;
-            margin-bottom: 14px;
-        }
-
-        .message {
-            padding: 10px 12px;
-            border: 1px solid var(--border);
-            border-radius: 10px;
-            background: var(--surface);
-            color: var(--text-strong);
-        }
-
         .split-layout {
             display: grid;
             grid-template-columns: minmax(0, 1fr) 320px;
@@ -409,6 +395,27 @@
 </head>
 <body>
     {% include "includes/topbar.html" %}
+    {% include "includes/notifications.html" %}
     {% block content %}{% endblock %}
+    <script>
+        document.addEventListener("submit", function (event) {
+            const form = event.target.closest("form[data-submit-once]");
+            if (!form) return;
+            if (form.dataset.submitting === "1") {
+                event.preventDefault();
+                return;
+            }
+            form.dataset.submitting = "1";
+            form.querySelectorAll('button[type="submit"], input[type="submit"]').forEach(function (button) {
+                button.disabled = true;
+                button.setAttribute("aria-busy", "true");
+                if (button.tagName === "BUTTON") {
+                    button.dataset.originalText = button.textContent;
+                    button.textContent = button.dataset.busyText || "Procesando…";
+                }
+            });
+        });
+    </script>
+    {% block extra_js %}{% endblock %}
 </body>
 </html>

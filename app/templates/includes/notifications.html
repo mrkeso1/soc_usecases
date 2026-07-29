@@ -1,0 +1,39 @@
+{% if messages %}
+    <div
+        class="soc-notification-stack"
+        data-soc-notifications
+        role="region"
+        aria-label="Notificaciones"
+    >
+        {% for message in messages %}
+            <article
+                class="soc-notification {{ message.tags|default:'info' }} visible"
+                data-server-message
+                data-tone="{{ message.tags|default:'info' }}"
+                {% if 'error' in message.tags or 'warning' in message.tags %}role="alert"{% else %}role="status"{% endif %}
+            >
+                <span class="soc-notification-indicator" aria-hidden="true"></span>
+                <div class="soc-notification-copy">
+                    <strong class="soc-notification-title">
+                        {% if 'error' in message.tags %}
+                            No se pudo completar
+                        {% elif 'warning' in message.tags %}
+                            Atención
+                        {% elif 'success' in message.tags %}
+                            Listo
+                        {% else %}
+                            Información
+                        {% endif %}
+                    </strong>
+                    <p>{{ message }}</p>
+                </div>
+                <button
+                    type="button"
+                    class="soc-notification-close"
+                    data-notification-close
+                    aria-label="Cerrar notificación"
+                >×</button>
+            </article>
+        {% endfor %}
+    </div>
+{% endif %}

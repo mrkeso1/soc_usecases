@@ -129,12 +129,6 @@
             </div>
         </header>
 
-        {% if messages %}
-            <div class="messages">
-                {% for message in messages %}<div class="message">{{ message }}</div>{% endfor %}
-            </div>
-        {% endif %}
-
         <section class="kpi-grid">
             <a class="kpi-card" href="{% url 'usecase_list' %}" style="text-decoration:none;color:inherit;"><div class="kpi-label">Total visible</div><div class="kpi-value">{{ all_filtered_count }}</div></a>
             <a class="kpi-card" href="?quick=enabled" style="text-decoration:none;color:inherit;"><div class="kpi-label">Habilitados</div><div class="kpi-value">{{ visible_enabled }}</div></a>

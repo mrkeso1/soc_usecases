@@ -96,7 +96,10 @@ class UserAdmin(DjangoUserAdmin):
 @admin.register(LDAPSettings)
 class LDAPSettingsAdmin(admin.ModelAdmin):
     form = LDAPSettingsAdminForm
-    list_display = ("name", "status_badge", "auth_mode", "server_uri", "use_ssl", "test_connection_link", "activate_link", "updated_at")
+    list_display = (
+        "name", "status_badge", "auth_mode", "server_uri", "use_ssl",
+        "test_connection_link", "activate_link", "updated_at",
+    )
     list_filter = ("is_enabled", "auth_mode", "use_ssl")
     search_fields = ("name", "server_uri", "bind_dn", "user_search_base", "user_dn_template")
     fieldsets = (

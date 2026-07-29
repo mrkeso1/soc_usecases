@@ -1,6 +1,7 @@
 import ipaddress
 import socket
 from datetime import datetime, timedelta, timezone as dt_timezone
+from urllib.parse import urlparse
 
 from ldap3 import ALL, SUBTREE, Connection, Server
 
@@ -46,6 +47,17 @@ def _active_computer_filter(active_days, now=None):
     return f"{enabled_computer}(lastLogonTimestamp>={windows_filetime}))"
 
 
+def _ldap_server_address(server_uri, use_ssl):
+    value = _text(server_uri)
+    parsed = urlparse(value if "://" in value else f"//{value}")
+    host = parsed.hostname
+    if not host:
+        raise ValueError("La dirección del servidor LDAP no es válida.")
+    ssl_enabled = parsed.scheme.lower() == "ldaps" if parsed.scheme else use_ssl
+    port = parsed.port or (636 if ssl_enabled else 389)
+    return host, port, ssl_enabled
+
+
 class ActiveDirectoryConnector:
     def __init__(
         self,
@@ -71,9 +83,11 @@ class ActiveDirectoryConnector:
         self.active_days = active_days
 
     def collect(self):
+        host, port, use_ssl = _ldap_server_address(self.server_uri, self.use_ssl)
         server = Server(
-            self.server_uri,
-            use_ssl=self.use_ssl,
+            host,
+            port=port,
+            use_ssl=use_ssl,
             connect_timeout=self.connect_timeout,
             get_info=ALL,
         )

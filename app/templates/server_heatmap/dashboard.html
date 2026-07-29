@@ -48,6 +48,8 @@
     .gap-table { width:100%; min-width:760px; border-collapse:collapse; }
     .gap-table th,.gap-table td { padding:10px; border-bottom:1px solid var(--border); text-align:left; }
     .gap-table th { color:var(--text-muted); font:700 10px 'JetBrains Mono',monospace; text-transform:uppercase; }
+    .table-pagination { display:flex; justify-content:space-between; align-items:center; gap:12px; padding:12px 14px 14px; border-top:1px solid var(--border); flex-wrap:wrap; }
+    .table-page-summary { color:var(--text-muted); font:700 11px 'JetBrains Mono',monospace; }
     @media(max-width:1100px){.server-kpis{grid-template-columns:repeat(3,1fr)}.server-grid,.inventory-flow{grid-template-columns:1fr}.server-filters{grid-template-columns:repeat(2,1fr)}}
     @media(max-width:650px){.server-kpis,.server-filters{grid-template-columns:1fr}}
 </style>
@@ -56,11 +58,11 @@
 {% block content %}
 <main class="container"><section class="page-shell wide">
     <header class="page-header">
-        <div><div class="page-eyebrow">// INVENTARIO AD × SIEM</div><h1 class="page-title">Mapa de calor de servidores</h1><p class="page-subtitle">Compara equipos registrados en Active Directory con los que tienen ingesta en el SIEM. La clasificación puede surgir de reglas de nomenclatura o corregirse manualmente.</p></div>
+        <div><div class="page-eyebrow">// INVENTARIO AD × SIEM</div><h1 class="page-title">Mapa de calor de servidores</h1><p class="page-subtitle">Compara equipos registrados en Active Directory con los que tienen ingesta en el SIEM. La clasificación surge de las reglas de inventario o de una corrección manual.</p></div>
         <div class="header-actions">
-            <form method="post" action="{% url 'server_heatmap_reprocess' %}">
+            <form method="post" action="{% url 'server_heatmap_reprocess' %}" data-submit-once>
                 {% csrf_token %}
-                <button class="btn-primary" type="submit">Cruzar y aplicar nomenclaturas</button>
+                <button class="btn-primary" type="submit" data-busy-text="Encolando…">Cruzar y aplicar reglas</button>
             </form>
             {% if can_manage_inventory %}
                 <a class="btn" href="{% url 'server_heatmap_administration' %}">Panel de administración</a>
@@ -72,10 +74,10 @@
         <article class="inventory-card">
             <h2>Actualizar inventario SIEM</h2>
             <p>Subí el CSV exportado desde el SIEM. Se compara contra el inventario AD actual y se recalculan los equipos pendientes de ingesta.</p>
-            <form class="inventory-upload" method="post" action="{% url 'server_heatmap_siem_upload' %}" enctype="multipart/form-data">
+            <form class="inventory-upload" method="post" action="{% url 'server_heatmap_siem_upload' %}" enctype="multipart/form-data" data-submit-once>
                 {% csrf_token %}
                 <div class="field"><label for="siem-csv">Archivo CSV del SIEM</label><input id="siem-csv" name="siem_csv" type="file" accept=".csv,text/csv" required></div>
-                <button class="btn-primary" type="submit">Comparar con AD</button>
+                <button class="btn-primary" type="submit" data-busy-text="Procesando CSV…">Comparar con AD</button>
             </form>
         </article>
         <article class="inventory-card">
@@ -134,10 +136,10 @@
         <div style="padding:14px 14px 4px;display:flex;justify-content:space-between;gap:12px;align-items:start;flex-wrap:wrap">
             <div>
                 <h2 class="section-title">Pendientes de ingesta: equipos AD sin SIEM</h2>
-                <p class="page-subtitle">{{ gap_total }} pendientes · {{ dns_resolved_count }} con DNS · {{ reachable_count }} responden · {{ unreachable_count }} no responden. Se muestran los primeros 50.</p>
+                <p class="page-subtitle">{{ gap_total }} pendientes · {{ dns_resolved_count }} con DNS · {{ reachable_count }} responden · {{ unreachable_count }} no responden.</p>
             </div>
             <div class="header-actions">
-                <form method="post" action="{% url 'server_heatmap_gap_diagnose' %}">{% csrf_token %}<button class="btn" type="submit">Diagnosticar próximos 200</button></form>
+                <form method="post" action="{% url 'server_heatmap_gap_diagnose' %}" data-submit-once>{% csrf_token %}<button class="btn" type="submit" data-busy-text="Diagnosticando…">Diagnosticar próximos 200</button></form>
                 <a class="btn" href="{% url 'server_heatmap_gap_export' %}">Descargar pendientes CSV</a>
             </div>
         </div>
@@ -155,10 +157,47 @@
                 <td><strong>{{ item.diagnostic_result }}</strong></td>
             </tr>{% empty %}<tr><td colspan="9" class="muted">No hay equipos AD pendientes de ingesta con los filtros actuales.</td></tr>{% endfor %}</tbody>
         </table></div>
+        {% if gap_page.paginator.count %}
+            <nav class="table-pagination" aria-label="Paginación de equipos pendientes">
+                <span class="table-page-summary">Página {{ gap_page.number }} de {{ gap_page.paginator.num_pages }} · {{ gap_page.paginator.count }} equipos</span>
+                <div class="header-actions">
+                    {% if gap_page.has_previous %}
+                        <a class="btn" href="?os={{ selected_os|urlencode }}&type={{ selected_type|urlencode }}&coverage={{ selected_coverage|urlencode }}&enabled={{ selected_enabled|urlencode }}{% if unmatched_siem_page %}&conflict_page={{ unmatched_siem_page.number }}{% endif %}&gap_page={{ gap_page.previous_page_number }}">Anterior</a>
+                    {% endif %}
+                    {% if gap_page.has_next %}
+                        <a class="btn" href="?os={{ selected_os|urlencode }}&type={{ selected_type|urlencode }}&coverage={{ selected_coverage|urlencode }}&enabled={{ selected_enabled|urlencode }}{% if unmatched_siem_page %}&conflict_page={{ unmatched_siem_page.number }}{% endif %}&gap_page={{ gap_page.next_page_number }}">Siguiente</a>
+                    {% endif %}
+                </div>
+            </nav>
+        {% endif %}
     </section>
 
     {% if latest_siem_run %}
-    <section class="table-panel" style="margin-top:14px"><div style="padding:14px 14px 4px"><h2 class="section-title">Conflictos SIEM pendientes</h2><p class="page-subtitle">{{ unmatched_siem_count }} sin resolver: {{ unresolved_issue_counts.not_in_ad }} no encontrados en AD · {{ unresolved_issue_counts.ambiguous }} ambiguos · {{ unresolved_issue_counts.missing_identifier }} sin identificador.</p></div><div style="overflow:auto"><table class="gap-table"><thead><tr><th>Identificador SIEM</th><th>Hostname</th><th>IP</th><th>Tipo informado</th></tr></thead><tbody>{% for item in unmatched_siem %}<tr><td>{{ item.external_id }}</td><td>{{ item.hostname|default:'-' }}</td><td>{{ item.ip_address|default:'-' }}</td><td>{{ item.server_type_hint|default:'-' }}</td></tr>{% empty %}<tr><td colspan="4" class="muted">No hay conflictos SIEM pendientes.</td></tr>{% endfor %}</tbody></table></div></section>
+    <section class="table-panel" style="margin-top:14px">
+        <div style="padding:14px 14px 4px">
+            <h2 class="section-title">Conflictos SIEM pendientes</h2>
+            <p class="page-subtitle">{{ unmatched_siem_count }} sin resolver: {{ unresolved_issue_counts.not_in_ad }} no encontrados en AD · {{ unresolved_issue_counts.ambiguous }} ambiguos · {{ unresolved_issue_counts.missing_identifier }} sin identificador.</p>
+        </div>
+        <div style="overflow:auto">
+            <table class="gap-table">
+                <thead><tr><th>Identificador SIEM</th><th>Hostname</th><th>IP</th><th>Tipo informado</th></tr></thead>
+                <tbody>{% for item in unmatched_siem %}<tr><td>{{ item.external_id }}</td><td>{{ item.hostname|default:'-' }}</td><td>{{ item.ip_address|default:'-' }}</td><td>{{ item.server_type_hint|default:'-' }}</td></tr>{% empty %}<tr><td colspan="4" class="muted">No hay conflictos SIEM pendientes.</td></tr>{% endfor %}</tbody>
+            </table>
+        </div>
+        {% if unmatched_siem_page.paginator.count %}
+            <nav class="table-pagination" aria-label="Paginación de conflictos SIEM">
+                <span class="table-page-summary">Página {{ unmatched_siem_page.number }} de {{ unmatched_siem_page.paginator.num_pages }} · {{ unmatched_siem_page.paginator.count }} registros</span>
+                <div class="header-actions">
+                    {% if unmatched_siem_page.has_previous %}
+                        <a class="btn" href="?os={{ selected_os|urlencode }}&type={{ selected_type|urlencode }}&coverage={{ selected_coverage|urlencode }}&enabled={{ selected_enabled|urlencode }}&gap_page={{ gap_page.number }}&conflict_page={{ unmatched_siem_page.previous_page_number }}">Anterior</a>
+                    {% endif %}
+                    {% if unmatched_siem_page.has_next %}
+                        <a class="btn" href="?os={{ selected_os|urlencode }}&type={{ selected_type|urlencode }}&coverage={{ selected_coverage|urlencode }}&enabled={{ selected_enabled|urlencode }}&gap_page={{ gap_page.number }}&conflict_page={{ unmatched_siem_page.next_page_number }}">Siguiente</a>
+                    {% endif %}
+                </div>
+            </nav>
+        {% endif %}
+    </section>
     {% endif %}
 </section></main>
 {% endblock %}

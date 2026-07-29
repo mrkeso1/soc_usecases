@@ -11,7 +11,7 @@ docker compose exec web python manage.py test --keepdb
 docker compose exec web python manage.py makemigrations --check --dry-run
 ```
 
-Resultado: 110 tests OK y sin migraciones pendientes.
+Resultado actual: 223 tests OK y sin migraciones pendientes.
 
 ## Capacidades Principales
 

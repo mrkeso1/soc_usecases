@@ -3,15 +3,62 @@ from django.contrib import admin, messages
 from .classification import apply_automatic_classification
 from .models import (
     AssetIdentifier,
+    InventoryFilterRule,
     InventoryObservation,
+    InventoryJob,
+    InventoryRuleRevision,
     InventorySyncRun,
     ReconciliationIssue,
     ServerAsset,
     ServerAssetDisableEvent,
     ServerCategory,
     ServerInventoryConfiguration,
-    ServerNamingRule,
 )
+
+
+@admin.register(InventoryRuleRevision)
+class InventoryRuleRevisionAdmin(admin.ModelAdmin):
+    list_display = (
+        "created_at", "rule_type", "rule_name", "version", "action", "changed_by",
+    )
+    list_filter = ("rule_type", "action", "created_at")
+    search_fields = ("rule_name", "changed_by__username", "request_id")
+    readonly_fields = (
+        "rule_type", "rule_object_id", "rule_name", "version", "action",
+        "before_snapshot", "after_snapshot", "changed_fields", "changed_by",
+        "request_id", "created_at",
+    )
+
+    def has_add_permission(self, request):
+        return False
+
+    def has_change_permission(self, request, obj=None):
+        return False
+
+    def has_delete_permission(self, request, obj=None):
+        return False
+
+
+@admin.register(InventoryJob)
+class InventoryJobAdmin(admin.ModelAdmin):
+    list_display = (
+        "created_at", "job_type", "status", "attempts", "requested_by",
+        "worker_id", "heartbeat_at", "finished_at",
+    )
+    list_filter = ("job_type", "status", "created_at")
+    search_fields = ("idempotency_key", "worker_id", "last_error", "requested_by__username")
+    readonly_fields = (
+        "job_type", "idempotency_key", "status", "payload", "result", "progress",
+        "attempts", "max_attempts", "rerun_requested", "available_at", "started_at",
+        "heartbeat_at", "lease_expires_at", "finished_at", "worker_id", "last_error",
+        "requested_by", "created_at", "updated_at",
+    )
+
+    def has_add_permission(self, request):
+        return False
+
+    def has_change_permission(self, request, obj=None):
+        return False
 
 
 @admin.register(ServerAssetDisableEvent)
@@ -51,7 +98,7 @@ def disable_assets(modeladmin, request, queryset):
     messages.success(request, f"{updated} equipo(s) deshabilitado(s).")
 
 
-@admin.action(description="Reaplicar reglas de nomenclatura")
+@admin.action(description="Reaplicar reglas de inventario")
 def reclassify_assets(modeladmin, request, queryset):
     updated = 0
     for asset in queryset.filter(classification_source=ServerAsset.CLASSIFICATION_AUTO):
@@ -108,31 +155,24 @@ class ServerAssetAdmin(admin.ModelAdmin):
             apply_automatic_classification(obj)
 
 
-@admin.register(ServerNamingRule)
-class ServerNamingRuleAdmin(admin.ModelAdmin):
+@admin.register(InventoryFilterRule)
+class InventoryFilterRuleAdmin(admin.ModelAdmin):
     list_display = (
-        "priority", "name", "pattern", "match_type", "os_family", "server_type", "is_active",
+        "priority", "name", "source", "field", "operator", "action",
+        "category", "os_family", "server_type_value", "is_active",
     )
-    list_filter = ("is_active", "match_type", "os_family", "server_type")
-    search_fields = ("name", "pattern", "notes")
+    list_filter = ("is_active", "source", "field", "operator", "action", "os_family")
+    search_fields = ("name", "pattern", "reason")
     ordering = ("priority", "name")
-    readonly_fields = ("created_at", "updated_at")
-    actions = ("reclassify_with_active_rules",)
-
-    @admin.action(description="Reclasificar todos los equipos automáticos")
-    def reclassify_with_active_rules(self, request, queryset):
-        updated = 0
-        for asset in ServerAsset.objects.filter(
-            classification_source=ServerAsset.CLASSIFICATION_AUTO,
-        ):
-            apply_automatic_classification(asset)
-            updated += 1
-        messages.success(request, f"{updated} equipo(s) reclasificado(s) con las reglas activas.")
+    readonly_fields = ("legacy_naming_rule_id", "created_at", "updated_at")
 
 
 @admin.register(ServerInventoryConfiguration)
 class ServerInventoryConfigurationAdmin(admin.ModelAdmin):
-    list_display = ("__str__", "ad_active_days", "retention_days", "updated_at")
+    list_display = (
+        "__str__", "ad_active_days", "retention_days",
+        "inventory_history_days", "job_history_days", "updated_at",
+    )
     readonly_fields = ("updated_at",)
 
     def has_add_permission(self, request):

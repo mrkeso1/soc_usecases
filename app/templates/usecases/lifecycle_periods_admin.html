@@ -78,12 +78,6 @@
             </div>
         </header>
 
-        {% if messages %}
-            <div class="messages">
-                {% for message in messages %}<div class="message">{{ message }}</div>{% endfor %}
-            </div>
-        {% endif %}
-
         <section class="kpi-grid">
             <article class="kpi-card"><div class="kpi-label">Ciclo</div><div class="kpi-value">{{ cycle.year }}</div></article>
             <article class="kpi-card"><div class="kpi-label">Periodos</div><div class="kpi-value">{{ periods|length }}</div></article>

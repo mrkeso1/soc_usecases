@@ -3,7 +3,6 @@ from django.contrib.auth.models import Group
 from django.test import TestCase
 from django.urls import reverse
 
-
 class AccessControlPermissionTests(TestCase):
     def test_staff_user_without_admin_role_cannot_manage_access(self):
         User = get_user_model()

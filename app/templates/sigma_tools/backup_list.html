@@ -16,12 +16,6 @@
             </div>
         </header>
 
-        {% if messages %}
-            <div class="messages">
-                {% for message in messages %}<div class="message">{{ message }}</div>{% endfor %}
-            </div>
-        {% endif %}
-
         <section class="kpi-grid">
             <article class="kpi-card"><div class="kpi-label">Casos</div><div class="kpi-value">{{ total_cases }}</div></article>
             <article class="kpi-card"><div class="kpi-label">Con backup vigente</div><div class="kpi-value">{{ backed_cases }}</div></article>

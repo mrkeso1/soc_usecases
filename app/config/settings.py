@@ -55,10 +55,12 @@ INSTALLED_APPS = [
 
 MIDDLEWARE = [
     "django.middleware.security.SecurityMiddleware",
+    "apps.auditlog.middleware.RequestContextMiddleware",
     "django.contrib.sessions.middleware.SessionMiddleware",
     "django.middleware.common.CommonMiddleware",
     "django.middleware.csrf.CsrfViewMiddleware",
     "django.contrib.auth.middleware.AuthenticationMiddleware",
+    "apps.auditlog.middleware.RequestActorMiddleware",
     "django.contrib.messages.middleware.MessageMiddleware",
     "apps.auditlog.middleware.AuditRequestMiddleware",
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
@@ -158,6 +160,12 @@ ENABLE_LEGACY_USECASE_REDIRECTS = env_bool("ENABLE_LEGACY_USECASE_REDIRECTS", "1
 # Inventario de servidores. Las credenciales se inyectan por entorno y no se guardan en la DB.
 SERVER_INVENTORY_SIEM_URL = os.getenv("SERVER_INVENTORY_SIEM_URL", "")
 SERVER_INVENTORY_SIEM_USE_PROXY = env_bool("SERVER_INVENTORY_SIEM_USE_PROXY", "0")
+SERVER_INVENTORY_SIEM_RESOLVE_LINUX_NAMES = env_bool(
+    "SERVER_INVENTORY_SIEM_RESOLVE_LINUX_NAMES",
+    "1",
+)
+SERVER_INVENTORY_DNS_WORKERS = int(os.getenv("SERVER_INVENTORY_DNS_WORKERS", "12"))
+SERVER_INVENTORY_DNS_TIMEOUT = int(os.getenv("SERVER_INVENTORY_DNS_TIMEOUT", "3"))
 SERVER_INVENTORY_AD_SERVER = os.getenv("SERVER_INVENTORY_AD_SERVER", "")
 SERVER_INVENTORY_AD_USER = os.getenv("SERVER_INVENTORY_AD_USER", "")
 SERVER_INVENTORY_AD_PASSWORD = os.getenv("SERVER_INVENTORY_AD_PASSWORD", "")
@@ -165,6 +173,52 @@ SERVER_INVENTORY_AD_BASE_DN = os.getenv("SERVER_INVENTORY_AD_BASE_DN", "")
 SERVER_INVENTORY_AD_USE_SSL = env_bool("SERVER_INVENTORY_AD_USE_SSL", "1")
 SERVER_INVENTORY_AD_RESOLVE_IP = env_bool("SERVER_INVENTORY_AD_RESOLVE_IP", "0")
 SERVER_INVENTORY_CONNECT_TIMEOUT = int(os.getenv("SERVER_INVENTORY_CONNECT_TIMEOUT", "30"))
+SERVER_INVENTORY_JOB_POLL_SECONDS = max(
+    1,
+    int(os.getenv("SERVER_INVENTORY_JOB_POLL_SECONDS", "5")),
+)
+SERVER_INVENTORY_JOB_LEASE_SECONDS = max(
+    60,
+    int(os.getenv("SERVER_INVENTORY_JOB_LEASE_SECONDS", "300")),
+)
+SERVER_INVENTORY_JOB_HEARTBEAT_SECONDS = max(
+    10,
+    min(
+        int(os.getenv("SERVER_INVENTORY_JOB_HEARTBEAT_SECONDS", "30")),
+        SERVER_INVENTORY_JOB_LEASE_SECONDS // 2,
+    ),
+)
+SERVER_INVENTORY_JOB_MAX_ATTEMPTS = max(
+    1,
+    int(os.getenv("SERVER_INVENTORY_JOB_MAX_ATTEMPTS", "3")),
+)
+ADMIN_ACTION_RATE_LIMIT_WINDOW_SECONDS = max(
+    10,
+    int(os.getenv("ADMIN_ACTION_RATE_LIMIT_WINDOW_SECONDS", "60")),
+)
+ADMIN_ACTION_RATE_LIMIT_SYNC = max(
+    1,
+    int(os.getenv("ADMIN_ACTION_RATE_LIMIT_SYNC", "3")),
+)
+ADMIN_ACTION_RATE_LIMIT_MUTATION = max(
+    1,
+    int(os.getenv("ADMIN_ACTION_RATE_LIMIT_MUTATION", "30")),
+)
+
+# Observabilidad. Todos los valores tienen defaults compatibles con producción.
+OPS_JSON_LOGS = env_bool("OPS_JSON_LOGS", "1")
+OPS_COVERAGE_DROP_THRESHOLD = float(os.getenv("OPS_COVERAGE_DROP_THRESHOLD", "5"))
+OPS_DNS_FAILURE_THRESHOLD = float(os.getenv("OPS_DNS_FAILURE_THRESHOLD", "20"))
+OPS_RESOLVED_ALERT_RETENTION_DAYS = max(
+    0,
+    int(os.getenv("OPS_RESOLVED_ALERT_RETENTION_DAYS", "180")),
+)
+ADMIN_RATE_LIMIT_RETENTION_DAYS = max(
+    0,
+    int(os.getenv("ADMIN_RATE_LIMIT_RETENTION_DAYS", "7")),
+)
+
+_LOG_FORMATTER = "json" if OPS_JSON_LOGS else "standard"
 
 LOGGING = {
     "version": 1,
@@ -172,6 +226,14 @@ LOGGING = {
     "formatters": {
         "standard": {
             "format": "%(asctime)s [%(levelname)s] %(name)s: %(message)s",
+        },
+        "json": {
+            "()": "apps.auditlog.logging_context.JsonFormatter",
+        },
+    },
+    "filters": {
+        "request_id": {
+            "()": "apps.auditlog.logging_context.RequestIdFilter",
         },
     },
     "handlers": {
@@ -181,7 +243,8 @@ LOGGING = {
             "filename": LOG_DIR / "auth.log",
             "maxBytes": 5 * 1024 * 1024,
             "backupCount": 5,
-            "formatter": "standard",
+            "formatter": _LOG_FORMATTER,
+            "filters": ["request_id"],
             "encoding": "utf-8",
         },
         "mitre_sync_file": {
@@ -190,7 +253,8 @@ LOGGING = {
             "filename": LOG_DIR / "mitre_sync.log",
             "maxBytes": 5 * 1024 * 1024,
             "backupCount": 5,
-            "formatter": "standard",
+            "formatter": _LOG_FORMATTER,
+            "filters": ["request_id"],
             "encoding": "utf-8",
         },
         "app_file": {
@@ -199,12 +263,24 @@ LOGGING = {
             "filename": LOG_DIR / "app.log",
             "maxBytes": 5 * 1024 * 1024,
             "backupCount": 5,
-            "formatter": "standard",
+            "formatter": _LOG_FORMATTER,
+            "filters": ["request_id"],
             "encoding": "utf-8",
         },
         "console": {
             "class": "logging.StreamHandler",
-            "formatter": "standard",
+            "formatter": _LOG_FORMATTER,
+            "filters": ["request_id"],
+        },
+        "ops_file": {
+            "level": "INFO",
+            "class": "logging.handlers.RotatingFileHandler",
+            "filename": LOG_DIR / "operations.log",
+            "maxBytes": 10 * 1024 * 1024,
+            "backupCount": 10,
+            "formatter": _LOG_FORMATTER,
+            "encoding": "utf-8",
+            "filters": ["request_id"],
         },
     },
     "loggers": {
@@ -221,6 +297,16 @@ LOGGING = {
         "django.request": {
             "handlers": ["app_file"],
             "level": "WARNING",
+            "propagate": False,
+        },
+        "soc.inventory": {
+            "handlers": ["ops_file", "console"],
+            "level": "INFO",
+            "propagate": False,
+        },
+        "soc.ops": {
+            "handlers": ["ops_file", "console"],
+            "level": "INFO",
             "propagate": False,
         },
     },

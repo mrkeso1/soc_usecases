@@ -1,0 +1,98 @@
+{% extends "base.html" %}
+
+{% block title %}Historial de reglas - SOC Control Manager{% endblock %}
+
+{% block extra_css %}
+<style>
+    .history-filters{display:grid;grid-template-columns:minmax(220px,1fr) 220px auto;gap:10px;align-items:end}
+    .history-table-shell{overflow:auto;border:1px solid var(--border);border-radius:12px;background:var(--surface);margin-top:14px}
+    .history-table{width:100%;min-width:980px;border-collapse:collapse}
+    .history-table th,.history-table td{padding:10px;border-bottom:1px solid var(--border);text-align:left;vertical-align:top;font-size:.79rem}
+    .history-table th{color:var(--text-muted);font:700 10px 'JetBrains Mono',monospace;text-transform:uppercase}
+    .history-change{display:grid;grid-template-columns:150px minmax(180px,1fr) 24px minmax(180px,1fr);gap:8px;padding:7px 0;border-bottom:1px solid var(--border)}
+    .history-change:last-child{border-bottom:0}
+    .history-change strong{color:var(--text-strong)}
+    .history-value{overflow-wrap:anywhere;white-space:pre-wrap}
+    .history-meta{color:var(--text-muted);font-size:.72rem}
+    @media(max-width:800px){.history-filters{grid-template-columns:1fr}.history-change{grid-template-columns:1fr}.history-arrow{display:none}}
+</style>
+{% endblock %}
+
+{% block content %}
+<main class="container">
+    <section class="page-shell wide">
+        <header class="page-header">
+            <div>
+                <div class="page-eyebrow">// AUDITORÍA DE INVENTARIO</div>
+                <h1 class="page-title">Historial de reglas</h1>
+                <p class="page-subtitle">Cada versión conserva quién realizó el cambio, cuándo ocurrió y qué valores se modificaron.</p>
+            </div>
+            <div class="header-actions">
+                <a class="btn" href="{% url 'server_heatmap_filter_list' %}">Reglas de inventario</a>
+                <a class="btn" href="{% url 'server_heatmap_administration' %}">Volver al panel</a>
+            </div>
+        </header>
+
+        <form method="get" class="history-filters">
+            <div class="field">
+                <label for="history-q">Buscar regla</label>
+                <input id="history-q" name="q" value="{{ query }}" placeholder="Nombre de la regla">
+            </div>
+            <div class="field">
+                <label for="history-type">Tipo</label>
+                <select id="history-type" name="type">
+                    <option value="">Todos</option>
+                    <option value="naming" {% if selected_type == "naming" %}selected{% endif %}>Nomenclatura anterior</option>
+                    <option value="filter" {% if selected_type == "filter" %}selected{% endif %}>Regla de inventario</option>
+                </select>
+            </div>
+            <button class="btn-primary" type="submit">Filtrar</button>
+            {% if selected_id %}<input type="hidden" name="id" value="{{ selected_id }}">{% endif %}
+        </form>
+
+        <div class="history-table-shell">
+            <table class="history-table">
+                <thead>
+                    <tr><th>Fecha</th><th>Regla</th><th>Versión</th><th>Acción</th><th>Usuario</th><th>Cambios</th></tr>
+                </thead>
+                <tbody>
+                {% for revision in page %}
+                    <tr>
+                        <td>{{ revision.created_at|date:"d/m/Y H:i:s" }}<div class="history-meta">{{ revision.request_id|default:"Sin ID de solicitud" }}</div></td>
+                        <td><strong>{{ revision.rule_name }}</strong><div class="history-meta">{{ revision.get_rule_type_display }} · ID {{ revision.rule_object_id }}</div></td>
+                        <td><strong>v{{ revision.version }}</strong></td>
+                        <td>{{ revision.get_action_display }}</td>
+                        <td>{{ revision.changed_by|default:"Sistema / migración" }}</td>
+                        <td>
+                            <details>
+                                <summary>{{ revision.display_changes|length }} campo(s)</summary>
+                                {% for change in revision.display_changes %}
+                                    <div class="history-change">
+                                        <strong>{{ change.label }}</strong>
+                                        <span class="history-value">{{ change.before }}</span>
+                                        <span class="history-arrow">→</span>
+                                        <span class="history-value">{{ change.after }}</span>
+                                    </div>
+                                {% empty %}
+                                    <p class="history-meta">No hubo cambios funcionales.</p>
+                                {% endfor %}
+                            </details>
+                        </td>
+                    </tr>
+                {% empty %}
+                    <tr><td colspan="6">No hay versiones para los filtros seleccionados.</td></tr>
+                {% endfor %}
+                </tbody>
+            </table>
+        </div>
+
+        {% if page.paginator.num_pages > 1 %}
+            <div class="header-actions" style="margin-top:14px">
+                {% if page.has_previous %}<a class="btn" href="?page={{ page.previous_page_number }}&q={{ query|urlencode }}&type={{ selected_type }}&id={{ selected_id }}">Anterior</a>{% endif %}
+                <span class="page-subtitle">Página {{ page.number }} de {{ page.paginator.num_pages }}</span>
+                {% if page.has_next %}<a class="btn" href="?page={{ page.next_page_number }}&q={{ query|urlencode }}&type={{ selected_type }}&id={{ selected_id }}">Siguiente</a>{% endif %}
+            </div>
+        {% endif %}
+    </section>
+</main>
+{% endblock %}

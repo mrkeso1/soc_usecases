@@ -12,7 +12,9 @@ from .views import (
     inventory_filter_delete,
     inventory_filter_edit,
     inventory_filter_list,
+    inventory_rule_history,
     reprocess_inventory,
+    queue_full_inventory_sync,
     server_heatmap_view,
     server_administration,
     server_asset_results,
@@ -28,6 +30,11 @@ urlpatterns = [
     path("gaps/export/", export_ingestion_gaps, name="server_heatmap_gap_export"),
     path("gaps/diagnose/", diagnose_gaps, name="server_heatmap_gap_diagnose"),
     path("reprocess/", reprocess_inventory, name="server_heatmap_reprocess"),
+    path(
+        "sync/",
+        queue_full_inventory_sync,
+        name="server_heatmap_sync",
+    ),
     path("administration/", server_administration, name="server_heatmap_administration"),
     path(
         "administration/assets/results/",
@@ -69,6 +76,11 @@ urlpatterns = [
         "administration/filters/",
         inventory_filter_list,
         name="server_heatmap_filter_list",
+    ),
+    path(
+        "administration/rule-history/",
+        inventory_rule_history,
+        name="server_heatmap_rule_history",
     ),
     path(
         "administration/filters/new/",

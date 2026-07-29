@@ -169,6 +169,8 @@ def apply_inventory_filters():
                     assignments["os_family"] = rule.os_family
                 if rule.environment_value and "environment" not in assignments:
                     assignments["environment"] = rule.environment_value
+                if rule.server_type_value and "server_type" not in assignments:
+                    assignments["server_type"] = rule.server_type_value
 
     with transaction.atomic():
         if has_ad_run:

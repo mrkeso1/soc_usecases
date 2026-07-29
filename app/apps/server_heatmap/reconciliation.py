@@ -1,11 +1,14 @@
 import ipaddress
+import logging
+import time
 from datetime import timedelta
 
+from django.conf import settings
 from django.db import transaction
 from django.db.models import Q
 from django.utils import timezone
 
-from .classification import active_naming_rules, apply_automatic_classification
+from .classification import active_classification_rules, apply_automatic_classification
 from .connectors.base import InventoryRecord
 from .inventory_filters import apply_inventory_filters
 from .models import (
@@ -17,6 +20,10 @@ from .models import (
     ServerInventoryConfiguration,
 )
 from .network_diagnostics import resolve_observation_identity
+from apps.auditlog.alerts import safe_emit_operational_alert, safe_resolve_operational_alert
+
+
+logger = logging.getLogger("soc.inventory")
 
 
 def normalize_hostname(value):
@@ -138,7 +145,7 @@ def _save_identifier(asset, kind, value, source, seen_at):
     )
 
 
-def reconcile_observation(observation, record, *, naming_rules=None):
+def reconcile_observation(observation, record, *, classification_rules=None):
     candidates = list(_candidate_assets(record)[:2])
     canonical_hostname = normalize_hostname(record.hostname or record.fqdn)
     if len(candidates) > 1:
@@ -205,7 +212,7 @@ def reconcile_observation(observation, record, *, naming_rules=None):
             asset.os_family = os_family_from_name(record.os_name)
     asset.inventory_source = source
     if asset.classification_source == ServerAsset.CLASSIFICATION_AUTO:
-        apply_automatic_classification(asset, save=False, rules=naming_rules)
+        apply_automatic_classification(asset, save=False, rules=classification_rules)
     asset.save()
 
     _save_identifier(asset, AssetIdentifier.KIND_HOSTNAME, canonical_hostname, source, observed_at)
@@ -218,10 +225,27 @@ def reconcile_observation(observation, record, *, naming_rules=None):
 
 def synchronize_inventory(source, connector, *, metadata=None, apply_filters_after=True):
     run = InventorySyncRun.objects.create(source=source, metadata=metadata or {})
+    started = time.monotonic()
+    logger.info(
+        "Comenzó la sincronización de inventario.",
+        extra={
+            "event": "inventory_sync_started",
+            "sync_run_id": run.id,
+            "source": source,
+        },
+    )
     try:
         collected_records = connector.collect()
         records, duplicate_count = _deduplicate_records(collected_records)
-        naming_rules = active_naming_rules()
+        dns_attempted = sum(
+            bool((record.raw_data or {}).get("dns_resolution_attempted"))
+            for record in records
+        )
+        dns_resolved = sum(
+            bool((record.raw_data or {}).get("resolved_hostname"))
+            for record in records
+        )
+        classification_rules = active_classification_rules()
         with transaction.atomic():
             if source == InventorySyncRun.SOURCE_AD:
                 ServerAsset.objects.update(in_active_directory=False)
@@ -249,7 +273,7 @@ def synchronize_inventory(source, connector, *, metadata=None, apply_filters_aft
                 asset, was_created = reconcile_observation(
                     observation,
                     record,
-                    naming_rules=naming_rules,
+                    classification_rules=classification_rules,
                 )
                 if asset and was_created:
                     created_ids.add(asset.id)
@@ -266,6 +290,8 @@ def synchronize_inventory(source, connector, *, metadata=None, apply_filters_aft
                 **run.metadata,
                 "unique_records": len(records),
                 "duplicate_records": duplicate_count,
+                "dns_resolution_attempted": dns_attempted,
+                "dns_resolution_resolved": dns_resolved,
             }
             if source == InventorySyncRun.SOURCE_AD:
                 retention_days = ServerInventoryConfiguration.load().retention_days
@@ -282,12 +308,74 @@ def synchronize_inventory(source, connector, *, metadata=None, apply_filters_aft
             run.save()
         if apply_filters_after:
             apply_inventory_filters()
+        duration = round(time.monotonic() - started, 3)
+        metrics = {
+            "records_read": run.records_read,
+            "assets_created": run.assets_created,
+            "assets_updated": run.assets_updated,
+            "issues_count": run.issues_count,
+            "dns_attempted": dns_attempted,
+            "dns_resolved": dns_resolved,
+        }
+        logger.info(
+            "Finalizó la sincronización de inventario.",
+            extra={
+                "event": "inventory_sync_succeeded",
+                "sync_run_id": run.id,
+                "source": source,
+                "duration_seconds": duration,
+                "metrics": metrics,
+            },
+        )
+        safe_resolve_operational_alert(f"inventory_sync_failed:{source}")
+        if source == InventorySyncRun.SOURCE_SIEM and dns_attempted:
+            dns_failed_percent = round((dns_attempted - dns_resolved) / dns_attempted * 100, 1)
+            fingerprint = "inventory_dns_linux_failure"
+            if dns_failed_percent >= settings.OPS_DNS_FAILURE_THRESHOLD:
+                safe_emit_operational_alert(
+                    code="inventory_dns_linux_failure",
+                    fingerprint=fingerprint,
+                    title="Falló la resolución DNS de equipos Linux",
+                    message=(
+                        f"El {dns_failed_percent}% de las IP Linux no pudo resolver hostname."
+                    ),
+                    context={
+                        "sync_run_id": run.id,
+                        "attempted": dns_attempted,
+                        "resolved": dns_resolved,
+                        "failed_percent": dns_failed_percent,
+                    },
+                )
+            else:
+                safe_resolve_operational_alert(fingerprint)
         return run
     except Exception as exc:
         run.status = InventorySyncRun.STATUS_FAILED
         run.finished_at = timezone.now()
         run.error_message = str(exc)
         run.save(update_fields=["status", "finished_at", "error_message"])
+        duration = round(time.monotonic() - started, 3)
+        logger.exception(
+            "Falló la sincronización de inventario.",
+            extra={
+                "event": "inventory_sync_failed",
+                "sync_run_id": run.id,
+                "source": source,
+                "duration_seconds": duration,
+            },
+        )
+        safe_emit_operational_alert(
+            code="inventory_sync_failed",
+            fingerprint=f"inventory_sync_failed:{source}",
+            severity="error",
+            title=f"Falló la sincronización {run.get_source_display()}",
+            message=str(exc),
+            context={
+                "sync_run_id": run.id,
+                "source": source,
+                "duration_seconds": duration,
+            },
+        )
         raise
 
 
@@ -344,7 +432,7 @@ def retry_issue_name_resolution(issue):
     asset, _ = reconcile_observation(
         observation,
         record,
-        naming_rules=active_naming_rules(),
+        classification_rules=active_classification_rules(),
     )
     if not asset:
         return False, "No se pudo asociar el equipo después de resolver el nombre."
@@ -373,7 +461,7 @@ def reprocess_stored_inventory():
         if run:
             latest_runs.append(run)
 
-    naming_rules = active_naming_rules()
+    classification_rules = active_classification_rules()
     processed = 0
     matched = 0
     with transaction.atomic():
@@ -399,7 +487,7 @@ def reprocess_stored_inventory():
                 asset, _ = reconcile_observation(
                     observation,
                     _record_from_observation(observation),
-                    naming_rules=naming_rules,
+                    classification_rules=classification_rules,
                 )
                 processed += 1
                 matched += bool(asset)
@@ -409,6 +497,10 @@ def reprocess_stored_inventory():
         # También actualiza equipos manualmente cargados que no estén en las últimas observaciones.
         pending = ServerAsset.objects.all()
         for asset in pending.iterator(chunk_size=500):
-            apply_automatic_classification(asset, rules=naming_rules, force=True)
+            apply_automatic_classification(
+                asset,
+                rules=classification_rules,
+                force=True,
+            )
 
     return {"processed": processed, "matched": matched, "runs": len(latest_runs)}

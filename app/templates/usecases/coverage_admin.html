@@ -16,11 +16,6 @@
     .btn-ghost { background:transparent; color:var(--text-muted); }
     .btn-primary:hover, .btn-secondary:hover, .btn-ghost:hover { border-color:var(--border-bright); color:var(--text-strong); }
 
-    .messages { display:grid; gap:8px; margin-bottom:14px; }
-    .message { border:1px solid var(--border); border-radius:12px; padding:11px 13px; background:var(--surface); color:var(--text); }
-    .message.success { border-color:rgba(0,229,160,.32); background:rgba(0,229,160,.08); color:#bdfce8; }
-    .message.error { border-color:rgba(255,71,87,.35); background:rgba(255,71,87,.08); color:#ffc3ca; }
-
     .summary-strip { display:grid; grid-template-columns:repeat(4, minmax(140px, 1fr)); gap:10px; margin:18px 0 20px; }
     .summary-card { background:var(--surface); border:1px solid var(--border); border-radius:14px; padding:14px; min-width:0; }
     .summary-label { font-family:'JetBrains Mono', monospace; color:var(--text-muted); font-size:10px; text-transform:uppercase; letter-spacing:.08em; }
@@ -129,14 +124,6 @@
         </div>
 
     </div>
-
-    {% if messages %}
-        <div class="messages">
-            {% for message in messages %}
-                <div class="message {{ message.tags }}">{{ message }}</div>
-            {% endfor %}
-        </div>
-    {% endif %}
 
     <div class="summary-strip">
         <div class="summary-card"><div class="summary-label">Filas visibles</div><div class="summary-value">{{ total_rows }}</div></div>

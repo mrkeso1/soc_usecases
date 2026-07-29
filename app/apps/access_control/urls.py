@@ -1,6 +1,11 @@
 from django.urls import path
 
-from .views import access_control_home, access_role_create, access_role_edit, admin_console
+from .views import (
+    access_control_home,
+    access_role_create,
+    access_role_edit,
+    admin_console,
+)
 
 
 urlpatterns = [

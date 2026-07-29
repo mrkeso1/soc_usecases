@@ -2,7 +2,7 @@
 {% block title %}Editar regla - SOC Control Manager{% endblock %}
 {% block content %}
 <main class="container"><section class="page-shell">
-    <header class="page-header"><div><div class="page-eyebrow">// NOMENCLATURA</div><h1 class="page-title">Editar {{ rule.name }}</h1></div><a class="btn" href="{% url 'server_heatmap_administration' %}">Volver</a></header>
-    <section class="detail-card"><form method="post">{% csrf_token %}{{ form.as_p }}<div class="header-actions" style="margin-top:16px"><button class="btn-primary" type="submit">Guardar cambios</button><a class="btn" href="{% url 'server_heatmap_administration' %}">Cancelar</a></div></form></section>
+    <header class="page-header"><div><div class="page-eyebrow">// NOMENCLATURA</div><h1 class="page-title">Editar {{ rule.name }}</h1></div><div class="header-actions"><a class="btn" href="{% url 'server_heatmap_rule_history' %}?type=naming&id={{ rule.id }}">Historial</a><a class="btn" href="{% url 'server_heatmap_administration' %}">Volver</a></div></header>
+    <section class="detail-card"><form method="post" data-submit-once>{% csrf_token %}{{ form.as_p }}<div class="header-actions" style="margin-top:16px"><button class="btn-primary" type="submit" data-busy-text="Guardando…">Guardar cambios</button><a class="btn" href="{% url 'server_heatmap_administration' %}">Cancelar</a></div></form></section>
 </section></main>
 {% endblock %}

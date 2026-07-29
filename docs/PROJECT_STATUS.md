@@ -1,6 +1,6 @@
 # Estado del Proyecto
 
-Fecha de revision: 2026-06-29
+Fecha de revision: 2026-07-29
 
 ## Resultado de Validacion
 
@@ -14,7 +14,7 @@ docker compose exec web python manage.py makemigrations --check --dry-run
 
 Resultado:
 
-- 108 tests OK.
+- 223 tests OK.
 - 32 tests focalizados OK para lifecycle, auditoria e inventario.
 - Sin migraciones pendientes.
 - `manage.py check` sin issues.
@@ -37,6 +37,8 @@ Resultado:
 - `soc-control-manager-django-master/` fue eliminado del workspace y agregado a `.gitignore`.
 - Dashboard ejecutivo usa datos reales de calidad del inventario: fuentes, MITRE, regla/logica, documentacion y backup vigente.
 - Hay smoke visual opcional con Playwright en `tools/visual_smoke_playwright.py`.
+- El mapa de servidores usa un único motor de reglas para alcance y clasificación.
+- Hay mantenimiento técnico con simulación y benchmark transaccional para 10k equipos.
 
 ## Cosas Mal o Confusas
 

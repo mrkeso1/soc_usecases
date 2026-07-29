@@ -35,6 +35,8 @@
 | `SECURE_HSTS_SECONDS` | No | HSTS en segundos. |
 | `USE_X_FORWARDED_PROTO` | No | `1` detras de reverse proxy confiable. |
 | `USE_X_FORWARDED_FOR` | No | `1` solo si el proxy confiable envia IP real. |
+| `OPS_RESOLVED_ALERT_RETENTION_DAYS` | No | Días de retención de alertas ya resueltas; default 180. |
+| `ADMIN_RATE_LIMIT_RETENTION_DAYS` | No | Días de retención de contadores inactivos; default 7. |
 
 ## Puertos
 
@@ -45,6 +47,7 @@
 | `web` | `8000/tcp` | `8000/tcp` | UI Django. |
 | `db` | `5432/tcp` | No publicado | Solo accesible dentro de la red Docker. |
 | `mitre_scheduler` | N/A | N/A | Job interno. |
+| `server_inventory_worker` | N/A | N/A | Cola interna PostgreSQL para AD/SIEM y reglas. |
 
 ### Produccion (`docker-compose.prod.yml`)
 
@@ -52,6 +55,7 @@
 | --- | --- | --- |
 | `web` | `8000/tcp` | `expose`; publicar con reverse proxy. |
 | `db` | `5432/tcp` | No publicar al host salvo necesidad controlada. |
+| `server_inventory_worker` | N/A | Sin publicación; solo red interna. |
 
 ## Fuentes Externas
 

@@ -5,32 +5,18 @@ from .models import (
     ServerAsset,
     ServerCategory,
     ServerInventoryConfiguration,
-    ServerNamingRule,
 )
 
 
 class InventoryConfigurationForm(forms.ModelForm):
     class Meta:
         model = ServerInventoryConfiguration
-        fields = ("ad_active_days", "retention_days")
-
-
-class ServerNamingRuleForm(forms.ModelForm):
-    class Meta:
-        model = ServerNamingRule
         fields = (
-            "name",
-            "pattern",
-            "match_type",
-            "os_family",
-            "category",
-            "priority",
-            "is_active",
-            "notes",
+            "ad_active_days",
+            "retention_days",
+            "inventory_history_days",
+            "job_history_days",
         )
-
-    def clean_pattern(self):
-        return self.cleaned_data["pattern"].strip()
 
 
 class ServerAssetForm(forms.ModelForm):
@@ -68,6 +54,7 @@ class InventoryFilterRuleForm(forms.ModelForm):
             "category",
             "os_family",
             "environment_value",
+            "server_type_value",
             "priority",
             "is_active",
             "reason",

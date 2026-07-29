@@ -76,6 +76,13 @@ def build_siem_connector(*, path=None):
             "SERVER_INVENTORY_SIEM_USE_PROXY",
             False,
         ),
+        resolve_linux_names=getattr(
+            settings,
+            "SERVER_INVENTORY_SIEM_RESOLVE_LINUX_NAMES",
+            True,
+        ),
+        dns_workers=getattr(settings, "SERVER_INVENTORY_DNS_WORKERS", 12),
+        dns_timeout=getattr(settings, "SERVER_INVENTORY_DNS_TIMEOUT", 3),
     )
 
 

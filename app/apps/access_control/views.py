@@ -4,7 +4,6 @@ from django.contrib.auth.models import Group
 from django.http import HttpResponseForbidden
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
-
 from .forms import AccessRoleForm, PERMISSION_CATALOG, UserRoleAssignmentForm
 
 
@@ -41,8 +40,8 @@ def admin_console(request):
         },
         {
             "eyebrow": "Inventario",
-            "title": "Servidores y nomenclatura",
-            "description": "Panel operativo para equipos AD/SIEM, cruces, retención y reglas de nomenclatura.",
+            "title": "Servidores y reglas",
+            "description": "Panel operativo para equipos AD/SIEM, cruces, retención y reglas de inventario.",
             "url": reverse("server_heatmap_administration"),
             "badge": "Heatmap",
         },
@@ -83,8 +82,6 @@ def admin_console(request):
         },
     ]
     return render(request, "access_control/admin_console.html", {"cards": cards})
-
-
 @login_required
 def access_control_home(request):
     if not _can_manage_access(request.user, "auth.view_group"):

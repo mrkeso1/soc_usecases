@@ -5,24 +5,133 @@
         }
     }
 
+    function normalizeTone(tone) {
+        var value = String(tone || "").toLowerCase();
+        if (value.indexOf("error") !== -1) return "error";
+        if (value.indexOf("warning") !== -1) return "warning";
+        if (value.indexOf("success") !== -1) return "success";
+        return "info";
+    }
+
+    function notificationTitle(tone) {
+        if (tone === "error") return "No se pudo completar";
+        if (tone === "warning") return "Atención";
+        if (tone === "success") return "Listo";
+        return "Información";
+    }
+
+    function ensureNotificationStack() {
+        var stack = document.querySelector("[data-soc-notifications]");
+        if (stack) return stack;
+
+        stack = document.createElement("div");
+        stack.className = "soc-notification-stack";
+        stack.dataset.socNotifications = "";
+        stack.setAttribute("role", "region");
+        stack.setAttribute("aria-label", "Notificaciones");
+        document.body.appendChild(stack);
+        return stack;
+    }
+
+    function dismissNotification(notification) {
+        if (!notification || notification.dataset.dismissing === "1") return;
+        notification.dataset.dismissing = "1";
+        notification.classList.remove("visible");
+        setTimeout(function () {
+            var stack = notification.parentElement;
+            notification.remove();
+            if (stack && !stack.querySelector("[data-server-message], [data-client-message]")) {
+                stack.remove();
+            }
+        }, 180);
+    }
+
+    function bindNotification(notification) {
+        if (!notification || notification.dataset.bound === "1") return;
+        notification.dataset.bound = "1";
+        var tone = normalizeTone(notification.dataset.tone || notification.className);
+        var closeButton = notification.querySelector("[data-notification-close]");
+        if (closeButton) {
+            closeButton.addEventListener("click", function () {
+                dismissNotification(notification);
+            });
+        }
+
+        if (tone === "error") return;
+        var delay = tone === "warning" ? 9000 : (tone === "info" ? 6500 : 5000);
+        var timer = null;
+        var armTimer = function (timeout) {
+            clearTimeout(timer);
+            timer = setTimeout(function () {
+                dismissNotification(notification);
+            }, timeout);
+        };
+        notification.addEventListener("mouseenter", function () {
+            clearTimeout(timer);
+        });
+        notification.addEventListener("mouseleave", function () {
+            armTimer(1800);
+        });
+        armTimer(delay);
+    }
+
+    function trimNotificationStack(stack) {
+        var notifications = Array.prototype.slice.call(
+            stack.querySelectorAll("[data-server-message], [data-client-message]")
+        );
+        var seen = {};
+        notifications.forEach(function (notification) {
+            var message = notification.querySelector("p");
+            var key = message ? message.textContent.trim() : notification.textContent.trim();
+            if (seen[key]) {
+                notification.remove();
+                return;
+            }
+            seen[key] = true;
+        });
+
+        notifications = Array.prototype.slice.call(
+            stack.querySelectorAll("[data-server-message], [data-client-message]")
+        );
+        notifications.slice(0, Math.max(0, notifications.length - 4)).forEach(function (notification) {
+            notification.remove();
+        });
+    }
+
+    function initializeNotifications() {
+        var stack = document.querySelector("[data-soc-notifications]");
+        if (!stack) return;
+        trimNotificationStack(stack);
+        stack.querySelectorAll("[data-server-message], [data-client-message]").forEach(function (notification) {
+            bindNotification(notification);
+        });
+    }
+
     function showToast(message, tone) {
         if (!message) return;
-        var current = document.querySelector(".soc-toast");
-        if (current) current.remove();
-
-        var toast = document.createElement("div");
-        toast.className = "soc-toast " + (tone || "success");
-        toast.textContent = message;
-        document.body.appendChild(toast);
+        var normalizedTone = normalizeTone(tone || "success");
+        var stack = ensureNotificationStack();
+        var toast = document.createElement("article");
+        toast.className = "soc-notification " + normalizedTone;
+        toast.dataset.clientMessage = "";
+        toast.dataset.tone = normalizedTone;
+        toast.setAttribute("role", normalizedTone === "error" || normalizedTone === "warning" ? "alert" : "status");
+        toast.innerHTML =
+            '<span class="soc-notification-indicator" aria-hidden="true"></span>' +
+            '<div class="soc-notification-copy">' +
+            '<strong class="soc-notification-title"></strong>' +
+            '<p></p>' +
+            '</div>' +
+            '<button type="button" class="soc-notification-close" data-notification-close ' +
+            'aria-label="Cerrar notificación">×</button>';
+        toast.querySelector(".soc-notification-title").textContent = notificationTitle(normalizedTone);
+        toast.querySelector("p").textContent = message;
+        stack.appendChild(toast);
+        trimNotificationStack(stack);
+        bindNotification(toast);
         requestAnimationFrame(function () {
             toast.classList.add("visible");
         });
-        setTimeout(function () {
-            toast.classList.remove("visible");
-            setTimeout(function () {
-                toast.remove();
-            }, 180);
-        }, 3200);
     }
 
     function parseTriggerHeader(raw) {
@@ -40,6 +149,7 @@
 
     document.addEventListener("DOMContentLoaded", function () {
         renderIcons(document);
+        initializeNotifications();
 
         document.querySelectorAll("[data-tabs]").forEach(function (tabs) {
             var scope = tabs.parentElement || document;

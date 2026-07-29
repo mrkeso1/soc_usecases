@@ -1,4 +1,4 @@
-<form method="post" action="{% url 'server_heatmap_administration' %}">
+<form method="post" action="{% url 'server_heatmap_administration' %}" data-submit-once>
     {% csrf_token %}
     <div class="admin-actions">
         <button class="btn" name="action" value="enable_assets" type="submit">Habilitar</button>

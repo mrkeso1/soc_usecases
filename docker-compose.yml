@@ -16,6 +16,43 @@ services:
     volumes:
       - postgres_data:/var/lib/postgresql/data
 
+  db_backup:
+    image: postgres:16
+    profiles: ["tools"]
+    user: "${BACKUP_UID:-1000}:${BACKUP_GID:-1000}"
+    env_file:
+      - .env
+    environment:
+      POSTGRES_HOST: db
+      BACKUP_DIR: /backups
+      POSTGRES_BACKUP_RETENTION_DAYS: ${POSTGRES_BACKUP_RETENTION_DAYS:-14}
+    volumes:
+      - ./backups:/backups
+      - ./docker/postgres:/scripts:ro
+    depends_on:
+      - db
+    entrypoint: ["/bin/sh", "/scripts/backup.sh"]
+
+  db_restore:
+    image: postgres:16
+    profiles: ["tools"]
+    user: "${BACKUP_UID:-1000}:${BACKUP_GID:-1000}"
+    env_file:
+      - .env
+    environment:
+      POSTGRES_HOST: db
+      BACKUP_DIR: /backups
+      RESTORE_FILE: ${RESTORE_FILE:-}
+      POSTGRES_RESTORE_DB: ${POSTGRES_RESTORE_DB:-}
+      RESTORE_CONFIRM: ${RESTORE_CONFIRM:-}
+      ALLOW_PRODUCTION_RESTORE: ${ALLOW_PRODUCTION_RESTORE:-0}
+    volumes:
+      - ./backups:/backups
+      - ./docker/postgres:/scripts:ro
+    depends_on:
+      - db
+    entrypoint: ["/bin/sh", "/scripts/restore.sh"]
+
   web:
     build:
       context: .
@@ -33,9 +70,6 @@ services:
       - "8000:8000"
     depends_on:
       - db
-    dns:
-      - 8.8.8.8
-      - 1.1.1.1
     command: python manage.py runserver 0.0.0.0:8000
 
   mitre_scheduler:
@@ -54,12 +88,28 @@ services:
       MITRE_SYNC_POLL_SECONDS: ${MITRE_SYNC_POLL_SECONDS:-3600}
     depends_on:
       - db
-    dns:
-      - 8.8.8.8
-      - 1.1.1.1
     healthcheck:
       disable: true
     command: python manage.py run_mitre_scheduler
+
+  server_inventory_worker:
+    build:
+      context: .
+      dockerfile: docker/django/Dockerfile
+    container_name: soc_server_inventory_worker
+    restart: unless-stopped
+    env_file:
+      - .env
+    volumes:
+      - ./app:/app
+      - ./logs:/logs
+    environment:
+      LOG_DIR: ${LOG_DIR:-/logs}
+    depends_on:
+      - db
+    healthcheck:
+      disable: true
+    command: python manage.py run_server_inventory_worker
 
 volumes:
   postgres_data:

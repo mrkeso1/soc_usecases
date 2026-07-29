@@ -7,7 +7,7 @@
         <a class="btn" href="{% url 'server_heatmap_administration' %}">Volver</a>
     </header>
     <section class="detail-card">
-        <form method="post">{% csrf_token %}{{ form.as_p }}
+        <form method="post" data-submit-once>{% csrf_token %}{{ form.as_p }}
             <div class="header-actions" style="margin-top:16px"><button class="btn-primary" type="submit">Guardar equipo</button><a class="btn" href="{% url 'server_heatmap_administration' %}">Cancelar</a></div>
         </form>
     </section>

@@ -46,7 +46,8 @@
             <p class="page-subtitle">Configuración, equipos, conflictos y ejecuciones.</p>
         </div>
         <div class="header-actions">
-            <form method="post" action="{% url 'server_heatmap_reprocess' %}">{% csrf_token %}<button class="btn" type="submit">Cruzar y aplicar reglas</button></form>
+            <form method="post" action="{% url 'server_heatmap_sync' %}" data-submit-once>{% csrf_token %}<button class="btn-primary" type="submit" data-busy-text="Encolando…">Actualizar AD + SIEM</button></form>
+            <form method="post" action="{% url 'server_heatmap_reprocess' %}" data-submit-once>{% csrf_token %}<button class="btn" type="submit" data-busy-text="Encolando…">Cruzar y aplicar reglas</button></form>
             <a class="btn" href="{% url 'server_heatmap' %}">Volver al mapa</a>
         </div>
     </header>
@@ -55,7 +56,7 @@
         <article class="admin-card">
             <h2>Configuración del inventario</h2>
             <p>Controla qué equipos consulta AD y cuándo se eliminan los registros obsoletos.</p>
-            <form method="post">
+            <form method="post" data-submit-once>
                 {% csrf_token %}<input type="hidden" name="action" value="save_configuration">
                 {% for field in configuration_form %}
                     <div class="field" style="margin-bottom:12px">{{ field.label_tag }}{{ field }}{{ field.errors }}{% if field.help_text %}<span class="helptext">{{ field.help_text }}</span>{% endif %}</div>
@@ -66,11 +67,10 @@
 
         <article class="admin-card">
             <h2>Organización y clasificación</h2>
-            <p>Administrá desde acá las secciones del mapa, las reglas de nomenclatura y los filtros aplicados al inventario.</p>
+            <p>Administrá las secciones del mapa y una única colección de reglas para incluir, excluir o clasificar equipos.</p>
             <div class="admin-actions">
                 <a class="btn" href="{% url 'server_heatmap_sections' %}">Secciones funcionales</a>
-                <a class="btn" href="{% url 'server_heatmap_naming_rules' %}">Reglas de nomenclatura</a>
-                <a class="btn" href="{% url 'server_heatmap_filter_list' %}">Filtros de inventario</a>
+                <a class="btn" href="{% url 'server_heatmap_filter_list' %}">Reglas de inventario</a>
             </div>
         </article>
 
@@ -99,6 +99,24 @@
                     <tbody>{% for issue in unresolved_issues %}<tr><td><input type="checkbox" name="issue_ids" value="{{ issue.id }}"></td><td>{{ issue.created_at|date:"d/m/Y H:i" }}</td><td>{{ issue.get_issue_type_display }}</td><td><strong>{{ issue.identifier|default:"-" }}</strong></td><td>{% if issue.observation %}{{ issue.observation.hostname|default:"-" }}<br><code>{{ issue.observation.ip_address|default:"-" }}</code>{% else %}-{% endif %}</td><td>{{ issue.sync_run.get_source_display }}</td><td>{{ issue.details }}</td></tr>{% empty %}<tr><td colspan="7">No hay conflictos pendientes.</td></tr>{% endfor %}</tbody>
                 </table></div>
             </form>
+        </article>
+
+        <article class="admin-card full">
+            <h2>Trabajos de inventario</h2>
+            <p>Las operaciones pesadas se ejecutan en segundo plano. Un trabajo interrumpido se recupera automáticamente.</p>
+            <div class="admin-table-shell"><table class="admin-table">
+                <thead><tr><th>Creado</th><th>Tipo</th><th>Estado</th><th>Etapa</th><th>Intentos</th><th>Solicitante</th><th>Heartbeat</th><th>Detalle</th></tr></thead>
+                <tbody>{% for job in jobs %}<tr>
+                    <td>{{ job.created_at|date:"d/m/Y H:i:s" }}</td>
+                    <td><strong>#{{ job.id }} · {{ job.get_job_type_display }}</strong></td>
+                    <td><span class="status-pill {% if job.status == 'completed' %}on{% elif job.status == 'failed' %}off{% endif %}">{{ job.get_status_display }}</span></td>
+                    <td>{{ job.progress.stage|default:"-" }}</td>
+                    <td>{{ job.attempts }}/{{ job.max_attempts }}{% if job.rerun_requested %} · repetición pendiente{% endif %}</td>
+                    <td>{{ job.requested_by|default:"Sistema" }}</td>
+                    <td>{{ job.heartbeat_at|date:"d/m/Y H:i:s"|default:"-" }}</td>
+                    <td>{% if job.last_error %}<span title="{{ job.last_error }}">Error</span>{% elif job.finished_at %}{{ job.finished_at|date:"d/m/Y H:i:s" }}{% else %}-{% endif %}</td>
+                </tr>{% empty %}<tr><td colspan="8">Todavía no hay trabajos encolados.</td></tr>{% endfor %}</tbody>
+            </table></div>
         </article>
 
         <article class="admin-card full">

@@ -9,39 +9,69 @@ from django.http import HttpResponse, HttpResponseForbidden
 from django.shortcuts import get_object_or_404, redirect, render
 from django.views.decorators.http import require_POST
 
+from apps.auditlog.rate_limits import database_rate_limit
 from apps.auditlog.service import audit, client_ip
 
 from .connectors.siem import SiemCsvConnector
-from .classification import active_naming_rules, apply_automatic_classification
+from .classification import active_classification_rules, apply_automatic_classification
 from .forms import (
     InventoryConfigurationForm,
     InventoryFilterRuleForm,
     ServerAssetForm,
     ServerCategoryForm,
-    ServerNamingRuleForm,
 )
 from .models import (
     InventoryObservation,
     InventoryFilterRule,
+    InventoryJob,
+    InventoryRuleRevision,
     InventorySyncRun,
     ReconciliationIssue,
     ServerAsset,
     ServerAssetDisableEvent,
     ServerCategory,
     ServerInventoryConfiguration,
-    ServerNamingRule,
 )
+from .jobs import enqueue_inventory_job
 from .network_diagnostics import diagnose_ingestion_gaps
-from .inventory_filters import apply_inventory_filters, simulate_inventory_filters
+from .inventory_filters import simulate_inventory_filters
 from .permissions import can_access_server_heatmap, can_manage_server_heatmap
 from .reconciliation import (
-    reprocess_stored_inventory,
     retry_issue_name_resolution,
     synchronize_inventory,
 )
 
 
 MAX_SIEM_UPLOAD_BYTES = 15 * 1024 * 1024
+HEATMAP_TABLE_PAGE_SIZE = 50
+limit_inventory_sync = database_rate_limit(
+    scope="server_inventory_sync",
+    limit_setting="ADMIN_ACTION_RATE_LIMIT_SYNC",
+    default_limit=3,
+)
+limit_inventory_mutation = database_rate_limit(
+    scope="server_inventory_mutation",
+    limit_setting="ADMIN_ACTION_RATE_LIMIT_MUTATION",
+    default_limit=30,
+)
+RULE_REVISION_FIELD_LABELS = {
+    "name": "Nombre",
+    "pattern": "Patrón",
+    "match_type": "Modo de coincidencia",
+    "source": "Origen",
+    "field": "Campo evaluado",
+    "operator": "Operador",
+    "action": "Acción",
+    "os_family": "Sistema operativo",
+    "server_type": "Tipo interno",
+    "server_type_value": "Tipo interno",
+    "category": "Sección funcional",
+    "priority": "Prioridad",
+    "is_active": "Activa",
+    "environment_value": "Ambiente",
+    "notes": "Notas",
+    "reason": "Motivo",
+}
 
 
 def _percent(part, total):
@@ -90,7 +120,23 @@ def build_server_heatmap_context(params):
         coverage_filter = ""
 
     os_labels = dict(ServerAsset.OS_CHOICES)
-    os_keys = [key for key, _ in ServerAsset.OS_CHOICES]
+    os_groups = [
+        {
+            "key": ServerAsset.OS_WINDOWS,
+            "label": "Windows",
+            "members": (ServerAsset.OS_WINDOWS,),
+        },
+        {
+            "key": ServerAsset.OS_LINUX,
+            "label": "Linux",
+            "members": (ServerAsset.OS_LINUX, ServerAsset.OS_UNIX),
+        },
+        {
+            "key": ServerAsset.OS_UNKNOWN,
+            "label": "Desconocido",
+            "members": (ServerAsset.OS_OTHER, ServerAsset.OS_UNKNOWN),
+        },
+    ]
     categories = list(
         ServerCategory.objects.filter(is_active=True).order_by("order", "name")
     )
@@ -112,14 +158,18 @@ def build_server_heatmap_context(params):
     }
 
     matrix_rows = []
-    for os_key in os_keys:
+    for os_group in os_groups:
+        os_key = os_group["key"]
         cells = []
         for category in categories:
-            data = cells_data.get((os_key, category.id), {})
-            total = data.get("total", 0)
-            ad_count = data.get("ad_count", 0)
-            siem_count = data.get("siem_count", 0)
-            covered_count = data.get("covered_count", 0)
+            grouped_data = [
+                cells_data.get((member, category.id), {})
+                for member in os_group["members"]
+            ]
+            total = sum(data.get("total", 0) for data in grouped_data)
+            ad_count = sum(data.get("ad_count", 0) for data in grouped_data)
+            siem_count = sum(data.get("siem_count", 0) for data in grouped_data)
+            covered_count = sum(data.get("covered_count", 0) for data in grouped_data)
             gap_count = ad_count - covered_count
             coverage_percent = _percent(covered_count, ad_count) if ad_count else None
             cells.append({
@@ -135,8 +185,8 @@ def build_server_heatmap_context(params):
             })
         matrix_rows.append({
             "key": os_key,
-            "label": os_labels[os_key],
-            "total": os_totals.get(os_key, 0),
+            "label": os_group["label"],
+            "total": sum(os_totals.get(member, 0) for member in os_group["members"]),
             "cells": cells,
         })
 
@@ -188,7 +238,10 @@ def build_server_heatmap_context(params):
             filter=Q(reachability_status=ServerAsset.REACHABILITY_UNREACHABLE),
         ),
     )
-    gaps = list(gaps_qs.select_related("category").order_by("hostname")[:50])
+    gap_page = Paginator(
+        gaps_qs.select_related("category").order_by("hostname"),
+        HEATMAP_TABLE_PAGE_SIZE,
+    ).get_page(params.get("gap_page"))
     latest_siem_run = InventorySyncRun.objects.filter(
         source=InventorySyncRun.SOURCE_SIEM,
         status=InventorySyncRun.STATUS_SUCCESS,
@@ -197,7 +250,7 @@ def build_server_heatmap_context(params):
         source=InventorySyncRun.SOURCE_AD,
         status=InventorySyncRun.STATUS_SUCCESS,
     ).first()
-    unmatched_siem = []
+    unmatched_siem_page = None
     unresolved_issue_counts = {
         ReconciliationIssue.TYPE_AMBIGUOUS: 0,
         ReconciliationIssue.TYPE_MISSING_IDENTIFIER: 0,
@@ -208,13 +261,14 @@ def build_server_heatmap_context(params):
             "issue_type",
         ).annotate(total=Count("id")):
             unresolved_issue_counts[item["issue_type"]] = item["total"]
-        unmatched_siem = list(
+        unmatched_siem_page = Paginator(
             InventoryObservation.objects.filter(
                 sync_run=latest_siem_run,
                 asset__isnull=True,
                 issues__is_resolved=False,
-            ).distinct().order_by("hostname", "external_id")[:50]
-        )
+            ).distinct().order_by("hostname", "external_id"),
+            HEATMAP_TABLE_PAGE_SIZE,
+        ).get_page(params.get("conflict_page"))
 
     category_labels = {category.id: category.name for category in categories}
     os_coverage_data = {
@@ -266,14 +320,16 @@ def build_server_heatmap_context(params):
             })
             for category in categories
         ],
-        "gaps": gaps,
+        "gaps": gap_page,
+        "gap_page": gap_page,
         "gap_total": gap_summary["total"],
         "dns_resolved_count": gap_summary["dns_resolved"],
         "reachable_count": gap_summary["reachable"],
         "unreachable_count": gap_summary["unreachable"],
         "latest_siem_run": latest_siem_run,
         "latest_ad_run": latest_ad_run,
-        "unmatched_siem": unmatched_siem,
+        "unmatched_siem": unmatched_siem_page or (),
+        "unmatched_siem_page": unmatched_siem_page,
         "unresolved_issue_counts": unresolved_issue_counts,
         "unmatched_siem_count": sum(unresolved_issue_counts.values()),
         "total_assets": summary["total"],
@@ -303,6 +359,7 @@ def server_heatmap_view(request):
 
 @login_required
 @require_POST
+@limit_inventory_sync
 def upload_siem_inventory(request):
     if not can_access_server_heatmap(request.user):
         return HttpResponseForbidden("No tenés permisos para actualizar el inventario SIEM.")
@@ -386,6 +443,7 @@ def export_ingestion_gaps(request):
 
 @login_required
 @require_POST
+@limit_inventory_sync
 def diagnose_gaps(request):
     if not can_access_server_heatmap(request.user):
         return HttpResponseForbidden("No tenés permisos para diagnosticar los equipos.")
@@ -412,26 +470,56 @@ def diagnose_gaps(request):
 
 @login_required
 @require_POST
+@limit_inventory_sync
 def reprocess_inventory(request):
     if not can_access_server_heatmap(request.user):
         return HttpResponseForbidden("No tenés permisos para reprocesar el inventario.")
-    result = reprocess_stored_inventory()
+    job, created = enqueue_inventory_job(
+        InventoryJob.TYPE_REPROCESS,
+        requested_by=request.user,
+        idempotency_key=request.headers.get("Idempotency-Key"),
+    )
     messages.success(
         request,
-        f"Inventario reprocesado sin consultar AD ni cargar CSV: "
-        f"{result['processed']} observaciones cruzadas y {result['matched']} asociadas.",
+        (
+            f"Reproceso encolado como trabajo #{job.id}."
+            if created
+            else f"Ya existe un reproceso activo: trabajo #{job.id}."
+        ),
     )
-    return redirect("server_heatmap")
+    return redirect("server_heatmap_administration")
 
 
 @login_required
+@require_POST
+@limit_inventory_sync
+def queue_full_inventory_sync(request):
+    if not can_manage_server_heatmap(request.user):
+        return HttpResponseForbidden("No tenés permisos para actualizar el inventario.")
+    job, created = enqueue_inventory_job(
+        InventoryJob.TYPE_FULL_SYNC,
+        requested_by=request.user,
+        idempotency_key=request.headers.get("Idempotency-Key"),
+    )
+    messages.success(
+        request,
+        (
+            f"Actualización AD + SIEM encolada como trabajo #{job.id}."
+            if created
+            else f"Ya existe una actualización activa: trabajo #{job.id}."
+        ),
+    )
+    return redirect("server_heatmap_administration")
+
+
+@login_required
+@limit_inventory_mutation
 def server_administration(request):
     if not can_manage_server_heatmap(request.user):
         return HttpResponseForbidden("No tenés permisos para administrar el inventario.")
 
     configuration = ServerInventoryConfiguration.load()
     configuration_form = InventoryConfigurationForm(instance=configuration)
-    rule_form = ServerNamingRuleForm(prefix="rule")
     category_form = ServerCategoryForm(prefix="category")
     if request.method == "POST":
         action = request.POST.get("action")
@@ -440,12 +528,6 @@ def server_administration(request):
             if configuration_form.is_valid():
                 configuration_form.save()
                 messages.success(request, "Configuración del inventario actualizada.")
-                return redirect("server_heatmap_administration")
-        elif action == "create_rule":
-            rule_form = ServerNamingRuleForm(request.POST, prefix="rule")
-            if rule_form.is_valid():
-                rule_form.save()
-                messages.success(request, "Regla de nomenclatura creada.")
                 return redirect("server_heatmap_administration")
         elif action == "create_category":
             category_form = ServerCategoryForm(request.POST, prefix="category")
@@ -495,7 +577,7 @@ def server_administration(request):
                     )
                 messages.success(request, f"{changed} equipo(s) deshabilitado(s).")
             else:
-                rules = active_naming_rules()
+                rules = active_classification_rules()
                 changed = 0
                 for asset in assets:
                     apply_automatic_classification(asset, rules=rules, force=True)
@@ -553,12 +635,11 @@ def server_administration(request):
         "server_heatmap/administration.html",
         {
             "configuration_form": configuration_form,
-            "rule_form": rule_form,
             "category_form": category_form,
             "categories": ServerCategory.objects.all(),
-            "rules": ServerNamingRule.objects.all(),
             "asset_page": page,
             "runs": InventorySyncRun.objects.all()[:10],
+            "jobs": InventoryJob.objects.select_related("requested_by").all()[:15],
             "unresolved_issues": ReconciliationIssue.objects.filter(
                 is_resolved=False,
             ).select_related("sync_run", "observation").order_by("-created_at")[:100],
@@ -609,6 +690,7 @@ def server_asset_results(request):
 
 
 @login_required
+@limit_inventory_mutation
 def server_sections(request):
     if not can_manage_server_heatmap(request.user):
         return HttpResponseForbidden("No tenés permisos para administrar secciones.")
@@ -624,50 +706,45 @@ def server_sections(request):
 
 
 @login_required
+@limit_inventory_mutation
 def server_naming_rules(request):
     if not can_manage_server_heatmap(request.user):
         return HttpResponseForbidden("No tenés permisos para administrar reglas.")
-    form = ServerNamingRuleForm(request.POST or None, prefix="rule")
-    if request.method == "POST" and form.is_valid():
-        form.save()
-        messages.success(request, "Regla de nomenclatura creada.")
-        return redirect("server_heatmap_naming_rules")
-    return render(request, "server_heatmap/naming_rules.html", {
-        "form": form,
-        "rules": ServerNamingRule.objects.all(),
-    })
+    messages.info(
+        request,
+        "Las nomenclaturas se unificaron en Reglas de inventario.",
+    )
+    return redirect("server_heatmap_filter_list")
 
 
 @login_required
+@limit_inventory_mutation
 def edit_naming_rule(request, rule_id):
     if not can_manage_server_heatmap(request.user):
         return HttpResponseForbidden("No tenés permisos para administrar reglas.")
-    rule = get_object_or_404(ServerNamingRule, pk=rule_id)
-    form = ServerNamingRuleForm(request.POST or None, instance=rule)
-    if request.method == "POST" and form.is_valid():
-        form.save()
-        messages.success(request, "Regla de nomenclatura actualizada.")
-        return redirect("server_heatmap_naming_rules")
-    return render(
+    messages.info(
         request,
-        "server_heatmap/rule_form.html",
-        {"form": form, "rule": rule},
+        "La regla anterior fue migrada. Administrala desde Reglas de inventario.",
     )
+    return redirect("server_heatmap_filter_list")
 
 
 @login_required
 @require_POST
+@limit_inventory_mutation
 def delete_naming_rule(request, rule_id):
     if not can_manage_server_heatmap(request.user):
         return HttpResponseForbidden("No tenés permisos para administrar reglas.")
-    rule = get_object_or_404(ServerNamingRule, pk=rule_id)
-    name = rule.name
-    rule.delete()
-    messages.success(request, f"Regla «{name}» eliminada.")
-    return redirect("server_heatmap_naming_rules")
+    messages.info(
+        request,
+        "La nomenclatura anterior se conserva únicamente para rollback. "
+        "Eliminá su regla migrada desde Reglas de inventario.",
+    )
+    return redirect("server_heatmap_filter_list")
 
 
 @login_required
+@limit_inventory_mutation
 def edit_server_asset(request, asset_id):
     if not can_manage_server_heatmap(request.user):
         return HttpResponseForbidden("No tenés permisos para administrar equipos.")
@@ -689,6 +766,7 @@ def edit_server_asset(request, asset_id):
 
 
 @login_required
+@limit_inventory_mutation
 def edit_server_category(request, category_id):
     if not can_manage_server_heatmap(request.user):
         return HttpResponseForbidden("No tenés permisos para administrar secciones.")
@@ -707,6 +785,7 @@ def edit_server_category(request, category_id):
 
 @login_required
 @require_POST
+@limit_inventory_mutation
 def delete_server_category(request, category_id):
     if not can_manage_server_heatmap(request.user):
         return HttpResponseForbidden("No tenés permisos para administrar secciones.")
@@ -727,7 +806,7 @@ def delete_server_category(request, category_id):
 @login_required
 def inventory_filter_list(request):
     if not can_manage_server_heatmap(request.user):
-        return HttpResponseForbidden("No tenés permisos para administrar filtros.")
+        return HttpResponseForbidden("No tenés permisos para administrar reglas.")
     simulation = None
     if request.GET.get("simulate") == "1":
         simulation = simulate_inventory_filters()
@@ -742,17 +821,77 @@ def inventory_filter_list(request):
 
 
 @login_required
+def inventory_rule_history(request):
+    if not can_manage_server_heatmap(request.user):
+        return HttpResponseForbidden("No tenés permisos para consultar el historial de reglas.")
+
+    rule_type = (request.GET.get("type") or "").strip()
+    rule_object_id = (request.GET.get("id") or "").strip()
+    query = (request.GET.get("q") or "").strip()
+    revisions = InventoryRuleRevision.objects.select_related("changed_by")
+    if rule_type in {
+        InventoryRuleRevision.TYPE_NAMING,
+        InventoryRuleRevision.TYPE_FILTER,
+    }:
+        revisions = revisions.filter(rule_type=rule_type)
+    else:
+        rule_type = ""
+    if rule_object_id.isdigit():
+        revisions = revisions.filter(rule_object_id=int(rule_object_id))
+    else:
+        rule_object_id = ""
+    if query:
+        revisions = revisions.filter(rule_name__icontains=query)
+
+    page = Paginator(revisions, 50).get_page(request.GET.get("page"))
+    for revision in page.object_list:
+        changes = []
+        for field in revision.changed_fields:
+            if field == "category_id" or field not in RULE_REVISION_FIELD_LABELS:
+                continue
+            before = revision.before_snapshot.get(field)
+            after = revision.after_snapshot.get(field)
+            if field == "is_active":
+                before = "Sí" if before else "No" if before is not None else "—"
+                after = "Sí" if after else "No" if after is not None else "—"
+            else:
+                before = "—" if before in (None, "") else str(before)
+                after = "—" if after in (None, "") else str(after)
+            changes.append({
+                "label": RULE_REVISION_FIELD_LABELS[field],
+                "before": before,
+                "after": after,
+            })
+        revision.display_changes = changes
+
+    return render(
+        request,
+        "server_heatmap/rule_history.html",
+        {
+            "page": page,
+            "selected_type": rule_type,
+            "selected_id": rule_object_id,
+            "query": query,
+        },
+    )
+
+
+@login_required
+@limit_inventory_mutation
 def inventory_filter_create(request):
     if not can_manage_server_heatmap(request.user):
-        return HttpResponseForbidden("No tenés permisos para administrar filtros.")
+        return HttpResponseForbidden("No tenés permisos para administrar reglas.")
     form = InventoryFilterRuleForm(request.POST or None)
     if request.method == "POST" and form.is_valid():
         rule = form.save()
-        application = apply_inventory_filters()
+        job, _ = enqueue_inventory_job(
+            InventoryJob.TYPE_APPLY_FILTERS,
+            requested_by=request.user,
+        )
         messages.success(
             request,
-            f"Filtro «{rule.name}» creado {'activo' if rule.is_active else 'inactivo'}. "
-            f"Se recalcularon {application['processed']} observaciones.",
+            f"Regla «{rule.name}» creada {'activa' if rule.is_active else 'inactiva'}. "
+            f"Aplicación automática encolada como trabajo #{job.id}.",
         )
         return redirect("server_heatmap_filter_edit", rule_id=rule.id)
     return render(
@@ -763,18 +902,21 @@ def inventory_filter_create(request):
 
 
 @login_required
+@limit_inventory_mutation
 def inventory_filter_edit(request, rule_id):
     if not can_manage_server_heatmap(request.user):
-        return HttpResponseForbidden("No tenés permisos para administrar filtros.")
+        return HttpResponseForbidden("No tenés permisos para administrar reglas.")
     rule = get_object_or_404(InventoryFilterRule, pk=rule_id)
     form = InventoryFilterRuleForm(request.POST or None, instance=rule)
     if request.method == "POST" and form.is_valid():
         form.save()
-        application = apply_inventory_filters()
+        job, _ = enqueue_inventory_job(
+            InventoryJob.TYPE_APPLY_FILTERS,
+            requested_by=request.user,
+        )
         messages.success(
             request,
-            "Filtro actualizado y aplicado. "
-            f"Se recalcularon {application['processed']} observaciones.",
+            f"Regla actualizada. Aplicación automática encolada como trabajo #{job.id}.",
         )
         return redirect("server_heatmap_filter_edit", rule_id=rule.id)
     preview = None
@@ -791,16 +933,20 @@ def inventory_filter_edit(request, rule_id):
 
 @login_required
 @require_POST
+@limit_inventory_mutation
 def inventory_filter_delete(request, rule_id):
     if not can_manage_server_heatmap(request.user):
-        return HttpResponseForbidden("No tenés permisos para administrar filtros.")
+        return HttpResponseForbidden("No tenés permisos para administrar reglas.")
     rule = get_object_or_404(InventoryFilterRule, pk=rule_id)
     name = rule.name
     rule.delete()
-    application = apply_inventory_filters()
+    job, _ = enqueue_inventory_job(
+        InventoryJob.TYPE_APPLY_FILTERS,
+        requested_by=request.user,
+    )
     messages.success(
         request,
-        f"Filtro «{name}» eliminado. "
-        f"Se recalcularon {application['processed']} observaciones.",
+        f"Regla «{name}» eliminada. "
+        f"Recálculo encolado como trabajo #{job.id}.",
     )
     return redirect("server_heatmap_filter_list")
