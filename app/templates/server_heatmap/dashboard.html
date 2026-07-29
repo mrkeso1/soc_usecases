@@ -5,20 +5,26 @@
 
 {% block extra_css %}
 <style>
-    .server-kpis { display:grid; grid-template-columns:repeat(6,minmax(130px,1fr)); gap:10px; margin:16px 0; }
-    .server-kpi { border:1px solid var(--border); border-radius:14px; background:var(--surface); padding:14px; }
+    .server-kpis { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:10px; margin:12px 0; }
+    .server-kpi { border:1px solid var(--border); border-radius:12px; background:var(--surface); padding:11px 13px; }
     .server-kpi span { display:block; color:var(--text-muted); font:700 10px 'JetBrains Mono',monospace; text-transform:uppercase; letter-spacing:.08em; }
-    .server-kpi strong { display:block; margin-top:7px; color:var(--text-strong); font-size:1.3rem; }
-    .server-kpi small { color:var(--text-muted); }
+    .server-kpi strong { display:block; margin-top:6px; color:var(--text-strong); font:800 1.08rem 'JetBrains Mono',monospace; line-height:1.1; }
+    .server-kpi small { display:block; margin-top:3px; color:var(--text-muted); font-size:.76rem; }
     .server-filters { grid-template-columns:repeat(5,minmax(150px,1fr)); }
-    .inventory-flow { display:grid; grid-template-columns:minmax(0,1.4fr) repeat(2,minmax(210px,.8fr)); gap:12px; margin:14px 0; }
-    .inventory-card { border:1px solid var(--border); border-radius:14px; background:var(--surface); padding:15px; }
-    .inventory-card h2 { margin:0 0 5px; color:var(--text-strong); font-size:1rem; }
-    .inventory-card p,.inventory-card small { color:var(--text-muted); }
-    .inventory-upload { display:flex; flex-wrap:wrap; align-items:end; gap:10px; margin-top:12px; }
-    .inventory-upload .field { flex:1 1 280px; }
-    .sync-metric { display:flex; justify-content:space-between; gap:10px; margin-top:8px; font-size:.82rem; }
-    .sync-metric strong { color:var(--text-strong); }
+    .inventory-strip { display:grid; grid-template-columns:minmax(420px,1.45fr) repeat(2,minmax(220px,.7fr)); gap:0; margin:12px 0; border:1px solid var(--border); border-radius:12px; background:var(--surface); overflow:hidden; }
+    .inventory-update,.inventory-run { min-width:0; padding:12px 14px; }
+    .inventory-update { border-right:1px solid var(--border); }
+    .inventory-update h2 { margin:0; color:var(--text-strong); font-size:.96rem; }
+    .inventory-update p { margin:3px 0 0; color:var(--text-muted); font-size:.76rem; line-height:1.35; }
+    .inventory-upload { display:flex; align-items:end; gap:8px; margin-top:8px; }
+    .inventory-upload .field { flex:1 1 auto; min-width:0; }
+    .inventory-upload .field label { display:none; }
+    .inventory-run + .inventory-run { border-left:1px solid var(--border); }
+    .inventory-run-label { display:block; color:var(--text-muted); font:800 9px 'JetBrains Mono',monospace; letter-spacing:.08em; text-transform:uppercase; }
+    .inventory-run > strong { display:block; margin-top:6px; color:var(--text-strong); font-size:.9rem; }
+    .inventory-run > small { display:block; margin-top:4px; color:var(--text-muted); font-size:.72rem; line-height:1.35; }
+    .inventory-run-meta { display:flex; flex-wrap:wrap; gap:5px 10px; margin-top:7px; color:var(--text-muted); font-size:.7rem; }
+    .inventory-run-meta strong { color:var(--text-strong); font-size:inherit; }
     .heatmap-shell { margin-top:14px; border:1px solid var(--border); border-radius:16px; background:var(--surface); overflow:auto; }
     .heatmap { width:100%; min-width:1050px; border-collapse:separate; border-spacing:7px; padding:8px; }
     .heatmap th { padding:8px; color:var(--text-muted); font:700 10px 'JetBrains Mono',monospace; text-transform:uppercase; text-align:center; }
@@ -26,21 +32,56 @@
     .heatmap-row-title { min-width:120px; position:sticky; left:0; z-index:1; border:1px solid var(--border); border-radius:10px; background:var(--surface-2); padding:12px; }
     .heatmap-row-title strong,.heatmap-row-title small { display:block; }
     .heatmap-row-title small { margin-top:4px; color:var(--text-muted); }
-    .heat-cell { min-width:112px; height:94px; border:1px solid var(--border); border-radius:12px; padding:10px; text-align:center; background:var(--surface-2); }
+    .heat-cell { min-width:185px; border:1px solid var(--border); border-radius:12px; padding:12px; text-align:left; vertical-align:top; background:var(--surface-2); }
     .heat-cell.good { background:rgba(0,229,160,.18); border-color:rgba(0,229,160,.45); }
     .heat-cell.medium { background:rgba(45,122,255,.18); border-color:rgba(45,122,255,.45); }
     .heat-cell.warning { background:rgba(245,166,35,.18); border-color:rgba(245,166,35,.45); }
     .heat-cell.bad { background:rgba(255,71,87,.18); border-color:rgba(255,71,87,.45); }
     .heat-cell.empty { opacity:.42; }
     .heat-cell.no_baseline { background:rgba(78,106,142,.12); border-color:rgba(78,106,142,.35); }
-    .heat-cell strong { display:block; color:var(--text-strong); font-size:1.12rem; }
-    .heat-cell span,.heat-cell small { display:block; margin-top:3px; color:var(--text-muted); font-size:.72rem; }
+    .heat-cell-head { display:flex; justify-content:space-between; align-items:baseline; gap:10px; }
+    .heat-cell-head span { color:var(--text-muted); font:700 9px 'JetBrains Mono',monospace; text-transform:uppercase; letter-spacing:.06em; }
+    .heat-cell-head strong { color:var(--text-strong); font-size:1.08rem; white-space:nowrap; }
+    .heat-progress { height:8px; margin:9px 0 10px; overflow:hidden; border-radius:999px; background:rgba(78,106,142,.24); }
+    .heat-progress span { display:block; height:100%; border-radius:inherit; background:var(--text-muted); }
+    .heat-cell.good .heat-progress span { background:var(--good); }
+    .heat-cell.medium .heat-progress span { background:var(--accent); }
+    .heat-cell.warning .heat-progress span { background:var(--medium); }
+    .heat-cell.bad .heat-progress span { background:var(--bad); }
+    .heat-metric { display:flex; justify-content:space-between; gap:10px; padding:2px 0; color:var(--text-muted); font-size:.72rem; }
+    .heat-metric strong { color:var(--text-strong); font-size:.76rem; }
+    .heat-cell-note { margin-top:6px; color:var(--text-muted); font-size:.68rem; }
     .heat-legend { display:flex; flex-wrap:wrap; gap:12px; margin:12px 0; color:var(--text-muted); font-size:.82rem; }
     .heat-legend i { display:inline-block; width:10px; height:10px; margin-right:5px; border-radius:3px; }
     .server-grid { display:grid; grid-template-columns:1fr; gap:12px; margin-top:14px; }
     .server-panel { border:1px solid var(--border); border-radius:14px; background:var(--surface); padding:15px; min-width:0; }
     .server-panel h2 { color:var(--text-strong); font-size:1rem; margin-bottom:3px; }
     .server-panel > small { color:var(--text-muted); }
+    .os-coverage-head { display:flex; justify-content:space-between; align-items:end; gap:16px; margin-bottom:14px; }
+    .os-coverage-head h2 { margin:0 0 4px; font-size:1.08rem; }
+    .os-coverage-head p { margin:0; color:var(--text-muted); font-size:.8rem; }
+    .os-coverage-legend { color:var(--text-muted); font:700 10px 'JetBrains Mono',monospace; text-transform:uppercase; letter-spacing:.07em; white-space:nowrap; }
+    .os-coverage-grid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:12px; }
+    .os-coverage-card { --os-color:var(--accent); position:relative; overflow:hidden; border:1px solid color-mix(in srgb,var(--os-color) 38%,var(--border)); border-radius:14px; padding:16px; background:linear-gradient(145deg,color-mix(in srgb,var(--os-color) 12%,var(--surface-2)),var(--surface-2) 62%); }
+    .os-coverage-card.windows { --os-color:#2d7aff; }
+    .os-coverage-card.linux { --os-color:#00e5a0; }
+    .os-coverage-card::after { content:""; position:absolute; width:110px; height:110px; right:-42px; top:-50px; border-radius:50%; background:var(--os-color); opacity:.1; pointer-events:none; }
+    .os-card-head { display:flex; justify-content:space-between; align-items:center; gap:14px; position:relative; z-index:1; }
+    .os-identity { display:flex; align-items:center; gap:11px; min-width:0; }
+    .os-code { display:grid; place-items:center; width:44px; height:44px; flex:0 0 44px; border:1px solid color-mix(in srgb,var(--os-color) 50%,transparent); border-radius:12px; color:var(--os-color); background:color-mix(in srgb,var(--os-color) 12%,transparent); font:800 11px 'JetBrains Mono',monospace; letter-spacing:.04em; }
+    .os-identity small,.os-identity strong { display:block; }
+    .os-identity small { color:var(--text-muted); font:700 9px 'JetBrains Mono',monospace; text-transform:uppercase; letter-spacing:.07em; }
+    .os-identity strong { margin-top:3px; color:var(--text-strong); font-size:1rem; }
+    .os-percent { color:var(--os-color); font-size:1.55rem; line-height:1; white-space:nowrap; }
+    .os-progress { height:12px; margin:16px 0 13px; overflow:hidden; border-radius:999px; background:rgba(78,106,142,.2); box-shadow:inset 0 0 0 1px rgba(255,255,255,.025); }
+    .os-progress span { display:block; height:100%; border-radius:inherit; background:linear-gradient(90deg,color-mix(in srgb,var(--os-color) 70%,#fff),var(--os-color)); box-shadow:0 0 14px color-mix(in srgb,var(--os-color) 45%,transparent); }
+    .os-coverage-copy { display:flex; justify-content:space-between; gap:12px; margin-bottom:12px; color:var(--text-muted); font-size:.75rem; }
+    .os-coverage-copy strong { color:var(--text-strong); }
+    .os-metrics { display:grid; grid-template-columns:repeat(3,1fr); gap:8px; padding-top:12px; border-top:1px solid var(--border); }
+    .os-metric { min-width:0; }
+    .os-metric span,.os-metric strong { display:block; }
+    .os-metric span { color:var(--text-muted); font:700 9px 'JetBrains Mono',monospace; text-transform:uppercase; letter-spacing:.04em; }
+    .os-metric strong { margin-top:5px; color:var(--text-strong); font-size:1rem; }
     .server-bars { margin-top:14px; display:grid; gap:10px; }
     .server-bar-head { display:flex; justify-content:space-between; gap:8px; color:var(--text); font-size:.82rem; }
     .server-bar-track { height:7px; margin-top:5px; border-radius:999px; overflow:hidden; background:rgba(78,106,142,.2); }
@@ -50,8 +91,9 @@
     .gap-table th { color:var(--text-muted); font:700 10px 'JetBrains Mono',monospace; text-transform:uppercase; }
     .table-pagination { display:flex; justify-content:space-between; align-items:center; gap:12px; padding:12px 14px 14px; border-top:1px solid var(--border); flex-wrap:wrap; }
     .table-page-summary { color:var(--text-muted); font:700 11px 'JetBrains Mono',monospace; }
-    @media(max-width:1100px){.server-kpis{grid-template-columns:repeat(3,1fr)}.server-grid,.inventory-flow{grid-template-columns:1fr}.server-filters{grid-template-columns:repeat(2,1fr)}}
-    @media(max-width:650px){.server-kpis,.server-filters{grid-template-columns:1fr}}
+    @media(max-width:1100px){.server-kpis{grid-template-columns:repeat(2,1fr)}.server-grid{grid-template-columns:1fr}.inventory-strip{grid-template-columns:1fr 1fr}.inventory-update{grid-column:1/-1;border-right:0;border-bottom:1px solid var(--border)}.server-filters{grid-template-columns:repeat(2,1fr)}}
+    @media(max-width:760px){.os-coverage-grid{grid-template-columns:1fr}.os-coverage-head{align-items:start;flex-direction:column}.os-coverage-legend{white-space:normal}}
+    @media(max-width:650px){.server-kpis,.server-filters,.inventory-strip{grid-template-columns:1fr}.inventory-update{grid-column:auto}.inventory-run + .inventory-run{border-left:0;border-top:1px solid var(--border)}.inventory-upload{align-items:stretch;flex-direction:column}.os-card-head{align-items:flex-start}.os-percent{font-size:1.3rem}.os-metrics{gap:5px}}
 </style>
 {% endblock %}
 
@@ -70,45 +112,42 @@
         </div>
     </header>
 
-    <section class="inventory-flow">
-        <article class="inventory-card">
+    <section class="inventory-strip">
+        <div class="inventory-update">
             <h2>Actualizar inventario SIEM</h2>
-            <p>Subí el CSV exportado desde el SIEM. Se compara contra el inventario AD actual y se recalculan los equipos pendientes de ingesta.</p>
+            <p>Subí el CSV del SIEM para compararlo con el inventario AD actual.</p>
             <form class="inventory-upload" method="post" action="{% url 'server_heatmap_siem_upload' %}" enctype="multipart/form-data" data-submit-once>
                 {% csrf_token %}
-                <div class="field"><label for="siem-csv">Archivo CSV del SIEM</label><input id="siem-csv" name="siem_csv" type="file" accept=".csv,text/csv" required></div>
+                <div class="field"><label for="siem-csv">Archivo CSV del SIEM</label><input id="siem-csv" name="siem_csv" type="file" accept=".csv,text/csv" aria-label="Archivo CSV del SIEM" required></div>
                 <button class="btn-primary" type="submit" data-busy-text="Procesando CSV…">Comparar con AD</button>
             </form>
-        </article>
-        <article class="inventory-card">
-            <h2>Último inventario AD</h2>
+        </div>
+        <article class="inventory-run">
+            <span class="inventory-run-label">Inventario AD</span>
             {% if latest_ad_run %}
-                <div class="sync-metric"><span>Fecha</span><strong>{{ latest_ad_run.finished_at|date:"d/m/Y H:i" }}</strong></div>
-                <div class="sync-metric"><span>Registros</span><strong>{{ latest_ad_run.records_read }}</strong></div>
-                <div class="sync-metric"><span>Estado</span><strong>{{ latest_ad_run.get_status_display }}</strong></div>
+                <strong>{{ latest_ad_run.finished_at|date:"d/m/Y H:i" }}</strong>
+                <div class="inventory-run-meta"><span><strong>{{ latest_ad_run.records_read }}</strong> registros</span><span>{{ latest_ad_run.get_status_display }}</span></div>
             {% else %}
-                <p>La base actual proviene de la carga inicial. Todavía no se ejecutó una consulta directa a AD.</p>
+                <strong>Carga inicial</strong>
+                <small>Sin sincronización directa con AD todavía.</small>
             {% endif %}
         </article>
-        <article class="inventory-card">
-            <h2>Último CSV SIEM</h2>
+        <article class="inventory-run">
+            <span class="inventory-run-label">Último CSV SIEM</span>
             {% if latest_siem_run %}
-                <div class="sync-metric"><span>Fecha</span><strong>{{ latest_siem_run.finished_at|date:"d/m/Y H:i" }}</strong></div>
-                <div class="sync-metric"><span>Registros</span><strong>{{ latest_siem_run.records_read }}</strong></div>
-                <div class="sync-metric"><span>Equipos AD encontrados</span><strong>{{ latest_siem_run.assets_updated }}</strong></div>
-                <div class="sync-metric"><span>Sin asociación AD</span><strong>{{ latest_siem_run.issues_count }}</strong></div>
+                <strong>{{ latest_siem_run.finished_at|date:"d/m/Y H:i" }}</strong>
+                <div class="inventory-run-meta"><span><strong>{{ latest_siem_run.records_read }}</strong> registros</span><span><strong>{{ latest_siem_run.assets_updated }}</strong> asociados</span><span><strong>{{ latest_siem_run.issues_count }}</strong> sin AD</span></div>
             {% else %}
-                <p>Todavía no se cargó un CSV SIEM mediante este flujo.</p>
+                <strong>Sin carga</strong>
+                <small>Todavía no se cargó un CSV mediante este flujo.</small>
             {% endif %}
         </article>
     </section>
 
     <section class="server-kpis">
-        <article class="server-kpi"><span>Equipos visibles</span><strong>{{ total_assets }}</strong><small>según filtros</small></article>
         <article class="server-kpi"><span>En AD</span><strong>{{ ad_count }}</strong><small>inventario esperado</small></article>
-        <article class="server-kpi"><span>En SIEM</span><strong>{{ siem_count }}</strong><small>con ingesta</small></article>
-        <article class="server-kpi"><span>AD + SIEM</span><strong>{{ both_count }}</strong><small>{{ siem_coverage_percent }}% de cobertura AD</small></article>
-        <article class="server-kpi"><span>Brecha</span><strong>{{ ad_only_count }}</strong><small>AD sin SIEM</small></article>
+        <article class="server-kpi"><span>Cubiertos</span><strong>{{ both_count }}</strong><small>{{ siem_coverage_percent }}% del inventario AD</small></article>
+        <article class="server-kpi"><span>Pendientes</span><strong>{{ ad_only_count }}</strong><small>equipos AD sin SIEM</small></article>
         <article class="server-kpi"><span>Solo SIEM</span><strong>{{ siem_only_count }}</strong><small>no encontrados en AD</small></article>
     </section>
 
@@ -123,12 +162,12 @@
     <div class="heat-legend"><span><i style="background:var(--good)"></i>90–100%</span><span><i style="background:var(--accent)"></i>70–89%</span><span><i style="background:var(--medium)"></i>1–69%</span><span><i style="background:var(--bad)"></i>0%</span><span><i style="background:var(--text-muted)"></i>Sin línea base AD</span><span>Porcentaje = equipos AD también presentes en SIEM.</span></div>
     <section class="heatmap-shell">
         {% if matrix_rows and matrix_types %}<table class="heatmap"><thead><tr><th>OS / sección</th>{% for item in matrix_types %}<th>{{ item.name }}</th>{% endfor %}</tr></thead><tbody>
-        {% for row in matrix_rows %}<tr><td class="heatmap-row-title"><strong>{{ row.label }}</strong><small>{{ row.total }} equipos</small></td>{% for cell in row.cells %}<td class="heat-cell {{ cell.level }}" title="{% if cell.level == 'no_baseline' %}{{ cell.siem_count }} equipos detectados solo por SIEM, sin correspondencia en AD{% elif cell.level == 'empty' %}Sin inventario registrado{% else %}{{ cell.covered_count }} de {{ cell.ad_count }} equipos AD tienen ingesta SIEM{% endif %}"><strong>{% if cell.coverage_percent != None %}{{ cell.coverage_percent }}%{% else %}—{% endif %}</strong><span>{% if cell.level == 'no_baseline' %}Sin línea base AD{% else %}{{ cell.covered_count }}/{{ cell.ad_count }} AD cubiertos{% endif %}</span><small>{{ cell.gap_count }} brechas · {{ cell.siem_count }} SIEM</small></td>{% endfor %}</tr>{% endfor %}
+        {% for row in matrix_rows %}<tr><td class="heatmap-row-title"><strong>{{ row.label }}</strong><small>{{ row.total }} equipos</small></td>{% for cell in row.cells %}<td class="heat-cell {{ cell.level }}" title="{% if cell.level == 'no_baseline' %}{{ cell.siem_count }} equipos detectados solo por SIEM, sin correspondencia en AD{% elif cell.level == 'empty' %}Sin inventario registrado{% else %}{{ cell.covered_count }} de {{ cell.ad_count }} equipos AD tienen ingesta SIEM{% endif %}"><div class="heat-cell-head"><span>Cobertura SIEM</span><strong>{% if cell.coverage_percent != None %}{{ cell.coverage_percent }}%{% else %}—{% endif %}</strong></div><div class="heat-progress" role="progressbar" aria-label="Cobertura SIEM" aria-valuemin="0" aria-valuemax="100" aria-valuenow="{{ cell.coverage_percent|default:0|unlocalize }}"><span style="width:{% if cell.coverage_percent != None %}{{ cell.coverage_percent|unlocalize }}{% else %}0{% endif %}%"></span></div><div class="heat-metric"><span>Cubiertos</span><strong>{{ cell.covered_count }}</strong></div><div class="heat-metric"><span>Pendientes</span><strong>{{ cell.gap_count }}</strong></div><div class="heat-metric"><span>Total en AD</span><strong>{{ cell.ad_count }}</strong></div>{% if cell.level == 'no_baseline' and cell.siem_count %}<div class="heat-cell-note">{{ cell.siem_count }} detectados solo en SIEM</div>{% endif %}</td>{% endfor %}</tr>{% endfor %}
         </tbody></table>{% else %}<div class="empty-state">Todavía no hay equipos clasificados para construir el mapa. Administrá las secciones y reglas desde el panel propio de servidores.</div>{% endif %}
     </section>
 
     <section class="server-grid">
-        <article class="server-panel"><h2>Cobertura por sistema operativo</h2><small>Windows se muestra por separado. Linux incluye también Unix, AIX y sus variantes.</small><div class="server-bars">{% for item in os_rows %}<div><div class="server-bar-head"><span>{{ item.label }}</span><strong>{{ item.covered_count }}/{{ item.ad_count }} · {{ item.percent }}%</strong></div><div class="server-bar-track"><span style="width:{{ item.percent|unlocalize }}%"></span></div><small>{{ item.gap_count }} pendientes de ingesta</small></div>{% empty %}<p class="muted">Sin equipos AD.</p>{% endfor %}</div></article>
+        <article class="server-panel"><div class="os-coverage-head"><div><h2>Cobertura por sistema operativo</h2><p>Qué porcentaje del inventario AD ya tiene ingesta en el SIEM.</p></div><span class="os-coverage-legend">Total AD = 100%</span></div><div class="os-coverage-grid">{% for item in os_rows %}<section class="os-coverage-card {{ item.key }}"><div class="os-card-head"><div class="os-identity"><span class="os-code">{% if item.key == 'windows' %}WIN{% else %}LNX{% endif %}</span><div><small>Sistema operativo</small><strong>{{ item.label }}</strong></div></div><strong class="os-percent">{{ item.percent }}%</strong></div><div class="os-progress" role="progressbar" aria-label="Cobertura {{ item.label }}" aria-valuemin="0" aria-valuemax="100" aria-valuenow="{{ item.percent|unlocalize }}"><span style="width:{{ item.percent|unlocalize }}%"></span></div><div class="os-coverage-copy"><span><strong>{{ item.covered_count }} de {{ item.ad_count }}</strong> cubiertos</span><span>{{ item.gap_count }} pendientes</span></div><div class="os-metrics"><div class="os-metric"><span>Cubiertos</span><strong>{{ item.covered_count }}</strong></div><div class="os-metric"><span>Pendientes</span><strong>{{ item.gap_count }}</strong></div><div class="os-metric"><span>Total en AD</span><strong>{{ item.ad_count }}</strong></div></div></section>{% empty %}<p class="muted">Sin equipos AD.</p>{% endfor %}</div></article>
         <article class="server-panel"><h2>Cobertura por sección funcional</h2><small>En cada sección, el total de equipos AD representa el 100%</small><div class="server-bars">{% for item in type_rows %}<div><div class="server-bar-head"><span>{{ item.label }}</span><strong>{{ item.covered_count }}/{{ item.ad_count }} · {{ item.percent }}%</strong></div><div class="server-bar-track"><span style="width:{{ item.percent|unlocalize }}%"></span></div><small>{{ item.gap_count }} pendientes de ingesta</small></div>{% empty %}<p class="muted">Sin equipos AD clasificados.</p>{% endfor %}</div></article>
     </section>
 

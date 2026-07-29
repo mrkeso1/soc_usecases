@@ -100,12 +100,12 @@ def build_server_heatmap_context(params):
 
     qs = ServerAsset.objects.all()
     if enabled_filter == "yes":
-        qs = qs.filter(is_enabled=True)
+        qs = qs.filter(is_enabled=True, is_excluded_by_rule=False)
     elif enabled_filter == "no":
-        qs = qs.filter(is_enabled=False)
+        qs = qs.filter(Q(is_enabled=False) | Q(is_excluded_by_rule=True))
     elif enabled_filter != "all":
         enabled_filter = "yes"
-        qs = qs.filter(is_enabled=True)
+        qs = qs.filter(is_enabled=True, is_excluded_by_rule=False)
     if os_filter:
         qs = qs.filter(os_family=os_filter)
     if type_filter:
@@ -396,8 +396,18 @@ def upload_siem_inventory(request):
         messages.error(request, f"No se pudo procesar el CSV SIEM: {exc}")
         return redirect("server_heatmap")
 
-    covered = ServerAsset.objects.filter(in_active_directory=True, in_siem=True, is_enabled=True).count()
-    gaps = ServerAsset.objects.filter(in_active_directory=True, in_siem=False, is_enabled=True).count()
+    covered = ServerAsset.objects.filter(
+        in_active_directory=True,
+        in_siem=True,
+        is_enabled=True,
+        is_excluded_by_rule=False,
+    ).count()
+    gaps = ServerAsset.objects.filter(
+        in_active_directory=True,
+        in_siem=False,
+        is_enabled=True,
+        is_excluded_by_rule=False,
+    ).count()
     messages.success(
         request,
         f"CSV SIEM procesado: {run.records_read} registros, {covered} equipos AD cubiertos, "
@@ -420,6 +430,7 @@ def export_ingestion_gaps(request):
     ])
     queryset = ServerAsset.objects.filter(
         is_enabled=True,
+        is_excluded_by_rule=False,
         in_active_directory=True,
         in_siem=False,
     ).order_by("hostname")
@@ -455,6 +466,7 @@ def diagnose_gaps(request):
     )
     remaining = ServerAsset.objects.filter(
         is_enabled=True,
+        is_excluded_by_rule=False,
         in_active_directory=True,
         in_siem=False,
         network_checked_at__isnull=True,
@@ -540,7 +552,16 @@ def server_administration(request):
             assets = ServerAsset.objects.filter(id__in=asset_ids)
             if action == "enable_assets":
                 changed = assets.update(is_enabled=True)
-                messages.success(request, f"{changed} equipo(s) habilitado(s).")
+                still_excluded = assets.filter(is_excluded_by_rule=True).count()
+                detail = (
+                    f" {still_excluded} continúan fuera de alcance por una regla activa."
+                    if still_excluded
+                    else ""
+                )
+                messages.success(
+                    request,
+                    f"{changed} equipo(s) habilitado(s) manualmente.{detail}",
+                )
             elif action == "disable_assets":
                 justification = (request.POST.get("disable_justification") or "").strip()
                 if not justification:
@@ -623,9 +644,14 @@ def server_administration(request):
             | Q(organizational_unit__icontains=query)
         )
     if enabled == "yes":
-        assets = assets.filter(is_enabled=True)
+        assets = assets.filter(
+            is_enabled=True,
+            is_excluded_by_rule=False,
+        )
     elif enabled == "no":
-        assets = assets.filter(is_enabled=False)
+        assets = assets.filter(
+            Q(is_enabled=False) | Q(is_excluded_by_rule=True),
+        )
     if server_type:
         assets = assets.filter(category_id=server_type)
     page = Paginator(assets.order_by("hostname"), 100).get_page(request.GET.get("page"))
@@ -664,9 +690,14 @@ def _filtered_assets(params):
             | Q(organizational_unit__icontains=query)
         )
     if enabled == "yes":
-        assets = assets.filter(is_enabled=True)
+        assets = assets.filter(
+            is_enabled=True,
+            is_excluded_by_rule=False,
+        )
     elif enabled == "no":
-        assets = assets.filter(is_enabled=False)
+        assets = assets.filter(
+            Q(is_enabled=False) | Q(is_excluded_by_rule=True),
+        )
     if server_type:
         assets = assets.filter(category_id=server_type)
     page = Paginator(assets.order_by("hostname"), 100).get_page(params.get("page"))
@@ -881,7 +912,10 @@ def inventory_rule_history(request):
 def inventory_filter_create(request):
     if not can_manage_server_heatmap(request.user):
         return HttpResponseForbidden("No tenés permisos para administrar reglas.")
-    form = InventoryFilterRuleForm(request.POST or None)
+    form = InventoryFilterRuleForm(
+        request.POST or None,
+        initial={"is_active": True},
+    )
     if request.method == "POST" and form.is_valid():
         rule = form.save()
         job, _ = enqueue_inventory_job(

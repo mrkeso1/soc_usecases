@@ -303,6 +303,7 @@ def build_executive_dashboard_context(request):
     try:
         enabled_ad_assets = ServerAsset.objects.filter(
             is_enabled=True,
+            is_excluded_by_rule=False,
             in_active_directory=True,
         )
         operating_systems = (

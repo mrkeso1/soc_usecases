@@ -112,17 +112,19 @@ class ServerAssetAdmin(admin.ModelAdmin):
     list_display = (
         "hostname", "os_family", "server_type", "in_active_directory", "in_siem",
         "dns_status", "reachability_status", "environment", "is_enabled",
+        "is_excluded_by_rule",
         "classification_source", "updated_at",
     )
     list_filter = (
-        "is_enabled", "in_active_directory", "in_siem", "os_family", "server_type",
+        "is_enabled", "is_excluded_by_rule", "in_active_directory", "in_siem",
+        "os_family", "server_type",
         "classification_source", "environment", "dns_status", "reachability_status",
     )
     search_fields = (
         "hostname", "display_name", "domain", "ip_address", "application_name",
         "organizational_unit", "siem_groups", "os_name", "notes",
     )
-    readonly_fields = ("created_at", "updated_at")
+    readonly_fields = ("is_excluded_by_rule", "created_at", "updated_at")
     actions = (enable_assets, disable_assets, reclassify_assets)
     fieldsets = (
         ("Identidad", {"fields": ("hostname", "display_name", "domain", "ip_address", "environment")}),
@@ -133,7 +135,13 @@ class ServerAssetAdmin(admin.ModelAdmin):
                 "legacy_classification", "classification_source",
             )},
         ),
-        ("Comparación de inventarios", {"fields": ("in_active_directory", "in_siem", "is_enabled")}),
+        (
+            "Comparación de inventarios",
+            {"fields": (
+                "in_active_directory", "in_siem", "is_enabled",
+                "is_excluded_by_rule",
+            )},
+        ),
         (
             "Diagnóstico de red",
             {"fields": (

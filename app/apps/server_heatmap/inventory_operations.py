@@ -45,10 +45,12 @@ def run_full_inventory_sync(*, siem_file=None, progress_callback=None):
 
     total_ad = ServerAsset.objects.filter(
         is_enabled=True,
+        is_excluded_by_rule=False,
         in_active_directory=True,
     ).count()
     covered = ServerAsset.objects.filter(
         is_enabled=True,
+        is_excluded_by_rule=False,
         in_active_directory=True,
         in_siem=True,
     ).count()

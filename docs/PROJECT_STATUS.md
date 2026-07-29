@@ -14,7 +14,7 @@ docker compose exec web python manage.py makemigrations --check --dry-run
 
 Resultado:
 
-- 223 tests OK.
+- 224 tests OK.
 - 32 tests focalizados OK para lifecycle, auditoria e inventario.
 - Sin migraciones pendientes.
 - `manage.py check` sin issues.

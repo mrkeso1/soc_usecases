@@ -40,14 +40,14 @@ urlpatterns = [
 if settings.DEBUG:
     urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
 
-# The Docker dev server often runs with DEBUG=0, so Django's staticfiles helper
-# does not expose /static/. Serve the project static directory explicitly for the
-# local container; production should still put a real web server in front.
+# El contenedor productivo también puede ejecutarse con DEBUG=0 detrás del
+# reverse proxy. STATIC_ROOT contiene tanto los archivos del proyecto como los
+# del admin de Django después de collectstatic.
 urlpatterns += [
     re_path(
         r"^static/(?P<path>.*)$",
         serve,
-        {"document_root": settings.STATICFILES_DIRS[0]},
+        {"document_root": settings.STATIC_ROOT},
         name="local_static",
     ),
     re_path(

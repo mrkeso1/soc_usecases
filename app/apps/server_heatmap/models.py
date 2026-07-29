@@ -111,6 +111,15 @@ class ServerAsset(models.Model):
     network_checked_at = models.DateTimeField("Último diagnóstico de red", null=True, blank=True)
     network_check_error = models.TextField("Detalle del diagnóstico", blank=True)
     is_enabled = models.BooleanField("Habilitado", default=True)
+    is_excluded_by_rule = models.BooleanField(
+        "Excluido por regla",
+        default=False,
+        editable=False,
+        help_text=(
+            "Se recalcula automáticamente al aplicar las reglas de inventario. "
+            "No reemplaza una deshabilitación manual."
+        ),
+    )
     classification_source = models.CharField(
         "Origen de clasificación",
         max_length=20,
@@ -128,6 +137,10 @@ class ServerAsset(models.Model):
 
     def __str__(self):
         return self.display_name or self.hostname
+
+    @property
+    def is_effectively_enabled(self):
+        return self.is_enabled and not self.is_excluded_by_rule
 
     @property
     def coverage_status(self):
@@ -588,8 +601,8 @@ class InventoryFilterRule(models.Model):
     ACTION_INCLUDE = "include"
     ACTION_CLASSIFY = "classify"
     ACTION_CHOICES = [
-        (ACTION_EXCLUDE, "Excluir"),
-        (ACTION_INCLUDE, "Incluir"),
+        (ACTION_EXCLUDE, "Deshabilitar"),
+        (ACTION_INCLUDE, "Habilitar"),
         (ACTION_CLASSIFY, "Clasificar"),
     ]
 

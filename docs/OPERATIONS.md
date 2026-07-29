@@ -8,7 +8,7 @@ docker compose exec web python manage.py test --keepdb
 docker compose exec web python manage.py makemigrations --check --dry-run
 ```
 
-Estado validado: 223 tests OK, sin migraciones pendientes.
+Estado validado: 224 tests OK, sin migraciones pendientes.
 
 ## Primer Arranque Local
 
@@ -379,7 +379,7 @@ No se requiere Redis, un proxy adicional ni un servicio externo.
 ## Reglas unificadas de inventario
 
 La clasificación por nomenclatura y los filtros de AD/SIEM utilizan un único
-modelo: **Reglas de inventario**. Una regla puede incluir, excluir o clasificar
+modelo: **Reglas de inventario**. Una regla puede habilitar, deshabilitar o clasificar
 por hostname, FQDN, IP, OU, sistema operativo, grupos SIEM, tipo de dispositivo
 o ambiente.
 

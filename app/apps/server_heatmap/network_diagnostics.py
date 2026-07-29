@@ -144,6 +144,7 @@ def diagnose_asset(asset, *, timeout=2):
 def diagnose_ingestion_gaps(*, limit=500, workers=12, timeout=2, only_unchecked=False):
     queryset = ServerAsset.objects.filter(
         is_enabled=True,
+        is_excluded_by_rule=False,
         in_active_directory=True,
         in_siem=False,
     )

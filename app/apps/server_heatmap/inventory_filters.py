@@ -117,6 +117,7 @@ def apply_inventory_filters():
     runs = latest_inventory_runs()
     ad_asset_ids = set()
     siem_asset_ids = set()
+    excluded_asset_ids = set()
     classification_by_asset = {}
     decisions = []
     processed = 0
@@ -152,6 +153,8 @@ def apply_inventory_filters():
                 )
             if evaluation["excluded"]:
                 excluded += 1
+                if observation.asset_id:
+                    excluded_asset_ids.add(observation.asset_id)
                 continue
             asset = observation.asset
             if not asset:
@@ -173,6 +176,11 @@ def apply_inventory_filters():
                     assignments["server_type"] = rule.server_type_value
 
     with transaction.atomic():
+        ServerAsset.objects.update(is_excluded_by_rule=False)
+        if excluded_asset_ids:
+            ServerAsset.objects.filter(id__in=excluded_asset_ids).update(
+                is_excluded_by_rule=True,
+            )
         if has_ad_run:
             ServerAsset.objects.update(in_active_directory=False)
             if ad_asset_ids:
@@ -192,6 +200,7 @@ def apply_inventory_filters():
     return {
         "processed": processed,
         "excluded": excluded,
+        "excluded_assets": len(excluded_asset_ids),
         "classified": len(classification_by_asset),
         "decisions": len(decisions),
         "runs": len(runs),

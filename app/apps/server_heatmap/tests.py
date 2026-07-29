@@ -4,12 +4,13 @@ from io import StringIO
 from pathlib import Path
 from unittest.mock import patch
 
+from django.conf import settings
 from django.contrib.auth import get_user_model
 from django.contrib.auth.models import Group
 from django.core.management import call_command
 from django.core.files.uploadedfile import SimpleUploadedFile
 from django.test import Client, RequestFactory, TestCase, override_settings
-from django.urls import reverse
+from django.urls import resolve, reverse
 from django.utils import timezone as django_timezone
 
 from .classification import apply_automatic_classification
@@ -55,6 +56,11 @@ from .views import build_server_heatmap_context
 
 
 class ServerHeatmapTests(TestCase):
+    def test_static_route_uses_collectstatic_root_for_django_admin_assets(self):
+        match = resolve("/static/admin/css/base.css")
+
+        self.assertEqual(Path(match.kwargs["document_root"]), Path(settings.STATIC_ROOT))
+
     def _filter_test_observation(self, *, source="ad", hostname="ltp001", groups=""):
         run = InventorySyncRun.objects.create(
             source=source,
@@ -499,8 +505,51 @@ class ServerHeatmapTests(TestCase):
 
         asset.refresh_from_db()
         self.assertFalse(asset.in_active_directory)
+        self.assertTrue(asset.is_enabled)
+        self.assertTrue(asset.is_excluded_by_rule)
+        self.assertFalse(asset.is_effectively_enabled)
         self.assertEqual(result["excluded"], 1)
+        self.assertEqual(result["excluded_assets"], 1)
         self.assertEqual(InventoryFilterDecision.objects.count(), 1)
+
+    def test_disabling_exclusion_rule_restores_automatic_scope_only(self):
+        asset = ServerAsset.objects.create(
+            hostname="ltp-restored",
+            is_enabled=True,
+        )
+        run = InventorySyncRun.objects.create(
+            source=InventorySyncRun.SOURCE_AD,
+            status=InventorySyncRun.STATUS_SUCCESS,
+        )
+        InventoryObservation.objects.create(
+            sync_run=run,
+            asset=asset,
+            source=InventorySyncRun.SOURCE_AD,
+            external_id=asset.hostname,
+            hostname=asset.hostname,
+        )
+        rule = InventoryFilterRule.objects.create(
+            name="Excluir LTP restaurable",
+            source=InventorySyncRun.SOURCE_AD,
+            field=InventoryFilterRule.FIELD_HOSTNAME,
+            operator=InventoryFilterRule.OP_WILDCARD,
+            pattern="ltp*",
+            action=InventoryFilterRule.ACTION_EXCLUDE,
+            is_active=True,
+        )
+
+        apply_inventory_filters()
+        asset.refresh_from_db()
+        self.assertTrue(asset.is_excluded_by_rule)
+
+        rule.is_active = False
+        rule.save(update_fields=["is_active"])
+        apply_inventory_filters()
+
+        asset.refresh_from_db()
+        self.assertFalse(asset.is_excluded_by_rule)
+        self.assertTrue(asset.is_enabled)
+        self.assertTrue(asset.is_effectively_enabled)
 
     def test_reprocess_button_enqueues_background_job(self):
         user = get_user_model().objects.create_user("reprocess-admin", password="pass")
@@ -1085,6 +1134,18 @@ class ServerHeatmapTests(TestCase):
 
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "Mapa de calor de servidores")
+        self.assertContains(response, "Cobertura SIEM")
+        self.assertContains(response, "Cubiertos")
+        self.assertContains(response, "Pendientes")
+        self.assertContains(response, "Total en AD")
+        self.assertNotContains(response, "AD cubiertos")
+        self.assertNotContains(response, "brechas ·")
+        self.assertContains(response, 'class="os-coverage-card', count=2)
+        self.assertContains(response, "Total AD = 100%")
+        self.assertContains(response, 'class="inventory-strip"', count=1)
+        self.assertContains(response, 'class="server-kpi"', count=4)
+        self.assertNotContains(response, "Equipos visibles")
+        self.assertNotContains(response, "<span>En SIEM</span>", html=True)
 
     def test_admin_role_can_manage_inventory_from_front_panel(self):
         user = get_user_model().objects.create_user("front-admin", password="pass")
@@ -1258,6 +1319,47 @@ class ServerHeatmapTests(TestCase):
         self.assertContains(response, "srv-search-target")
         self.assertNotContains(response, "srv-unrelated")
         self.assertNotContains(response, "Panel de administración")
+
+    def test_asset_results_treat_rule_exclusion_as_disabled(self):
+        user = get_user_model().objects.create_user(
+            "rule-exclusion-admin",
+            password="pass",
+        )
+        group, _ = Group.objects.get_or_create(name="Admin")
+        user.groups.add(group)
+        self.client.login(username="rule-exclusion-admin", password="pass")
+        ServerAsset.objects.create(
+            hostname="ltp-rule-disabled",
+            is_enabled=True,
+            is_excluded_by_rule=True,
+        )
+
+        enabled_response = self.client.get(
+            reverse("server_heatmap_asset_results"),
+            {"q": "ltp-rule-disabled", "enabled": "yes"},
+        )
+        disabled_response = self.client.get(
+            reverse("server_heatmap_asset_results"),
+            {"q": "ltp-rule-disabled", "enabled": "no"},
+        )
+
+        self.assertNotContains(enabled_response, "ltp-rule-disabled")
+        self.assertContains(disabled_response, "ltp-rule-disabled")
+        self.assertContains(disabled_response, "Deshabilitado")
+
+    def test_new_inventory_filter_is_active_by_default(self):
+        user = get_user_model().objects.create_user(
+            "new-filter-admin",
+            password="pass",
+        )
+        group, _ = Group.objects.get_or_create(name="Admin")
+        user.groups.add(group)
+        self.client.login(username="new-filter-admin", password="pass")
+
+        response = self.client.get(reverse("server_heatmap_filter_create"))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertTrue(response.context["form"]["is_active"].value())
 
     def test_sections_page_and_legacy_rule_route_use_unified_rules(self):
         user = get_user_model().objects.create_user("catalog-admin", password="pass")
