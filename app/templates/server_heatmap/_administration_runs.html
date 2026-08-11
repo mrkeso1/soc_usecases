@@ -1,0 +1,99 @@
+<div class="admin-table-shell table-responsive">
+    <table class="admin-table table table-hover align-middle mb-0">
+        <thead>
+            <tr>
+                <th class="text-center">Inicio</th>
+                <th class="text-center">Origen</th>
+                <th class="text-center">Estado</th>
+                <th class="text-center">Leídos</th>
+                <th class="text-center">Nuevos</th>
+                <th class="text-center">Asociados</th>
+                <th class="text-center">Conflictos</th>
+                <th class="text-center">Depurados</th>
+            </tr>
+        </thead>
+
+        <tbody>
+            {% for run in runs_page %}
+                <tr>
+                    <td class="text-center">
+                        {{ run.started_at|date:"d/m/Y H:i" }}
+                    </td>
+
+                    <td class="text-center">
+                        {{ run.get_source_display }}
+                    </td>
+
+                    <td class="text-center">
+                        {{ run.get_status_display }}
+                    </td>
+
+                    <td class="text-center">
+                        {{ run.records_read }}
+                    </td>
+
+                    <td class="text-center">
+                        {{ run.assets_created }}
+                    </td>
+
+                    <td class="text-center">
+                        {{ run.assets_updated }}
+                    </td>
+
+                    <td class="text-center">
+                        {{ run.issues_count }}
+                    </td>
+
+                    <td class="text-center">
+                        {{ run.metadata.deleted_stale_assets|default:0 }}
+                    </td>
+                </tr>
+            {% empty %}
+                <tr>
+                    <td colspan="8" class="text-center">
+                        Sin ejecuciones.
+                    </td>
+                </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+
+{% if runs_page.paginator.num_pages > 1 %}
+    <nav aria-label="Paginación de ejecuciones">
+        <ul class="pagination justify-content-center mt-3 mb-0">
+
+            <li class="page-item disabled">
+                <span class="page-link">
+                    Página {{ runs_page.number }}
+                    de {{ runs_page.paginator.num_pages }}
+                </span>
+            </li>
+
+            {% if runs_page.has_previous %}
+                <li class="page-item">
+                    <a
+                        class="page-link"
+                        href="?page={{ runs_page.previous_page_number }}"
+                        data-admin-page="{{ runs_page.previous_page_number }}"
+                    >
+                        Anterior
+                    </a>
+                </li>
+            {% endif %}
+
+            {% if runs_page.has_next %}
+                <li class="page-item">
+                    <a
+                        class="page-link"
+                        href="?page={{ runs_page.next_page_number }}"
+                        data-admin-page="{{ runs_page.next_page_number }}"
+                    >
+                        Siguiente
+                    </a>
+                </li>
+            {% endif %}
+
+        </ul>
+    </nav>
+{% endif %}

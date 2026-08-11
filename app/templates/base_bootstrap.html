@@ -1,0 +1,16 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block ui_mode %}bootstrap{% endblock %}
+
+{% block framework_css %}
+    <link rel="stylesheet" href="{% static 'vendor/bootstrap/5.3.8/bootstrap.min.css' %}">
+{% endblock %}
+
+{% block framework_overrides %}
+    <link rel="stylesheet" href="{% static 'css/bootstrap-soc.css' %}?v=20260810-2">
+{% endblock %}
+
+{% block framework_js %}
+    <script src="{% static 'vendor/bootstrap/5.3.8/bootstrap.bundle.min.js' %}"></script>
+{% endblock %}

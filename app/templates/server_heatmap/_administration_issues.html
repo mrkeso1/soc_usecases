@@ -1,0 +1,11 @@
+<form method="post" action="{% url 'server_heatmap_administration' %}">{% csrf_token %}
+    <div class="admin-actions">
+        <button class="btn btn-primary" name="action" value="resolve_issue_names" type="submit">Intentar resolver nombre</button>
+        <button class="btn btn-outline-secondary" name="action" value="resolve_issues" type="submit">Marcar como resueltos</button>
+    </div>
+    <div class="admin-table-shell table-responsive mt-2"><table class="admin-table table table-hover align-middle mb-0">
+        <thead><tr><th><input class="form-check-input" type="checkbox" data-check-all-issues aria-label="Seleccionar todos los conflictos"></th><th>Fecha</th><th>Tipo</th><th>Identificador</th><th>Nombre / IP</th><th>Origen</th><th>Detalle</th></tr></thead>
+        <tbody>{% for issue in issues_page %}<tr><td><input class="form-check-input" type="checkbox" name="issue_ids" value="{{ issue.id }}" aria-label="Seleccionar conflicto {{ issue.identifier|default:'sin identificador' }}"></td><td>{{ issue.created_at|date:"d/m/Y H:i" }}</td><td>{{ issue.get_issue_type_display }}</td><td><strong>{{ issue.identifier|default:"-" }}</strong></td><td>{% if issue.observation %}{{ issue.observation.hostname|default:"-" }}<br><code>{{ issue.observation.ip_address|default:"-" }}</code>{% else %}-{% endif %}</td><td>{{ issue.sync_run.get_source_display }}</td><td>{{ issue.details }}</td></tr>{% empty %}<tr><td colspan="7">No hay conflictos pendientes.</td></tr>{% endfor %}</tbody>
+    </table></div>
+</form>
+{% if issues_page.paginator.num_pages > 1 %}<nav aria-label="Paginación de conflictos"><ul class="pagination justify-content-center mt-3 mb-0"><li class="page-item disabled"><span class="page-link">Página {{ issues_page.number }} de {{ issues_page.paginator.num_pages }}</span></li>{% if issues_page.has_previous %}<li class="page-item"><a class="page-link" href="?page={{ issues_page.previous_page_number }}" data-admin-page="{{ issues_page.previous_page_number }}">Anterior</a></li>{% endif %}{% if issues_page.has_next %}<li class="page-item"><a class="page-link" href="?page={{ issues_page.next_page_number }}" data-admin-page="{{ issues_page.next_page_number }}">Siguiente</a></li>{% endif %}</ul></nav>{% endif %}

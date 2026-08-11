@@ -1,0 +1,270 @@
+/*
+ * Bootstrap integration for opt-in screens.
+ *
+ * Bootstrap is loaded before the legacy theme. This final, narrowly scoped
+ * layer reconnects Bootstrap components to the SOC design tokens without
+ * changing screens that still extend base.html.
+ */
+
+html[data-ui="bootstrap"] {
+    --bs-body-color: var(--text);
+    --bs-body-bg: var(--bg);
+    --bs-body-font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Arial, sans-serif;
+    --bs-border-color: var(--border);
+    --bs-border-radius: 8px;
+    --bs-border-radius-lg: 12px;
+    --bs-primary: var(--accent);
+    --bs-primary-rgb: 37, 99, 235;
+    --bs-secondary-color: var(--text-muted);
+    --bs-secondary-bg: var(--surface-2);
+    --bs-tertiary-bg: var(--surface-3);
+    --bs-emphasis-color: var(--text-strong);
+    --bs-link-color: var(--accent);
+    --bs-link-hover-color: var(--accent-hover);
+}
+
+html[data-ui="bootstrap"][data-bs-theme="dark"] {
+    color-scheme: dark;
+}
+
+html[data-ui="bootstrap"][data-bs-theme="light"] {
+    color-scheme: light;
+}
+
+html[data-ui="bootstrap"] body {
+    background-color: var(--bg);
+    color: var(--text);
+}
+
+html[data-ui="bootstrap"] body > main.container,
+html[data-ui="bootstrap"] body > main.container-fluid,
+html[data-ui="bootstrap"] body > main.container-xxl {
+    position: relative;
+    z-index: 1;
+}
+
+html[data-ui="bootstrap"] body > main.container-fluid,
+html[data-ui="bootstrap"] body > main.container-xxl {
+    padding-top: 24px;
+    padding-bottom: 48px;
+}
+
+html[data-ui="bootstrap"] .card {
+    --bs-card-color: var(--text);
+    --bs-card-bg: var(--surface);
+    --bs-card-border-color: var(--border);
+    --bs-card-border-radius: 12px;
+    box-shadow: none;
+}
+
+html[data-ui="bootstrap"] .card-header,
+html[data-ui="bootstrap"] .card-footer {
+    border-color: var(--border);
+    background: var(--surface-2);
+}
+
+html[data-ui="bootstrap"] .form-control,
+html[data-ui="bootstrap"] .form-select {
+    border-color: var(--border) !important;
+    background-color: var(--control) !important;
+    color: var(--text-strong) !important;
+}
+
+html[data-ui="bootstrap"] input.form-control,
+html[data-ui="bootstrap"] select.form-control,
+html[data-ui="bootstrap"] .form-select {
+    min-height: 38px;
+}
+
+html[data-ui="bootstrap"] .form-select {
+    background-image: var(--bs-form-select-bg-img), var(--bs-form-select-bg-icon, none) !important;
+    background-position: right .75rem center !important;
+    background-repeat: no-repeat !important;
+    background-size: 16px 12px !important;
+    padding-right: 2.25rem;
+}
+
+html[data-ui="bootstrap"] .form-control:focus,
+html[data-ui="bootstrap"] .form-select:focus,
+html[data-ui="bootstrap"] .form-check-input:focus {
+    border-color: var(--accent) !important;
+    box-shadow: 0 0 0 .2rem var(--accent-dim);
+}
+
+html[data-ui="bootstrap"] .form-control.is-invalid,
+html[data-ui="bootstrap"] .form-select.is-invalid,
+html[data-ui="bootstrap"] .form-control.is-invalid:focus,
+html[data-ui="bootstrap"] .form-select.is-invalid:focus {
+    border-color: var(--bs-form-invalid-border-color) !important;
+}
+
+html[data-ui="bootstrap"] .form-control.is-invalid:focus,
+html[data-ui="bootstrap"] .form-select.is-invalid:focus {
+    box-shadow: 0 0 0 .2rem rgba(var(--bs-danger-rgb), .2);
+}
+
+html[data-ui="bootstrap"] .form-control:disabled,
+html[data-ui="bootstrap"] .form-select:disabled {
+    background-color: var(--surface-2) !important;
+    color: var(--text-muted) !important;
+    opacity: 1;
+}
+
+html[data-ui="bootstrap"] .form-control::placeholder {
+    color: var(--text-muted);
+    opacity: 1;
+}
+
+html[data-ui="bootstrap"] .form-check-input {
+    width: 1em !important;
+    height: 1em;
+    min-height: 1em !important;
+    padding: 0 !important;
+    border-color: var(--border-bright) !important;
+    background-color: var(--control) !important;
+}
+
+html[data-ui="bootstrap"] .form-check-input:checked {
+    border-color: var(--accent) !important;
+    background-color: var(--accent) !important;
+}
+
+html[data-ui="bootstrap"] .form-switch .form-check-input {
+    width: 2em !important;
+}
+
+html[data-ui="bootstrap"] .btn {
+    gap: .4rem;
+}
+
+html[data-ui="bootstrap"] .btn-secondary {
+    --bs-btn-color: var(--text-strong);
+    --bs-btn-bg: var(--surface-2);
+    --bs-btn-border-color: var(--border);
+    --bs-btn-hover-color: var(--text-strong);
+    --bs-btn-hover-bg: var(--surface-3);
+    --bs-btn-hover-border-color: var(--border-bright);
+    --bs-btn-active-color: var(--text-strong);
+    --bs-btn-active-bg: var(--surface-3);
+    --bs-btn-active-border-color: var(--border-bright);
+}
+
+html[data-ui="bootstrap"] .btn-outline-secondary {
+    --bs-btn-color: var(--text);
+    --bs-btn-border-color: var(--border);
+    --bs-btn-hover-color: var(--text-strong);
+    --bs-btn-hover-bg: var(--surface-3);
+    --bs-btn-hover-border-color: var(--border-bright);
+    border-color: var(--border) !important;
+    background: transparent !important;
+    color: var(--text) !important;
+}
+
+html[data-ui="bootstrap"] .btn-outline-primary {
+    border-color: var(--accent) !important;
+    background: transparent !important;
+    color: var(--accent) !important;
+}
+
+html[data-ui="bootstrap"] .btn-outline-danger {
+    border-color: var(--bad) !important;
+    background: transparent !important;
+    color: var(--bad) !important;
+}
+
+html[data-ui="bootstrap"] .btn-outline-secondary:hover,
+html[data-ui="bootstrap"] .btn-outline-secondary:focus-visible {
+    border-color: var(--border-bright) !important;
+    background: var(--surface-3) !important;
+    color: var(--text-strong) !important;
+}
+
+html[data-ui="bootstrap"] .btn-outline-primary:hover,
+html[data-ui="bootstrap"] .btn-outline-primary:focus-visible {
+    border-color: var(--accent-hover) !important;
+    background: var(--accent) !important;
+    color: #fff !important;
+}
+
+html[data-ui="bootstrap"] .btn-outline-danger:hover,
+html[data-ui="bootstrap"] .btn-outline-danger:focus-visible {
+    border-color: var(--bad) !important;
+    background: var(--bad) !important;
+    color: #fff !important;
+}
+
+html[data-ui="bootstrap"] .btn.btn-sm {
+    min-height: 31px;
+    padding: .3rem .55rem;
+    font-size: .75rem !important;
+}
+
+html[data-ui="bootstrap"] .table {
+    --bs-table-color: var(--text);
+    --bs-table-bg: transparent;
+    --bs-table-border-color: var(--border);
+    --bs-table-striped-color: var(--text);
+    --bs-table-striped-bg: color-mix(in srgb, var(--surface-2) 55%, transparent);
+    --bs-table-hover-color: var(--text-strong);
+    --bs-table-hover-bg: var(--surface-2);
+    margin-bottom: 0;
+}
+
+html[data-ui="bootstrap"] .table > thead > tr > th {
+    background: var(--surface-2) !important;
+    color: var(--text-muted) !important;
+}
+
+html[data-ui="bootstrap"] .table-responsive {
+    border-radius: inherit;
+}
+
+html[data-ui="bootstrap"] .pagination {
+    --bs-pagination-color: var(--text);
+    --bs-pagination-bg: var(--surface-2);
+    --bs-pagination-border-color: var(--border);
+    --bs-pagination-hover-color: var(--text-strong);
+    --bs-pagination-hover-bg: var(--surface-3);
+    --bs-pagination-hover-border-color: var(--border-bright);
+    --bs-pagination-active-color: #fff;
+    --bs-pagination-active-bg: var(--accent);
+    --bs-pagination-active-border-color: var(--accent);
+    --bs-pagination-disabled-color: var(--text-muted);
+    --bs-pagination-disabled-bg: var(--surface);
+    --bs-pagination-disabled-border-color: var(--border);
+    gap: 0;
+    margin-top: 0;
+}
+
+html[data-ui="bootstrap"] .badge.text-bg-secondary {
+    border: 1px solid var(--border);
+    background: var(--surface-2) !important;
+    color: var(--text) !important;
+}
+
+html[data-ui="bootstrap"] .bootstrap-choice-grid {
+    max-height: 360px;
+    margin-right: 0;
+    margin-left: 0;
+    padding: .75rem;
+    overflow: auto;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    background: var(--surface-2);
+}
+
+@media (max-width: 767.98px) {
+    html[data-ui="bootstrap"] body > main.container-fluid,
+    html[data-ui="bootstrap"] body > main.container-xxl {
+        padding-top: 18px;
+        padding-bottom: 42px;
+    }
+
+    html[data-ui="bootstrap"] .btn {
+        width: auto !important;
+    }
+
+    html[data-ui="bootstrap"] .d-grid > .btn {
+        width: 100% !important;
+    }
+}

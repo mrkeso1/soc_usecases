@@ -1,0 +1,107 @@
+<div class="table-responsive">
+    <table class="table gap-table table-hover align-middle text-center mb-0">
+        <thead>
+            <tr>
+                <th>Hostname</th>
+                <th>Estado SIEM</th>
+                <th>OS</th>
+                <th>Tipo</th>
+                <th>Ambiente</th>
+                <th>IP</th>
+                <th>Ping</th>
+            </tr>
+        </thead>
+
+        <tbody>
+            {% for item in inventory_page %}
+                <tr>
+                    <td>
+                        <strong>{{ item.hostname }}</strong>
+                    </td>
+
+                    <td>
+                        {% if item.in_siem %}
+                            <span class="inventory-state ingested">
+                                Ingestado
+                            </span>
+                        {% else %}
+                            <span class="inventory-state pending">
+                                Pendiente
+                            </span>
+                        {% endif %}
+                    </td>
+
+                    <td>
+                        {{ item.os_name|default:item.get_os_family_display }}
+                    </td>
+
+                    <td>
+                        {% if item.category %}
+                            {{ item.category.name }}
+                        {% else %}
+                            {{ item.get_server_type_display }}
+                        {% endif %}
+                    </td>
+
+                    <td>
+                        {{ item.environment|default:'-' }}
+                    </td>
+
+                    <td>
+                        {{ item.resolved_ip_address|default:item.ip_address|default:'-' }}
+                    </td>
+
+                    <td>
+                        {{ item.get_reachability_status_display }}
+                    </td>
+                </tr>
+
+            {% empty %}
+                <tr>
+                    <td colspan="7" class="muted text-center py-4">
+                        No hay equipos que coincidan con los filtros.
+                    </td>
+                </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+
+{% if inventory_page.paginator.count %}
+    <nav
+        class="table-pagination"
+        aria-label="Paginación del inventario"
+    >
+        <span class="table-page-summary">
+            Página {{ inventory_page.number }}
+            de {{ inventory_page.paginator.num_pages }}
+            · {{ inventory_page.paginator.count }} equipos
+        </span>
+
+        <ul class="pagination mb-0">
+            {% if inventory_page.has_previous %}
+                <li class="page-item">
+                    <a
+                        class="page-link"
+                        href="?inventory_page={{ inventory_page.previous_page_number }}"
+                        data-inventory-page="{{ inventory_page.previous_page_number }}"
+                    >
+                        Anterior
+                    </a>
+                </li>
+            {% endif %}
+
+            {% if inventory_page.has_next %}
+                <li class="page-item">
+                    <a
+                        class="page-link"
+                        href="?inventory_page={{ inventory_page.next_page_number }}"
+                        data-inventory-page="{{ inventory_page.next_page_number }}"
+                    >
+                        Siguiente
+                    </a>
+                </li>
+            {% endif %}
+        </ul>
+    </nav>
+{% endif %}
