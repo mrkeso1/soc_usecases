@@ -15,6 +15,7 @@ from apps.auditlog.alerts import safe_emit_operational_alert, safe_resolve_opera
 from .inventory_operations import (
     run_apply_filters,
     run_full_inventory_sync,
+    run_network_diagnostics,
     run_reprocess_inventory,
 )
 from .models import InventoryJob
@@ -208,6 +209,8 @@ def _execute(job, worker_id):
         return run_reprocess_inventory(progress_callback=callback)
     if job.job_type == InventoryJob.TYPE_APPLY_FILTERS:
         return run_apply_filters(progress_callback=callback)
+    if job.job_type == InventoryJob.TYPE_NETWORK_DIAGNOSTIC:
+        return run_network_diagnostics(progress_callback=callback)
     raise ValueError(f"Tipo de trabajo no soportado: {job.job_type}")
 
 

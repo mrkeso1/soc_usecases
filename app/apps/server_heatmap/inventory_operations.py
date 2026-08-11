@@ -8,6 +8,7 @@ from apps.auditlog.alerts import safe_emit_operational_alert, safe_resolve_opera
 from .inventory_filters import apply_inventory_filters
 from .management.commands.sync_server_inventory import build_ad_connector, build_siem_connector
 from .models import InventorySyncRun, ServerAsset
+from .network_diagnostics import diagnose_ingestion_gaps
 from .reconciliation import reprocess_stored_inventory, synchronize_inventory
 
 
@@ -131,5 +132,20 @@ def run_reprocess_inventory(*, progress_callback=None):
 def run_apply_filters(*, progress_callback=None):
     _progress(progress_callback, "apply_filters")
     result = apply_inventory_filters()
+    _progress(progress_callback, "completed", **result)
+    return result
+
+
+def run_network_diagnostics(*, progress_callback=None):
+    _progress(progress_callback, "diagnose_network", scope="pending_or_disabled")
+    result = diagnose_ingestion_gaps(
+        limit=None,
+        workers=16,
+        timeout=2,
+        only_unchecked=True,
+        include_disabled=True,
+        include_covered=True,
+        auto_disable_unreachable=True,
+    )
     _progress(progress_callback, "completed", **result)
     return result

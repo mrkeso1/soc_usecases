@@ -605,6 +605,34 @@ class ServerHeatmapTests(TestCase):
         self.assertEqual(job.status, InventoryJob.STATUS_PENDING)
         self.assertEqual(job.requested_by, user)
 
+    def test_diagnose_button_enqueues_complete_background_job(self):
+        user = get_user_model().objects.create_user("diagnose-admin", password="pass")
+        group, _ = Group.objects.get_or_create(name="Admin")
+        user.groups.add(group)
+        self.client.login(username="diagnose-admin", password="pass")
+
+        response = self.client.post(reverse("server_heatmap_gap_diagnose"))
+
+        self.assertRedirects(response, reverse("server_heatmap_administration"))
+        job = InventoryJob.objects.get(job_type=InventoryJob.TYPE_NETWORK_DIAGNOSTIC)
+        self.assertEqual(job.status, InventoryJob.STATUS_PENDING)
+        self.assertEqual(job.requested_by, user)
+
+    @patch(
+        "apps.server_heatmap.jobs.run_network_diagnostics",
+        return_value={"checked": 1200, "disabled": 25},
+    )
+    def test_worker_executes_complete_network_diagnostic(self, diagnostic):
+        job, _ = enqueue_inventory_job(InventoryJob.TYPE_NETWORK_DIAGNOSTIC)
+        claimed = claim_next_inventory_job("worker-test")
+
+        completed = execute_inventory_job(claimed, "worker-test")
+
+        diagnostic.assert_called_once()
+        self.assertEqual(completed.status, InventoryJob.STATUS_COMPLETED)
+        self.assertEqual(completed.result["checked"], 1200)
+        self.assertEqual(completed.result["disabled"], 25)
+
     @override_settings(
         ADMIN_ACTION_RATE_LIMIT_SYNC=2,
         ADMIN_ACTION_RATE_LIMIT_WINDOW_SECONDS=60,
@@ -1492,6 +1520,45 @@ class ServerHeatmapTests(TestCase):
         self.assertNotContains(response, "srv-unrelated")
         self.assertNotContains(response, "Panel de administración")
 
+    def test_asset_results_filter_by_ping_status(self):
+        user = get_user_model().objects.create_user("ping-filter-admin", password="pass")
+        group, _ = Group.objects.get_or_create(name="Admin")
+        user.groups.add(group)
+        self.client.login(username="ping-filter-admin", password="pass")
+        checked_at = django_timezone.now()
+        ServerAsset.objects.bulk_create([
+            ServerAsset(
+                hostname=f"ping-down-{index:02d}",
+                reachability_status=ServerAsset.REACHABILITY_UNREACHABLE,
+                network_checked_at=checked_at,
+            )
+            for index in range(21)
+        ])
+        ServerAsset.objects.create(
+            hostname="ping-up",
+            reachability_status=ServerAsset.REACHABILITY_REACHABLE,
+            network_checked_at=checked_at,
+        )
+
+        response = self.client.get(
+            reverse("server_heatmap_asset_results"),
+            {"ping": ServerAsset.REACHABILITY_UNREACHABLE},
+        )
+        full_response = self.client.get(
+            reverse("server_heatmap_administration"),
+            {"ping": ServerAsset.REACHABILITY_UNREACHABLE},
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Ping")
+        self.assertContains(response, "No responde")
+        self.assertContains(response, "ping-down-00")
+        self.assertNotContains(response, "ping-up")
+        self.assertContains(response, "ping=unreachable")
+        self.assertEqual(response.context["selected_ping"], "unreachable")
+        self.assertEqual(full_response.context["selected_ping"], "unreachable")
+        self.assertContains(full_response, 'value="unreachable" selected')
+
     def test_asset_results_treat_rule_exclusion_as_disabled(self):
         user = get_user_model().objects.create_user(
             "rule-exclusion-admin",
@@ -1958,3 +2025,59 @@ class ServerHeatmapTests(TestCase):
         self.assertEqual(summary["checked"], 1)
         self.assertEqual(asset.reachability_status, ServerAsset.REACHABILITY_UNREACHABLE)
         self.assertEqual(asset.diagnostic_result, "Revisar disponibilidad")
+
+    @patch("apps.server_heatmap.network_diagnostics.diagnose_asset")
+    def test_pending_and_disabled_diagnostic_auto_disables_only_unreachable(self, diagnose):
+        from .network_diagnostics import NetworkDiagnosticResult
+
+        pending = ServerAsset.objects.create(
+            hostname="pending-unreachable",
+            in_active_directory=True,
+            in_siem=True,
+        )
+        disabled = ServerAsset.objects.create(
+            hostname="disabled-reachable",
+            in_active_directory=True,
+            is_enabled=False,
+            network_checked_at=django_timezone.now() - timedelta(days=1),
+        )
+        checked_at = django_timezone.now()
+        checked = ServerAsset.objects.create(
+            hostname="checked-enabled",
+            in_active_directory=True,
+            network_checked_at=checked_at,
+        )
+
+        def result_for(asset, *, timeout):
+            status = (
+                ServerAsset.REACHABILITY_UNREACHABLE
+                if asset.id == pending.id
+                else ServerAsset.REACHABILITY_REACHABLE
+            )
+            return NetworkDiagnosticResult(
+                asset_id=asset.id,
+                dns_status=ServerAsset.DNS_RESOLVED,
+                resolved_ip_address="10.0.0.30",
+                reachability_status=status,
+            )
+
+        diagnose.side_effect = result_for
+        summary = diagnose_ingestion_gaps(
+            limit=10,
+            only_unchecked=True,
+            include_disabled=True,
+            include_covered=True,
+            auto_disable_unreachable=True,
+        )
+
+        pending.refresh_from_db()
+        disabled.refresh_from_db()
+        checked.refresh_from_db()
+        self.assertEqual(summary["checked"], 2)
+        self.assertEqual(summary["disabled"], 1)
+        self.assertFalse(pending.is_enabled)
+        self.assertFalse(disabled.is_enabled)
+        self.assertEqual(checked.network_checked_at, checked_at)
+        event = ServerAssetDisableEvent.objects.get(asset=pending)
+        self.assertIsNone(event.actor)
+        self.assertIn("no respondió al ping", event.justification)

@@ -33,7 +33,6 @@ from .models import (
     ServerInventoryConfiguration,
 )
 from .jobs import enqueue_inventory_job
-from .network_diagnostics import diagnose_ingestion_gaps
 from .inventory_filters import simulate_inventory_filters
 from .permissions import can_access_server_heatmap, can_manage_server_heatmap
 from .reconciliation import (
@@ -44,6 +43,9 @@ from .reconciliation import (
 
 MAX_SIEM_UPLOAD_BYTES = 15 * 1024 * 1024
 HEATMAP_TABLE_PAGE_SIZE = 50
+REACHABILITY_FILTER_VALUES = {
+    value for value, _label in ServerAsset.REACHABILITY_CHOICES
+}
 limit_inventory_sync = database_rate_limit(
     scope="server_inventory_sync",
     limit_setting="ADMIN_ACTION_RATE_LIMIT_SYNC",
@@ -587,26 +589,20 @@ def export_ingestion_gaps(request):
 def diagnose_gaps(request):
     if not can_access_server_heatmap(request.user):
         return HttpResponseForbidden("No tenés permisos para diagnosticar los equipos.")
-    result = diagnose_ingestion_gaps(
-        limit=200,
-        workers=16,
-        timeout=2,
-        only_unchecked=True,
+    job, created = enqueue_inventory_job(
+        InventoryJob.TYPE_NETWORK_DIAGNOSTIC,
+        requested_by=request.user,
+        idempotency_key=request.headers.get("Idempotency-Key"),
     )
-    remaining = ServerAsset.objects.filter(
-        is_enabled=True,
-        is_excluded_by_rule=False,
-        in_active_directory=True,
-        in_siem=False,
-        network_checked_at__isnull=True,
-    ).count()
     messages.success(
         request,
-        f"Diagnóstico finalizado: {result['checked']} equipos, "
-        f"{result['dns_resolved']} resolvieron DNS y {result['reachable']} respondieron ping. "
-        f"Quedan {remaining} sin verificar.",
+        (
+            f"Diagnóstico completo encolado como trabajo #{job.id}."
+            if created
+            else f"Ya existe un diagnóstico activo: trabajo #{job.id}."
+        ),
     )
-    return redirect("server_heatmap")
+    return redirect("server_heatmap_administration")
 
 
 @login_required
@@ -764,7 +760,10 @@ def server_administration(request):
     query = (request.GET.get("q") or "").strip()
     enabled = (request.GET.get("enabled") or "all").strip()
     server_type = (request.GET.get("type") or "").strip()
-    assets = ServerAsset.objects.all()
+    selected_ping = (request.GET.get("ping") or "all").strip()
+    if selected_ping not in REACHABILITY_FILTER_VALUES | {"all"}:
+        selected_ping = "all"
+    assets = ServerAsset.objects.select_related("category")
     if query:
         assets = assets.filter(
             Q(hostname__icontains=query)
@@ -783,6 +782,8 @@ def server_administration(request):
         )
     if server_type:
         assets = assets.filter(category_id=server_type)
+    if selected_ping != "all":
+        assets = assets.filter(reachability_status=selected_ping)
     page = Paginator(assets.order_by("hostname"), 20).get_page(request.GET.get("page"))
 
     return render(
@@ -799,6 +800,7 @@ def server_administration(request):
             "query": query,
             "selected_enabled": enabled,
             "selected_type": server_type,
+            "selected_ping": selected_ping,
             "type_choices": ServerCategory.objects.filter(is_active=True),
         },
     )
@@ -808,7 +810,10 @@ def _filtered_assets(params):
     query = (params.get("q") or "").strip()
     enabled = (params.get("enabled") or "all").strip()
     server_type = (params.get("type") or "").strip()
-    assets = ServerAsset.objects.all()
+    selected_ping = (params.get("ping") or "all").strip()
+    if selected_ping not in REACHABILITY_FILTER_VALUES | {"all"}:
+        selected_ping = "all"
+    assets = ServerAsset.objects.select_related("category")
     if query:
         assets = assets.filter(
             Q(hostname__icontains=query)
@@ -827,12 +832,15 @@ def _filtered_assets(params):
         )
     if server_type:
         assets = assets.filter(category_id=server_type)
+    if selected_ping != "all":
+        assets = assets.filter(reachability_status=selected_ping)
     page = Paginator(assets.order_by("hostname"), 20).get_page(params.get("page"))
     return {
         "asset_page": page,
         "query": query,
         "selected_enabled": enabled,
         "selected_type": server_type,
+        "selected_ping": selected_ping,
     }
 
 

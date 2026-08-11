@@ -250,10 +250,12 @@ class InventoryJob(models.Model):
     TYPE_FULL_SYNC = "full_sync"
     TYPE_REPROCESS = "reprocess"
     TYPE_APPLY_FILTERS = "apply_filters"
+    TYPE_NETWORK_DIAGNOSTIC = "network_diagnostic"
     TYPE_CHOICES = [
         (TYPE_FULL_SYNC, "Actualizar AD y SIEM"),
         (TYPE_REPROCESS, "Cruzar inventario almacenado"),
         (TYPE_APPLY_FILTERS, "Aplicar filtros"),
+        (TYPE_NETWORK_DIAGNOSTIC, "Diagnosticar conectividad"),
     ]
     STATUS_PENDING = "pending"
     STATUS_RUNNING = "running"

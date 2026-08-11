@@ -14,6 +14,7 @@ class Command(BaseCommand):
                 InventoryJob.TYPE_FULL_SYNC,
                 InventoryJob.TYPE_REPROCESS,
                 InventoryJob.TYPE_APPLY_FILTERS,
+                InventoryJob.TYPE_NETWORK_DIAGNOSTIC,
             ],
             default=InventoryJob.TYPE_FULL_SYNC,
         )

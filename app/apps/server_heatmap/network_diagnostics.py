@@ -7,9 +7,11 @@ import ipaddress
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass
 
+from django.db import transaction
+from django.db.models import F, Q
 from django.utils import timezone
 
-from .models import ServerAsset
+from .models import ServerAsset, ServerAssetDisableEvent
 
 
 @dataclass(slots=True)
@@ -141,16 +143,37 @@ def diagnose_asset(asset, *, timeout=2):
     )
 
 
-def diagnose_ingestion_gaps(*, limit=500, workers=12, timeout=2, only_unchecked=False):
-    queryset = ServerAsset.objects.filter(
-        is_enabled=True,
-        is_excluded_by_rule=False,
-        in_active_directory=True,
-        in_siem=False,
+def diagnose_ingestion_gaps(
+    *,
+    limit=500,
+    workers=12,
+    timeout=2,
+    only_unchecked=False,
+    include_disabled=False,
+    include_covered=False,
+    auto_disable_unreachable=False,
+):
+    queryset = ServerAsset.objects.filter(in_active_directory=True)
+    if not include_covered:
+        queryset = queryset.filter(in_siem=False)
+    if include_disabled:
+        if only_unchecked:
+            queryset = queryset.filter(
+                Q(network_checked_at__isnull=True)
+                | Q(is_enabled=False)
+                | Q(is_excluded_by_rule=True)
+            )
+    else:
+        queryset = queryset.filter(is_enabled=True, is_excluded_by_rule=False)
+        if only_unchecked:
+            queryset = queryset.filter(network_checked_at__isnull=True)
+    queryset = queryset.order_by(
+        F("network_checked_at").asc(nulls_first=True),
+        "hostname",
     )
-    if only_unchecked:
-        queryset = queryset.filter(network_checked_at__isnull=True)
-    assets = list(queryset.order_by("hostname")[:limit])
+    if limit is not None:
+        queryset = queryset[:limit]
+    assets = list(queryset)
     results = []
     with ThreadPoolExecutor(max_workers=max(1, min(workers, 32))) as executor:
         futures = {
@@ -170,17 +193,42 @@ def diagnose_ingestion_gaps(*, limit=500, workers=12, timeout=2, only_unchecked=
         asset.reachability_status = result.reachability_status
         asset.network_checked_at = checked_at
         asset.network_check_error = result.error
-    ServerAsset.objects.bulk_update(
-        assets,
-        [
-            "dns_status",
-            "resolved_fqdn",
-            "resolved_ip_address",
-            "reachability_status",
-            "network_checked_at",
-            "network_check_error",
-        ],
-    )
+    automatically_disabled = [
+        asset
+        for asset in assets
+        if auto_disable_unreachable
+        and asset.is_effectively_enabled
+        and asset.reachability_status == ServerAsset.REACHABILITY_UNREACHABLE
+    ]
+    for asset in automatically_disabled:
+        asset.is_enabled = False
+
+    update_fields = [
+        "dns_status",
+        "resolved_fqdn",
+        "resolved_ip_address",
+        "reachability_status",
+        "network_checked_at",
+        "network_check_error",
+    ]
+    if auto_disable_unreachable:
+        update_fields.append("is_enabled")
+    with transaction.atomic():
+        ServerAsset.objects.bulk_update(assets, update_fields)
+        ServerAssetDisableEvent.objects.bulk_create([
+            ServerAssetDisableEvent(
+                asset=asset,
+                hostname=asset.hostname,
+                actor=None,
+                justification=(
+                    "Deshabilitado automáticamente: el equipo no respondió al ping "
+                    "durante el diagnóstico de red."
+                ),
+                previous_enabled=True,
+                new_enabled=False,
+            )
+            for asset in automatically_disabled
+        ])
     return {
         "checked": len(assets),
         "dns_resolved": sum(item.dns_status == ServerAsset.DNS_RESOLVED for item in assets),
@@ -196,4 +244,5 @@ def diagnose_ingestion_gaps(*, limit=500, workers=12, timeout=2, only_unchecked=
             item.reachability_status == ServerAsset.REACHABILITY_ERROR
             for item in assets
         ),
+        "disabled": len(automatically_disabled),
     }

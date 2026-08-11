@@ -38,13 +38,19 @@
     .heat-matrix-legend { display:flex; flex-wrap:wrap; gap:12px; margin:16px 0 10px; color:var(--text-muted); font-size:.76rem; }
     .heat-matrix-legend i { display:inline-block; width:9px; height:9px; margin-right:5px; border-radius:3px; }
     .heat-matrix-shell { overflow:auto; border:1px solid var(--border); border-radius:14px; background:var(--surface); }
-    .heat-matrix { width:100%; min-width:1180px; border-collapse:separate; border-spacing:7px; padding:8px; }
-    .heat-matrix th { padding:8px; color:#8bb7e8; font:800 10px 'JetBrains Mono',monospace; letter-spacing:.08em; text-align:center; text-transform:uppercase; }
-    .heat-matrix th:first-child { min-width:145px; position:sticky; left:0; z-index:2; background:var(--surface); text-align:left; }
-    .heat-matrix-row { position:sticky; left:0; z-index:1; min-width:145px; padding:14px; border:1px solid var(--border); border-radius:11px; background:var(--surface-2); vertical-align:top; }
+    .heat-matrix { width:100%; min-width:720px; table-layout:fixed; border-collapse:separate; border-spacing:clamp(4px,.45vw,7px); padding:clamp(4px,.5vw,8px); }
+    .heat-matrix.is-compact { min-width:900px; }
+    .heat-matrix.is-dense { min-width:1080px; }
+    .heat-matrix th { padding:clamp(5px,.5vw,8px); overflow-wrap:anywhere; color:#8bb7e8; font:800 10px/1.25 'JetBrains Mono',monospace; letter-spacing:.08em; text-align:center; text-transform:uppercase; }
+    .heat-matrix th:first-child { width:112px; position:sticky; left:0; z-index:2; background:var(--surface); text-align:left; }
+    .heat-matrix-row { position:sticky; left:0; z-index:1; min-width:0; padding:clamp(7px,.65vw,10px); overflow-wrap:anywhere; border:1px solid var(--border); border-radius:11px; background:var(--surface-2); vertical-align:top; }
     .heat-matrix-row strong,.heat-matrix-row small { display:block; }
     .heat-matrix-row small { margin-top:5px; color:var(--text-muted); }
-    .heat-matrix-cell { min-width:190px; padding:13px; border:1px solid var(--border); border-radius:12px; background:var(--surface-2); vertical-align:top; }
+    .heat-matrix-cell { min-width:0; padding:clamp(7px,.65vw,10px); border:1px solid var(--border); border-radius:12px; background:var(--surface-2); vertical-align:top; }
+    .heat-matrix.is-compact .heat-matrix-cell { padding:8px; }
+    .heat-matrix.is-dense .heat-matrix-cell { padding:6px; }
+    .heat-matrix.is-dense .heat-matrix-head span { font-size:8px; letter-spacing:.03em; }
+    .heat-matrix.is-dense .heat-matrix-metric { gap:4px; font-size:.66rem; }
     .heat-matrix-cell.good { background:rgba(0,229,160,.18); border-color:rgba(0,229,160,.48); }
     .heat-matrix-cell.medium { background:rgba(45,122,255,.18); border-color:rgba(45,122,255,.48); }
     .heat-matrix-cell.warning { background:rgba(245,166,35,.20); border-color:rgba(245,166,35,.5); }
@@ -368,7 +374,7 @@
             </div>
             <section class="heat-matrix-shell">
                 {% if server_heatmap_matrix_rows and server_heatmap_matrix_types %}
-                <table class="heat-matrix">
+                <table class="heat-matrix{% if server_heatmap_matrix_types|length > 9 %} is-dense{% elif server_heatmap_matrix_types|length > 6 %} is-compact{% endif %}">
                     <thead><tr><th>OS / sección</th>{% for category in server_heatmap_matrix_types %}<th>{{ category.name }}</th>{% endfor %}</tr></thead>
                     <tbody>{% for row in server_heatmap_matrix_rows %}<tr>
                         <td class="heat-matrix-row"><strong>{{ row.label }}</strong><small>{{ row.total }} equipos</small></td>

@@ -20,6 +20,11 @@
     .status-pill { display:inline-block; padding:3px 7px; border-radius:999px; background:var(--accent-dim); }
     .status-pill.on { color:var(--good); }
     .status-pill.off { color:var(--bad); }
+    .status-pill.ping-reachable { color:var(--good); background:rgba(0,229,160,.12); }
+    .status-pill.ping-unreachable { color:var(--bad); background:rgba(255,71,87,.14); }
+    .status-pill.ping-error { color:var(--medium); background:rgba(245,166,35,.14); }
+    .status-pill.ping-unchecked { color:var(--text-muted); background:var(--surface-3); }
+    .ping-checked-at { display:block; margin-top:4px; color:var(--text-muted); font-size:.68rem; white-space:nowrap; }
     .asset-filters { margin:12px 0; }
     .live-status { min-height:18px; color:var(--text-muted); font-size:.75rem; }
     #asset-results.is-loading { opacity:.55; pointer-events:none; }
@@ -76,8 +81,9 @@
             <p>Los resultados se actualizan mientras escribís, sin recargar la pantalla.</p>
             <form method="get" class="asset-filters row g-2 align-items-end" id="asset-live-filters">
                 <div class="col-12 col-lg-6"><label class="form-label visually-hidden" for="asset-search">Buscar equipo</label><input class="form-control" id="asset-search" type="search" name="q" value="{{ query }}" placeholder="Hostname, IP, aplicación u OU" autocomplete="off"></div>
-                <div class="col-12 col-md-6 col-lg-3"><label class="form-label visually-hidden" for="asset-enabled">Estado</label><select class="form-select" id="asset-enabled" name="enabled"><option value="all">Todos los estados</option><option value="yes" {% if selected_enabled == 'yes' %}selected{% endif %}>Habilitados</option><option value="no" {% if selected_enabled == 'no' %}selected{% endif %}>Deshabilitados</option></select></div>
-                <div class="col-12 col-md-6 col-lg-3"><label class="form-label visually-hidden" for="asset-type">Sección</label><select class="form-select" id="asset-type" name="type"><option value="">Todas las secciones</option>{% for category in type_choices %}<option value="{{ category.id }}" {% if selected_type == category.id|stringformat:"s" %}selected{% endif %}>{{ category.name }}</option>{% endfor %}</select></div>
+                <div class="col-12 col-md-6 col-lg-2"><label class="form-label visually-hidden" for="asset-enabled">Estado</label><select class="form-select" id="asset-enabled" name="enabled"><option value="all">Todos los estados</option><option value="yes" {% if selected_enabled == 'yes' %}selected{% endif %}>Habilitados</option><option value="no" {% if selected_enabled == 'no' %}selected{% endif %}>Deshabilitados</option></select></div>
+                <div class="col-12 col-md-6 col-lg-2"><label class="form-label visually-hidden" for="asset-type">Sección</label><select class="form-select" id="asset-type" name="type"><option value="">Todas las secciones</option>{% for category in type_choices %}<option value="{{ category.id }}" {% if selected_type == category.id|stringformat:"s" %}selected{% endif %}>{{ category.name }}</option>{% endfor %}</select></div>
+                <div class="col-12 col-md-6 col-lg-2"><label class="form-label visually-hidden" for="asset-ping">Ping</label><select class="form-select" id="asset-ping" name="ping"><option value="all">Todos los resultados de ping</option><option value="reachable" {% if selected_ping == 'reachable' %}selected{% endif %}>Responde</option><option value="unreachable" {% if selected_ping == 'unreachable' %}selected{% endif %}>No responde</option><option value="unchecked" {% if selected_ping == 'unchecked' %}selected{% endif %}>Sin verificar</option><option value="error" {% if selected_ping == 'error' %}selected{% endif %}>Ping no disponible</option></select></div>
             </form>
             <div class="live-status" id="asset-live-status" aria-live="polite"></div>
             <div id="asset-results">{% include "server_heatmap/_asset_results.html" %}</div>

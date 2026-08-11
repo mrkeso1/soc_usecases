@@ -124,7 +124,7 @@
 {% endblock %}
 
 {% block content %}
-<main class="container-fluid px-3 px-lg-4 py-4"><section class="page-shell wide">
+<main class="container-xxl px-3 px-lg-4 py-4"><section class="page-shell wide">
     <header class="page-header">
         <div><div class="page-eyebrow">// INVENTARIO AD × SIEM</div><h1 class="page-title">Mapa de calor de servidores</h1><p class="page-subtitle">Compara equipos registrados en Active Directory con los que tienen ingesta en el SIEM. La clasificación surge de las reglas de inventario o de una corrección manual.</p></div>
         <div class="header-actions">
@@ -356,7 +356,7 @@
 
             </div>
             <div class="header-actions">
-                <form method="post" action="{% url 'server_heatmap_gap_diagnose' %}" data-submit-once>{% csrf_token %}<button class="btn btn-outline-secondary" type="submit" data-busy-text="Diagnosticando…">Diagnosticar próximos 200</button></form>
+                <form method="post" action="{% url 'server_heatmap_gap_diagnose' %}" data-submit-once>{% csrf_token %}<button class="btn btn-outline-secondary" type="submit" data-busy-text="Encolando…">Diagnosticar todos</button></form>
                 <a class="btn btn-outline-secondary" href="{% url 'server_heatmap_gap_export' %}">Descargar pendientes CSV</a>
             </div>
         </div>
