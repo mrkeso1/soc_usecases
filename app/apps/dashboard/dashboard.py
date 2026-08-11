@@ -20,7 +20,7 @@ from apps.usecases.models import UseCase
 from apps.lifecycle.lifecycle import lifecycle_state
 from apps.controls.models import Control
 from apps.sigma_tools.models import UseCaseTechnicalBackup
-from apps.server_heatmap.models import ServerAsset
+from apps.server_heatmap.models import ServerAsset, ServerCategory
 from .models import MitreCoverageSnapshot
 
 
@@ -136,6 +136,7 @@ def _donut_gradient(rows):
 
 def build_executive_dashboard_context(request):
     today = date.today()
+    server_environment = (request.GET.get("environment") or "PROD").strip()
     usecases = UseCase.objects.prefetch_related("source_links__source", "mitre_attacks", "d3fends")
     operational_usecases = usecases.exclude(status__iexact=UseCase.STATUS_RETIRED)
     sources = EventSource.objects.all()
@@ -300,12 +301,27 @@ def build_executive_dashboard_context(request):
     ]
 
     server_heatmap_rows = []
+    server_heatmap_matrix_rows = []
+    server_heatmap_matrix_types = []
+    server_environment_choices = []
     try:
+        server_environment_choices = sorted({
+            value.strip().upper()
+            for value in ServerAsset.objects.exclude(environment="")
+            .values_list("environment", flat=True)
+            if value.strip()
+        })
         enabled_ad_assets = ServerAsset.objects.filter(
             is_enabled=True,
             is_excluded_by_rule=False,
             in_active_directory=True,
         )
+        if server_environment.lower() == "all":
+            server_environment = "all"
+        else:
+            enabled_ad_assets = enabled_ad_assets.filter(
+                environment__iexact=server_environment,
+            )
         operating_systems = (
             ("Windows", [ServerAsset.OS_WINDOWS], "#2d7aff"),
             (
@@ -331,6 +347,61 @@ def build_executive_dashboard_context(request):
                     f"conic-gradient({color} 0% {percent}%, "
                     f"rgba(255,71,87,.78) {percent}% 100%)"
                 ),
+            })
+        server_heatmap_matrix_types = list(
+            ServerCategory.objects.filter(is_active=True).order_by("order", "name")
+        )
+        matrix_groups = (
+            (ServerAsset.OS_WINDOWS, "Windows", (ServerAsset.OS_WINDOWS,)),
+            (
+                ServerAsset.OS_LINUX,
+                "Linux",
+                (ServerAsset.OS_LINUX, ServerAsset.OS_UNIX),
+            ),
+        )
+        matrix_data = {
+            (item["os_family"], item["category_id"]): item
+            for item in enabled_ad_assets.values("os_family", "category_id").annotate(
+                ad_count=models.Count("id"),
+                covered_count=models.Count("id", filter=models.Q(in_siem=True)),
+            )
+        }
+        for key, label, families in matrix_groups:
+            cells = []
+            row_total = 0
+            for category in server_heatmap_matrix_types:
+                grouped = [
+                    matrix_data.get((family, category.id), {})
+                    for family in families
+                ]
+                ad_count = sum(item.get("ad_count", 0) for item in grouped)
+                covered_count = sum(item.get("covered_count", 0) for item in grouped)
+                pending = max(ad_count - covered_count, 0)
+                percent = _safe_percent(covered_count, ad_count) if ad_count else None
+                row_total += ad_count
+                if not ad_count:
+                    level = "empty"
+                elif percent >= 90:
+                    level = "good"
+                elif percent >= 70:
+                    level = "medium"
+                elif percent > 0:
+                    level = "warning"
+                else:
+                    level = "bad"
+                cells.append({
+                    "category": category,
+                    "ad_count": ad_count,
+                    "covered_count": covered_count,
+                    "pending": pending,
+                    "percent": percent,
+                    "level": level,
+                })
+            server_heatmap_matrix_rows.append({
+                "key": key,
+                "label": label,
+                "total": row_total,
+                "cells": cells,
             })
     except (OperationalError, ProgrammingError):
         server_heatmap_rows = []
@@ -413,6 +484,10 @@ def build_executive_dashboard_context(request):
         "server_heatmap_covered": server_heatmap_covered,
         "server_heatmap_pending": server_heatmap_pending,
         "server_heatmap_percent": server_heatmap_percent,
+        "server_heatmap_matrix_rows": server_heatmap_matrix_rows,
+        "server_heatmap_matrix_types": server_heatmap_matrix_types,
+        "server_environment_choices": server_environment_choices,
+        "selected_server_environment": server_environment,
     }
 
 

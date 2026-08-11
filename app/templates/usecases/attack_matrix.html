@@ -1,215 +1,122 @@
-{% extends "base.html" %}
+{% extends "base_bootstrap.html" %}
 {% load l10n %}
 
-{% block title %}Matriz ATT&CK - SOC Use Cases Manager{% endblock %}
+{% block title %}Matriz ATT&amp;CK - SOC Use Cases Manager{% endblock %}
 
 {% block extra_css %}
 <style>
-    .page-header { display:flex; justify-content:space-between; align-items:flex-end; gap:18px; margin-bottom:22px; }
-    .page-eyebrow { font-family:'JetBrains Mono', monospace; font-size:11px; color:var(--accent); letter-spacing:.12em; text-transform:uppercase; }
-    .page-title { font-size:clamp(1.45rem, 2.2vw, 2rem); color:var(--text-strong); margin:4px 0; line-height:1.08; }
-    .page-subtitle { color:var(--text-muted); max-width:900px; line-height:1.5; }
-    .page-actions { display:flex; gap:8px; flex-wrap:wrap; justify-content:flex-end; }
-    .translation-upload { display:inline-flex; }
-    .translation-upload input { position:absolute; width:1px; height:1px; opacity:0; pointer-events:none; }
-
-    .summary-strip { display:grid; grid-template-columns:repeat(7, minmax(140px, 1fr)); gap:10px; margin:18px 0 20px; }
-    .summary-card { background:var(--surface); border:1px solid var(--border); border-radius:14px; padding:14px; min-width:0; }
-    .summary-label { font-family:'JetBrains Mono', monospace; color:var(--text-muted); font-size:10px; text-transform:uppercase; letter-spacing:.08em; }
-    .summary-value { margin-top:8px; color:var(--text-strong); font-family:'JetBrains Mono', monospace; font-size:1.2rem; font-weight:800; white-space:nowrap; }
-    .summary-value.good { color:var(--good); }
-    .summary-value.medium { color:var(--medium); }
-    .summary-value.bad { color:var(--bad); }
-    .summary-note { margin-top:4px; font-size:.78rem; color:var(--text-muted); }
-
-    .filters { display:grid; grid-template-columns:repeat(5, minmax(150px, 1fr)); gap:10px; background:var(--surface); border:1px solid var(--border); border-radius:14px; padding:14px; margin-bottom:18px; }
-    .field label { display:block; font-family:'JetBrains Mono', monospace; color:var(--text-muted); font-size:10px; text-transform:uppercase; letter-spacing:.08em; margin-bottom:6px; }
-    .field select { width:100%; background:var(--surface-2); color:var(--text-strong); border:1px solid var(--border); border-radius:8px; padding:10px; outline:none; }
-    .field select:focus { border-color:var(--border-bright); }
-    .filter-actions { display:flex; gap:8px; align-items:end; }
-    .btn-primary, .btn-secondary { display:inline-flex; align-items:center; justify-content:center; gap:6px; border:1px solid var(--border); border-radius:8px; padding:10px 13px; text-decoration:none; font-family:'JetBrains Mono', monospace; font-size:12px; cursor:pointer; min-height:40px; white-space:nowrap; }
-    .btn-primary { background:var(--accent); color:white; border-color:var(--accent); }
-    .btn-secondary { background:var(--surface-2); color:var(--text); }
-
-    .legend { display:flex; flex-wrap:wrap; gap:8px; margin:0 0 12px; color:var(--text-muted); font-size:.82rem; }
-    .legend strong { color:var(--text-strong); }
-
-    .matrix-wrap { background:var(--surface); border:1px solid var(--border); border-radius:16px; overflow:auto; }
-    .matrix-table { width:100%; min-width:1180px; border-collapse:collapse; }
-    .matrix-table th, .matrix-table td { padding:14px; border-bottom:1px solid var(--border); text-align:left; vertical-align:top; }
-    .matrix-table th { font-family:'JetBrains Mono', monospace; color:var(--text-muted); font-size:11px; text-transform:uppercase; letter-spacing:.08em; background:rgba(17,29,48,.8); position:sticky; top:0; z-index:1; }
-    .matrix-table tr:last-child td { border-bottom:0; }
-
-    .entity-code { display:inline-flex; align-items:center; gap:8px; font-family:'JetBrains Mono', monospace; color:var(--accent); font-weight:800; letter-spacing:.02em; }
-    .entity-name { margin-top:5px; color:var(--text-strong); font-weight:750; line-height:1.28; overflow-wrap:anywhere; }
-    .entity-meta { margin-top:5px; color:var(--text-muted); font-size:.84rem; line-height:1.35; }
-
-    .status-chip { display:inline-flex; border-radius:999px; padding:3px 7px; font-size:10px; font-family:'JetBrains Mono', monospace; border:1px solid var(--border); color:var(--text-muted); background:rgba(17,29,48,.65); white-space:nowrap; }
-    .status-chip.good { color:var(--good); border-color:rgba(0,229,160,.35); background:rgba(0,229,160,.08); }
-    .status-chip.medium { color:var(--medium); border-color:rgba(245,166,35,.35); background:rgba(245,166,35,.08); }
-    .status-chip.bad { color:#ff9aa3; border-color:rgba(255,71,87,.35); background:rgba(255,71,87,.08); }
-    .status-chip.fulfilled { color:#9ec5ff; border-color:rgba(45,122,255,.42); background:rgba(45,122,255,.12); }
-
-    .coverage-cell { min-width:210px; }
-    .coverage-head { display:flex; justify-content:space-between; align-items:center; gap:10px; margin-bottom:8px; font-family:'JetBrains Mono', monospace; }
-    .coverage-percent { color:var(--text-strong); font-weight:800; }
-    .coverage-count { color:var(--text-muted); font-size:12px; }
-    .bar { height:9px; background:rgba(78,106,142,.22); border-radius:999px; overflow:hidden; }
-    .bar-fill { height:100%; border-radius:999px; }
-    .bar-fill.good { background:var(--good); }
-    .bar-fill.medium { background:var(--medium); }
-    .bar-fill.low, .bar-fill.empty { background:var(--bad); }
-
-    .chip-grid { display:flex; flex-wrap:wrap; gap:7px; }
-    .matrix-chip { max-width:280px; border:1px solid var(--border); border-radius:999px; padding:6px 9px; font-size:.78rem; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; color:var(--text-muted); background:rgba(17,29,48,.65); text-decoration:none; }
-    .matrix-chip.covered { color:#7cf7cf; border-color:rgba(0,229,160,.35); background:rgba(0,229,160,.08); }
-    .matrix-chip.fulfilled { color:#9ec5ff; border-color:rgba(45,122,255,.42); background:rgba(45,122,255,.12); }
-    .matrix-chip.missing { color:#ff9aa3; border-color:rgba(255,71,87,.35); background:rgba(255,71,87,.08); }
-    .empty-state { padding:28px; color:var(--text-muted); text-align:center; }
-
-    @media (max-width: 1100px) {
-        .summary-strip { grid-template-columns:repeat(3, 1fr); }
-        .filters { grid-template-columns:repeat(2, 1fr); }
-        .page-header { display:block; }
-        .page-actions { justify-content:flex-start; margin-top:12px; }
-    }
-    @media (max-width: 720px) {
-        .summary-strip, .filters { grid-template-columns:1fr; }
-    }
+    .translation-upload { display: inline-flex; }
+    .translation-upload input { position: absolute; width: 1px; height: 1px; opacity: 0; pointer-events: none; }
+    .summary-value { margin-top: 8px; color: var(--text-strong); font-family: 'JetBrains Mono', monospace; font-size: 1.2rem; font-weight: 800; white-space: nowrap; }
+    .summary-value.good { color: var(--good); }
+    .summary-value.medium { color: var(--medium); }
+    .summary-value.bad { color: var(--bad); }
+    .summary-note { margin-top: 4px; font-size: .78rem; color: var(--text-muted); }
+    .legend { display: flex; flex-wrap: wrap; gap: 8px; color: var(--text-muted); font-size: .82rem; }
+    .legend strong { color: var(--text-strong); }
+    .matrix-wrap { min-width: 0; max-width: 100%; overflow: auto; }
+    .matrix-table { min-width: 1180px; }
+    .matrix-table th, .matrix-table td { padding: 14px; text-align: left; vertical-align: top; }
+    .matrix-table th { font-family: 'JetBrains Mono', monospace; color: var(--text-muted); font-size: 11px; text-transform: uppercase; letter-spacing: .08em; position: sticky; top: 0; z-index: 1; }
+    .entity-code { display: inline-flex; align-items: center; gap: 8px; font-family: 'JetBrains Mono', monospace; color: var(--accent); font-weight: 800; letter-spacing: .02em; }
+    .entity-name { margin-top: 5px; color: var(--text-strong); font-weight: 750; line-height: 1.28; overflow-wrap: anywhere; }
+    .entity-meta { margin-top: 5px; color: var(--text-muted); font-size: .84rem; line-height: 1.35; }
+    .status-chip { display: inline-flex; border-radius: 999px; padding: 3px 7px; font-size: 10px; font-family: 'JetBrains Mono', monospace; border: 1px solid var(--border); color: var(--text-muted); background: rgba(17,29,48,.65); white-space: nowrap; }
+    .status-chip.good { color: var(--good); border-color: rgba(0,229,160,.35); background: rgba(0,229,160,.08); }
+    .status-chip.medium { color: var(--medium); border-color: rgba(245,166,35,.35); background: rgba(245,166,35,.08); }
+    .status-chip.bad { color: #ff9aa3; border-color: rgba(255,71,87,.35); background: rgba(255,71,87,.08); }
+    .status-chip.fulfilled { color: #9ec5ff; border-color: rgba(45,122,255,.42); background: rgba(45,122,255,.12); }
+    .coverage-cell { min-width: 210px; }
+    .coverage-head { display: flex; justify-content: space-between; align-items: center; gap: 10px; margin-bottom: 8px; font-family: 'JetBrains Mono', monospace; }
+    .coverage-percent { color: var(--text-strong); font-weight: 800; }
+    .coverage-count { color: var(--text-muted); font-size: 12px; }
+    .bar { height: 9px; background: rgba(78,106,142,.22); border-radius: 999px; overflow: hidden; }
+    .bar-fill { height: 100%; border-radius: 999px; }
+    .bar-fill.good { background: var(--good); }
+    .bar-fill.medium { background: var(--medium); }
+    .bar-fill.low, .bar-fill.empty { background: var(--bad); }
+    .chip-grid { display: flex; flex-wrap: wrap; gap: 7px; }
+    .matrix-chip { max-width: 280px; border: 1px solid var(--border); border-radius: 999px; padding: 6px 9px; font-size: .78rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: var(--text-muted); background: rgba(17,29,48,.65); text-decoration: none; }
+    .matrix-chip.covered { color: #7cf7cf; border-color: rgba(0,229,160,.35); background: rgba(0,229,160,.08); }
+    .matrix-chip.fulfilled { color: #9ec5ff; border-color: rgba(45,122,255,.42); background: rgba(45,122,255,.12); }
+    .matrix-chip.missing { color: #ff9aa3; border-color: rgba(255,71,87,.35); background: rgba(255,71,87,.08); }
 </style>
 {% endblock %}
 
 {% block content %}
-<div class="container">
-    <div class="page-header">
-        <div>
-            <div class="page-eyebrow">// MATRIZ ATT&CK</div>
-            <h1 class="page-title">Cobertura por táctica, técnica y subtécnica</h1>
-            <p class="page-subtitle">Calcula cuánto de cada táctica ATT&CK está cubierto por casos productivos habilitados y por coberturas externas administradas manualmente.</p>
-        </div>
-        <div class="page-actions">
-            <a class="btn-secondary" href="{% url 'mitre_translation_export' %}">Descargar traducciones</a>
-            {% if can_manage_mitre %}<form class="translation-upload" method="post" action="{% url 'mitre_translation_import' %}" enctype="multipart/form-data">{% csrf_token %}<input type="hidden" name="next" value="attack_matrix"><label class="btn-secondary" for="attack-translation-file">Subir traducciones</label><input id="attack-translation-file" name="translation_file" type="file" accept=".csv,text/csv" onchange="this.form.submit()"></form>{% endif %}
-            <a class="btn-secondary" href="{% url 'd3fend_matrix' %}">Ver D3FEND</a>
-            <a class="btn-secondary" href="{% url 'coverage_admin' %}?tab=ATTACK&scope=technique">Admin cobertura</a>
-        </div>
-    </div>
+<main class="container-xxl py-4 px-3 px-lg-4">
+    <div class="vstack gap-4">
+        <section class="card border shadow-sm">
+            <div class="card-body p-3 p-lg-4">
+                <header class="row g-3 align-items-start">
+                    <div class="col-12 col-xl">
+                        <div class="page-eyebrow">// MATRIZ ATT&amp;CK</div>
+                        <h1 class="page-title mb-2">Cobertura por táctica, técnica y subtécnica</h1>
+                        <p class="page-subtitle mb-0">Calcula cuánto de cada táctica ATT&amp;CK está cubierto por casos productivos habilitados y por coberturas externas administradas manualmente.</p>
+                    </div>
+                    <div class="col-12 col-xl-auto">
+                        <div class="d-flex flex-wrap gap-2 justify-content-xl-end">
+                            <a class="btn btn-outline-secondary btn-sm" href="{% url 'mitre_translation_export' %}">Descargar traducciones</a>
+                            {% if can_manage_mitre %}<form class="translation-upload" method="post" action="{% url 'mitre_translation_import' %}" enctype="multipart/form-data">{% csrf_token %}<input type="hidden" name="next" value="attack_matrix"><label class="btn btn-outline-secondary btn-sm" for="attack-translation-file">Subir traducciones</label><input id="attack-translation-file" name="translation_file" type="file" accept=".csv,text/csv" onchange="this.form.submit()"></form>{% endif %}
+                            <a class="btn btn-outline-secondary btn-sm" href="{% url 'd3fend_matrix' %}">Ver D3FEND</a>
+                            <a class="btn btn-outline-secondary btn-sm" href="{% url 'coverage_admin' %}?tab=ATTACK&amp;scope=technique">Admin cobertura</a>
+                        </div>
+                    </div>
+                </header>
+            </div>
+        </section>
 
-    <div class="summary-strip">
-        <div class="summary-card"><div class="summary-label">Cobertura global</div><div class="summary-value {% if overall_coverage_percent >= 80 %}good{% elif overall_coverage_percent >= 40 %}medium{% else %}bad{% endif %}">{{ overall_coverage_percent }}%</div><div class="summary-note">{{ covered_techniques }}/{{ total_techniques }} técnicas/subtécnicas</div></div>
-        <div class="summary-card"><div class="summary-label">Tácticas visibles</div><div class="summary-value">{{ visible_tactics }}/{{ total_tactics }}</div><div class="summary-note">según filtros aplicados</div></div>
-        <div class="summary-card"><div class="summary-label">100% cubiertas</div><div class="summary-value good">{{ fully_covered_tactics }}</div><div class="summary-note">todas sus técnicas cubiertas</div></div>
-        <div class="summary-card"><div class="summary-label">Parciales</div><div class="summary-value medium">{{ partially_covered_tactics }}</div><div class="summary-note">al menos una técnica cubierta</div></div>
-        <div class="summary-card"><div class="summary-label">Sin cobertura</div><div class="summary-value bad">{{ empty_tactics }}</div><div class="summary-note">sin técnicas macheadas</div></div>
-        <div class="summary-card"><div class="summary-label">Cumplidas por herramienta</div><div class="summary-value">{{ manual_covered_techniques }}</div><div class="summary-note">sin requerir caso de uso</div></div>
-        <div class="summary-card"><div class="summary-label">Subtécnicas</div><div class="summary-value">{{ subtechnique_coverage_percent }}%</div><div class="summary-note">{{ covered_subtechniques }}/{{ total_subtechniques }} cubiertas</div></div>
-    </div>
+        <section class="row g-3" aria-label="Resumen de cobertura ATT&CK">
+            <div class="col-12 col-sm-6 col-lg-4 col-xxl"><div class="card h-100 border shadow-sm"><div class="card-body"><div class="small fw-semibold text-body-secondary text-uppercase">Cobertura global</div><div class="summary-value {% if overall_coverage_percent >= 80 %}good{% elif overall_coverage_percent >= 40 %}medium{% else %}bad{% endif %}">{{ overall_coverage_percent }}%</div><div class="summary-note">{{ covered_techniques }}/{{ total_techniques }} técnicas/subtécnicas</div></div></div></div>
+            <div class="col-12 col-sm-6 col-lg-4 col-xxl"><div class="card h-100 border shadow-sm"><div class="card-body"><div class="small fw-semibold text-body-secondary text-uppercase">Tácticas visibles</div><div class="summary-value">{{ visible_tactics }}/{{ total_tactics }}</div><div class="summary-note">según filtros aplicados</div></div></div></div>
+            <div class="col-12 col-sm-6 col-lg-4 col-xxl"><div class="card h-100 border shadow-sm"><div class="card-body"><div class="small fw-semibold text-body-secondary text-uppercase">100% cubiertas</div><div class="summary-value good">{{ fully_covered_tactics }}</div><div class="summary-note">todas sus técnicas cubiertas</div></div></div></div>
+            <div class="col-12 col-sm-6 col-lg-4 col-xxl"><div class="card h-100 border shadow-sm"><div class="card-body"><div class="small fw-semibold text-body-secondary text-uppercase">Parciales</div><div class="summary-value medium">{{ partially_covered_tactics }}</div><div class="summary-note">al menos una técnica cubierta</div></div></div></div>
+            <div class="col-12 col-sm-6 col-lg-4 col-xxl"><div class="card h-100 border shadow-sm"><div class="card-body"><div class="small fw-semibold text-body-secondary text-uppercase">Sin cobertura</div><div class="summary-value bad">{{ empty_tactics }}</div><div class="summary-note">sin técnicas macheadas</div></div></div></div>
+            <div class="col-12 col-sm-6 col-lg-4 col-xxl"><div class="card h-100 border shadow-sm"><div class="card-body"><div class="small fw-semibold text-body-secondary text-uppercase">Cumplidas por herramienta</div><div class="summary-value">{{ manual_covered_techniques }}</div><div class="summary-note">sin requerir caso de uso</div></div></div></div>
+            <div class="col-12 col-sm-6 col-lg-4 col-xxl"><div class="card h-100 border shadow-sm"><div class="card-body"><div class="small fw-semibold text-body-secondary text-uppercase">Subtécnicas</div><div class="summary-value">{{ subtechnique_coverage_percent }}%</div><div class="summary-note">{{ covered_subtechniques }}/{{ total_subtechniques }} cubiertas</div></div></div></div>
+        </section>
 
-    <form class="filters" method="get">
-        <div class="field">
-            <label for="device">Dispositivo</label>
-            <select id="device" name="device">
-                <option value="">Todos</option>
-                {% for device in devices %}
-                    <option value="{{ device }}" {% if selected_device == device %}selected{% endif %}>{{ device }}</option>
-                {% endfor %}
-            </select>
-        </div>
-        <div class="field">
-            <label for="severity">Severidad</label>
-            <select id="severity" name="severity">
-                <option value="">Todas</option>
-                {% for value, label in severity_choices %}
-                    <option value="{{ value }}" {% if selected_severity == value %}selected{% endif %}>{{ label }}</option>
-                {% endfor %}
-            </select>
-        </div>
-        <div class="field">
-            <label for="coverage">Cobertura</label>
-            <select id="coverage" name="coverage">
-                <option value="" {% if not selected_coverage %}selected{% endif %}>Todas</option>
-                <option value="complete" {% if selected_coverage == "complete" %}selected{% endif %}>100% cubiertas</option>
-                <option value="partial" {% if selected_coverage == "partial" %}selected{% endif %}>Parciales</option>
-                <option value="empty" {% if selected_coverage == "empty" %}selected{% endif %}>Sin cobertura</option>
-            </select>
-        </div>
-        <div class="field">
-            <label for="sort">Orden</label>
-            <select id="sort" name="sort">
-                <option value="tactic" {% if selected_sort == "tactic" %}selected{% endif %}>Táctica</option>
-                <option value="coverage_desc" {% if selected_sort == "coverage_desc" %}selected{% endif %}>Mayor cobertura</option>
-                <option value="coverage_asc" {% if selected_sort == "coverage_asc" %}selected{% endif %}>Menor cobertura</option>
-                <option value="missing_desc" {% if selected_sort == "missing_desc" %}selected{% endif %}>Más faltantes</option>
-                <option value="techniques_desc" {% if selected_sort == "techniques_desc" %}selected{% endif %}>Más técnicas</option>
-            </select>
-        </div>
-        <div class="filter-actions">
-            <button class="btn-primary" type="submit">Aplicar</button>
-            <a class="btn-secondary" href="{% url 'attack_matrix' %}">Limpiar</a>
-        </div>
-    </form>
+        <section class="card border shadow-sm">
+            <div class="card-body p-3">
+                <form class="row g-3 align-items-end" method="get">
+                    <div class="col-12 col-sm-6 col-xl"><label class="form-label" for="device">Dispositivo</label><select class="form-select" id="device" name="device"><option value="">Todos</option>{% for device in devices %}<option value="{{ device }}" {% if selected_device == device %}selected{% endif %}>{{ device }}</option>{% endfor %}</select></div>
+                    <div class="col-12 col-sm-6 col-xl"><label class="form-label" for="severity">Severidad</label><select class="form-select" id="severity" name="severity"><option value="">Todas</option>{% for value, label in severity_choices %}<option value="{{ value }}" {% if selected_severity == value %}selected{% endif %}>{{ label }}</option>{% endfor %}</select></div>
+                    <div class="col-12 col-sm-6 col-xl"><label class="form-label" for="coverage">Cobertura</label><select class="form-select" id="coverage" name="coverage"><option value="" {% if not selected_coverage %}selected{% endif %}>Todas</option><option value="complete" {% if selected_coverage == "complete" %}selected{% endif %}>100% cubiertas</option><option value="partial" {% if selected_coverage == "partial" %}selected{% endif %}>Parciales</option><option value="empty" {% if selected_coverage == "empty" %}selected{% endif %}>Sin cobertura</option></select></div>
+                    <div class="col-12 col-sm-6 col-xl"><label class="form-label" for="sort">Orden</label><select class="form-select" id="sort" name="sort"><option value="tactic" {% if selected_sort == "tactic" %}selected{% endif %}>Táctica</option><option value="coverage_desc" {% if selected_sort == "coverage_desc" %}selected{% endif %}>Mayor cobertura</option><option value="coverage_asc" {% if selected_sort == "coverage_asc" %}selected{% endif %}>Menor cobertura</option><option value="missing_desc" {% if selected_sort == "missing_desc" %}selected{% endif %}>Más faltantes</option><option value="techniques_desc" {% if selected_sort == "techniques_desc" %}selected{% endif %}>Más técnicas</option></select></div>
+                    <div class="col-12 col-xl-auto"><div class="d-grid d-sm-flex gap-2"><button class="btn btn-primary" type="submit">Aplicar</button><a class="btn btn-outline-secondary" href="{% url 'attack_matrix' %}">Limpiar</a></div></div>
+                </form>
+            </div>
+        </section>
 
-    <div class="legend">
-        <span><strong>Verde:</strong> cubierta por al menos un caso productivo.</span>
-        <span><strong>Azul:</strong> cumplida por herramienta o por táctica administrada.</span>
-        <span><strong>Rojo:</strong> sin caso productivo ni cobertura externa.</span>
-        <span><strong>Clic derecho:</strong> ver descripción y contexto MITRE.</span>
-    </div>
+        <div class="legend">
+            <span><strong>Verde:</strong> cubierta por al menos un caso productivo.</span><span><strong>Azul:</strong> cumplida por herramienta o por táctica administrada.</span><span><strong>Rojo:</strong> sin caso productivo ni cobertura externa.</span><span><strong>Clic derecho:</strong> ver descripción y contexto MITRE.</span>
+        </div>
 
-    <div class="matrix-wrap">
-        {% if rows %}
-            <table class="matrix-table">
-                <thead>
-                    <tr>
-                        <th style="width:26%;">Táctica</th>
-                        <th style="width:18%;">Cobertura</th>
-                        <th style="width:14%;">Operación</th>
-                        <th>Técnicas / subtécnicas</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    {% for row in rows %}
-                        <tr>
-                            <td>
-                                <span class="entity-code">Táctica</span>
-                                {% if row.status == "complete" %}
-                                    <span class="status-chip good">100% cubierta</span>
-                                {% elif row.status == "partial" %}
-                                    <span class="status-chip medium">Parcial</span>
-                                {% else %}
-                                    <span class="status-chip bad">Sin cobertura</span>
-                                {% endif %}
-                                <div class="entity-name mitre-context-target" tabindex="0" data-context-kind="Táctica ATT&amp;CK{% if row.external_id %} · {{ row.external_id }}{% endif %}" data-context-title="{{ row.display_name }}" data-context-description="{{ row.description }}" data-context-original="{{ row.original_description }}" data-context-translation="{{ row.translated_description }}">{{ row.display_name }}</div>
-                                <div class="entity-meta">{{ row.covered_subtechnique_count }}/{{ row.subtechnique_count }} subtécnicas cubiertas</div>
-                            </td>
-                            <td class="coverage-cell">
-                                <div class="coverage-head">
-                                    <span class="coverage-percent">{{ row.coverage_label }}%</span>
-                                    <span class="coverage-count">{{ row.covered_techniques }}/{{ row.total_techniques }}</span>
-                                </div>
-                                <div class="bar"><div class="bar-fill {{ row.level }}" style="width: {{ row.coverage_width|unlocalize }}%;"></div></div>
-                            </td>
-                            <td>
-                                <div class="entity-meta">{{ row.production_cases_count }} caso(s) productivo(s)</div>
-                                <div class="entity-meta">{{ row.manual_fulfilled_count }} cobertura(s) externa(s)</div>
-                            </td>
-                            <td>
-                                <div class="chip-grid">
-                                    {% for technique in row.techniques %}
-                                        <a class="matrix-chip mitre-context-target {% if technique.manual_fulfilled %}fulfilled{% elif technique.covered %}covered{% else %}missing{% endif %}" data-context-kind="{% if technique.is_subtechnique %}Subtécnica{% else %}Técnica{% endif %} ATT&amp;CK · {{ technique.external_id }}" data-context-title="{{ technique.name }}" data-context-description="{{ technique.description }}" data-context-original="{{ technique.original_description }}" data-context-translation="{{ technique.translated_description }}" href="{% url 'usecase_list' %}?mitre_id={{ technique.id }}" title="{{ technique.external_id }} - {{ technique.name }}{% if technique.production_cases_count %} · {{ technique.production_cases_count }} caso(s){% endif %}{% if technique.coverage_label %} · {{ technique.coverage_label }}{% endif %}{% if technique.coverage_note %}: {{ technique.coverage_note }}{% endif %}">
-                                            {{ technique.external_id }} · {{ technique.name }}
-                                        </a>
-                                    {% endfor %}
-                                </div>
-                            </td>
-                        </tr>
-                    {% endfor %}
-                </tbody>
-            </table>
-        {% else %}
-            <div class="empty-state">No hay tácticas ATT&CK para mostrar con los filtros aplicados.</div>
-        {% endif %}
+        <section class="card border shadow-sm matrix-wrap">
+            {% if rows %}
+                <table class="table table-hover align-middle mb-0 matrix-table">
+                    <thead><tr><th style="width:26%;">Táctica</th><th style="width:18%;">Cobertura</th><th style="width:14%;">Operación</th><th>Técnicas / subtécnicas</th></tr></thead>
+                    <tbody>
+                        {% for row in rows %}
+                            <tr>
+                                <td>
+                                    <span class="entity-code">Táctica</span>
+                                    {% if row.status == "complete" %}<span class="status-chip good">100% cubierta</span>{% elif row.status == "partial" %}<span class="status-chip medium">Parcial</span>{% else %}<span class="status-chip bad">Sin cobertura</span>{% endif %}
+                                    <div class="entity-name mitre-context-target" tabindex="0" data-context-kind="Táctica ATT&amp;CK{% if row.external_id %} · {{ row.external_id }}{% endif %}" data-context-title="{{ row.display_name }}" data-context-description="{{ row.description }}" data-context-original="{{ row.original_description }}" data-context-translation="{{ row.translated_description }}">{{ row.display_name }}</div>
+                                    <div class="entity-meta">{{ row.covered_subtechnique_count }}/{{ row.subtechnique_count }} subtécnicas cubiertas</div>
+                                </td>
+                                <td class="coverage-cell"><div class="coverage-head"><span class="coverage-percent">{{ row.coverage_label }}%</span><span class="coverage-count">{{ row.covered_techniques }}/{{ row.total_techniques }}</span></div><div class="bar"><div class="bar-fill {{ row.level }}" style="width: {{ row.coverage_width|unlocalize }}%;"></div></div></td>
+                                <td><div class="entity-meta">{{ row.production_cases_count }} caso(s) productivo(s)</div><div class="entity-meta">{{ row.manual_fulfilled_count }} cobertura(s) externa(s)</div></td>
+                                <td><div class="chip-grid">{% for technique in row.techniques %}<a class="matrix-chip mitre-context-target {% if technique.manual_fulfilled %}fulfilled{% elif technique.covered %}covered{% else %}missing{% endif %}" data-context-kind="{% if technique.is_subtechnique %}Subtécnica{% else %}Técnica{% endif %} ATT&amp;CK · {{ technique.external_id }}" data-context-title="{{ technique.name }}" data-context-description="{{ technique.description }}" data-context-original="{{ technique.original_description }}" data-context-translation="{{ technique.translated_description }}" href="{% url 'usecase_list' %}?mitre_id={{ technique.id }}" title="{{ technique.external_id }} - {{ technique.name }}{% if technique.production_cases_count %} · {{ technique.production_cases_count }} caso(s){% endif %}{% if technique.coverage_label %} · {{ technique.coverage_label }}{% endif %}{% if technique.coverage_note %}: {{ technique.coverage_note }}{% endif %}">{{ technique.external_id }} · {{ technique.name }}</a>{% endfor %}</div></td>
+                            </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            {% else %}
+                <div class="card-body text-center text-body-secondary py-5">No hay tácticas ATT&amp;CK para mostrar con los filtros aplicados.</div>
+            {% endif %}
+        </section>
     </div>
-</div>
+</main>
 {% include "includes/mitre_context_card.html" %}
 {% endblock %}

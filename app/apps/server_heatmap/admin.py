@@ -94,7 +94,21 @@ def enable_assets(modeladmin, request, queryset):
 
 @admin.action(description="Deshabilitar equipos seleccionados")
 def disable_assets(modeladmin, request, queryset):
-    updated = queryset.update(is_enabled=False)
+    assets = list(queryset.filter(is_enabled=True))
+    ServerAssetDisableEvent.objects.bulk_create([
+        ServerAssetDisableEvent(
+            asset=asset,
+            hostname=asset.hostname,
+            actor=request.user,
+            justification="Deshabilitado desde Django Admin.",
+            previous_enabled=True,
+            new_enabled=False,
+        )
+        for asset in assets
+    ])
+    updated = ServerAsset.objects.filter(
+        id__in=[asset.id for asset in assets],
+    ).update(is_enabled=False)
     messages.success(request, f"{updated} equipo(s) deshabilitado(s).")
 
 

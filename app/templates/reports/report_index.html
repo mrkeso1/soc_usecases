@@ -1,123 +1,55 @@
-﻿{% extends "base.html" %}
+{% extends "base_bootstrap.html" %}
 
 {% block title %}Reportes - SOC Control Manager{% endblock %}
 
 {% block extra_css %}
 <style>
-    .report-grid {
-        display: grid;
-        grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
-        gap: 12px;
-    }
-    .report-card {
-        --report-accent: var(--accent);
-        position: relative;
-        overflow: hidden;
-        display: flex;
-        flex-direction: column;
-        justify-content: space-between;
-        min-height: 210px;
-        padding: 18px;
-        border: 1px solid color-mix(in srgb, var(--report-accent) 28%, var(--border));
-        border-radius: 10px;
-        background: var(--surface);
-        box-shadow: 0 14px 30px rgba(0, 0, 0, .18);
-    }
-    .report-card::after {
-        content: "";
-        position: absolute;
-        inset: 0 0 auto;
-        height: 2px;
-        background: linear-gradient(90deg, transparent, var(--report-accent), transparent);
-    }
-    html[data-theme="light"] .report-card {
-        background: #ffffff;
-        border-color: color-mix(in srgb, var(--report-accent) 30%, #cbd5e1);
-        box-shadow: 0 12px 26px rgba(15, 23, 42, .10);
-    }
-    .report-card-head {
-        display: flex;
-        align-items: flex-start;
-        gap: 12px;
-    }
-    .report-icon {
-        width: 38px;
-        height: 38px;
-        flex: 0 0 38px;
-        display: grid;
-        place-items: center;
-        border: 1px solid color-mix(in srgb, var(--report-accent) 34%, transparent);
-        border-radius: 9px;
-        background: color-mix(in srgb, var(--report-accent) 12%, transparent);
-        color: var(--report-accent);
-        font-family: 'JetBrains Mono', monospace;
-        font-size: 12px;
-        font-weight: 900;
-    }
-    .report-card h2 {
-        color: var(--text-strong);
-        font-size: 1.08rem;
-        line-height: 1.2;
-        margin: 0 0 8px;
-    }
-    .report-card p {
-        color: var(--text-muted);
-        margin: 0;
-    }
-    .report-card-footer {
-        display: flex;
-        align-items: center;
-        justify-content: space-between;
-        gap: 10px;
-        margin-top: 16px;
-    }
-    .report-card .btn-primary {
-        border-color: var(--report-accent);
-        background: var(--report-accent);
-    }
+    .report-card { --report-accent: var(--accent); position: relative; overflow: hidden; border-color: color-mix(in srgb, var(--report-accent) 28%, var(--border)) !important; }
+    .report-card::after { content: ""; position: absolute; inset: 0 0 auto; height: 2px; background: linear-gradient(90deg, transparent, var(--report-accent), transparent); }
+    .report-icon { width: 42px; height: 42px; flex: 0 0 42px; display: grid; place-items: center; border: 1px solid color-mix(in srgb, var(--report-accent) 34%, transparent); border-radius: var(--bs-border-radius-lg); background: color-mix(in srgb, var(--report-accent) 12%, transparent); color: var(--report-accent); font-family: 'JetBrains Mono', monospace; font-size: 12px; font-weight: 900; }
+    .report-card .btn-primary { border-color: var(--report-accent) !important; background: var(--report-accent) !important; }
 </style>
 {% endblock %}
 
 {% block content %}
-<main class="container">
-    <section class="page-shell wide">
-        <header class="page-header">
-            <div>
-                <div class="page-eyebrow">// REPORTES / EXPORTACIONES</div>
-                <h1 class="page-title">Centro de reportes</h1>
-                <p class="page-subtitle">Descargas PDF separadas por vista operativa, usando el inventario central y las apps integradas.</p>
-            </div>
-            {% if can_configure_templates %}
-                <div class="header-actions">
-                    <a class="btn-secondary" href="{% url 'report_template_settings' %}">Plantillas PDF</a>
-                </div>
-            {% endif %}
-        </header>
+<main class="container-xxl py-4 px-3 px-lg-4">
+    <header class="row g-3 align-items-start mb-4">
+        <div class="col-12 col-lg">
+            <div class="page-eyebrow">// REPORTES / EXPORTACIONES</div>
+            <h1 class="page-title">Centro de reportes</h1>
+            <p class="page-subtitle mb-0">Descargas PDF separadas por vista operativa, usando el inventario central y las apps integradas.</p>
+        </div>
+        {% if can_configure_templates %}
+            <div class="col-12 col-lg-auto d-grid d-sm-block"><a class="btn btn-outline-secondary" href="{% url 'report_template_settings' %}">Plantillas PDF</a></div>
+        {% endif %}
+    </header>
 
-        <section class="kpi-grid">
-            <article class="kpi-card"><div class="kpi-label">Tipos disponibles</div><div class="kpi-value">{{ report_types }}</div></article>
-            <article class="kpi-card"><div class="kpi-label">Descargas registradas</div><div class="kpi-value">{{ total_downloads }}</div></article>
-        </section>
+    <section class="row g-3 mb-4" aria-label="Resumen de reportes">
+        <div class="col-12 col-sm-6 col-xl-3"><article class="card h-100 shadow-sm"><div class="card-body"><div class="kpi-label">Tipos disponibles</div><div class="kpi-value">{{ report_types }}</div></div></article></div>
+        <div class="col-12 col-sm-6 col-xl-3"><article class="card h-100 shadow-sm"><div class="card-body"><div class="kpi-label">Descargas registradas</div><div class="kpi-value">{{ total_downloads }}</div></div></article></div>
+    </section>
 
-        <section class="report-grid">
-            {% for card in cards %}
-                <article class="report-card" style="--report-accent: {{ card.accent }};">
-                    <div class="report-card-head">
-                        <span class="report-icon">{{ card.code }}</span>
-                        <div>
-                            <div class="entity-code">{{ card.type }}</div>
-                            <h2>{{ card.title }}</h2>
-                            <p>{{ card.subtitle }}</p>
+    <section class="row g-3">
+        {% for card in cards %}
+            <div class="col-12 col-md-6 col-xl-4">
+                <article class="card report-card h-100 shadow-sm" style="--report-accent: {{ card.accent }};">
+                    <div class="card-body d-flex flex-column p-3 p-lg-4">
+                        <div class="d-flex align-items-start gap-3">
+                            <span class="report-icon">{{ card.code }}</span>
+                            <div>
+                                <div class="entity-code">{{ card.type }}</div>
+                                <h2 class="h5 mb-2">{{ card.title }}</h2>
+                                <p class="page-subtitle mb-0">{{ card.subtitle }}</p>
+                            </div>
+                        </div>
+                        <div class="d-flex flex-column flex-sm-row align-items-sm-center justify-content-between gap-3 mt-auto pt-4">
+                            <span class="badge text-bg-secondary">{{ card.count }} descargas</span>
+                            <a class="btn btn-primary" href="{% url 'report_preview' card.type %}">Vista previa</a>
                         </div>
                     </div>
-                    <div class="report-card-footer">
-                        <span class="badge">{{ card.count }} descargas</span>
-                        <a class="btn-primary" href="{% url 'report_preview' card.type %}">Vista previa</a>
-                    </div>
                 </article>
-            {% endfor %}
-        </section>
-
+            </div>
+        {% endfor %}
     </section>
 </main>
 {% endblock %}

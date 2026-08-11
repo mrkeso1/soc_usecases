@@ -1,266 +1,438 @@
-﻿{% extends "base.html" %}
+{% extends "base_bootstrap.html" %}
 {% load usecase_tags %}
 
 {% block title %}Inventario de Casos de Uso - SOC Control Manager{% endblock %}
 
 {% block extra_css %}
 <style>
-    .inventory-header-meta {
-        display: flex;
-        flex-wrap: wrap;
-        gap: 8px;
-        margin-top: 10px;
+    .inventory-table-card {
+        min-width: 0;
+        overflow: hidden;
     }
-    .inventory-header-meta .badge { gap: 6px; }
-    .inventory-filters {
-        display: grid;
-        grid-template-columns: minmax(260px, 1.5fr) repeat(5, minmax(130px, 1fr)) auto;
-        gap: 9px;
-        align-items: end;
-        margin-bottom: 14px;
+
+    .inventory-table-scroll {
+        width: 100%;
+        max-width: 100%;
+        overflow-x: visible;
     }
-    .inventory-table { min-width: 1360px; }
-    .inventory-table th:nth-child(4),
-    .inventory-table td:nth-child(4),
-    .inventory-table th:nth-child(7),
-    .inventory-table td:nth-child(7) {
-        width: 132px;
-        white-space: nowrap;
+
+    .inventory-table {
+        width: 100%;
+        min-width: 0;
+        table-layout: fixed;
     }
-    .inventory-table .badge,
+
+    .inventory-col-name { width: 20%; }
+    .inventory-col-sources { width: 16%; }
+    .inventory-col-severity { width: 10%; }
+    .inventory-col-status { width: 11%; }
+    .inventory-col-operation { width: 21%; }
+    .inventory-col-coverage { width: 10%; }
+    .inventory-col-actions { width: 12%; }
+
+    .inventory-table th,
+    .inventory-table td {
+        min-width: 0;
+        padding: .7rem .6rem;
+        overflow-wrap: anywhere;
+    }
+
+    .inventory-table .entity-name {
+        display: -webkit-box;
+        overflow: hidden;
+        -webkit-box-orient: vertical;
+        -webkit-line-clamp: 3;
+        line-clamp: 3;
+        line-height: 1.3;
+        overflow-wrap: anywhere;
+    }
+
+    .inventory-table .badge {
+        max-width: 100%;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+
+    .inventory-table td:first-child .badge,
+    .inventory-table .entity-link,
     .inventory-table .muted {
-        overflow-wrap: normal !important;
-        word-break: keep-all !important;
+        white-space: normal !important;
+        overflow-wrap: anywhere !important;
+        word-break: break-word !important;
     }
-    .inventory-table td:nth-child(3) .badge,
-    .inventory-table td:nth-child(4) .badge,
-    .inventory-table td:nth-child(7) .badge,
-    .inventory-table td:nth-child(7) .muted {
-        white-space: nowrap !important;
-    }
-    .inventory-primary {
-        display: grid;
-        gap: 5px;
-    }
+
     .entity-code {
         display: inline-flex;
         width: fit-content;
         padding: 3px 7px;
-        border-radius: 7px;
-        background: var(--accent-dim);
-        color: var(--accent);
+        border-radius: var(--bs-border-radius-sm);
+        background: rgba(var(--bs-primary-rgb), .12);
+        color: var(--bs-primary);
         font-family: 'JetBrains Mono', monospace;
         font-size: 11px;
         font-weight: 800;
     }
-    .inventory-primary strong {
-        color: var(--text-strong);
-        overflow-wrap: anywhere;
+
+    .inventory-kpi-card {
+        color: inherit;
+        transition: border-color .18s ease, transform .18s ease;
     }
-    .inventory-meta,
-    .source-stack,
-    .operation-stack {
-        display: flex;
-        flex-wrap: wrap;
-        gap: 6px;
-        margin-top: 6px;
+
+    .inventory-kpi-card:hover {
+        border-color: rgba(var(--bs-primary-rgb), .45) !important;
+        color: inherit;
+        transform: translateY(-1px);
     }
-    .source-stack,
-    .operation-stack {
-        display: grid;
-        gap: 5px;
-        margin-top: 0;
+
+    #inventory-summary,
+    #inventory-list-results {
+        transition: opacity .15s ease;
     }
-    .row-actions {
-        display: flex;
-        flex-wrap: wrap;
-        gap: 6px;
+
+    #inventory-summary.is-loading,
+    #inventory-list-results.is-loading {
+        opacity: .5;
+        pointer-events: none;
     }
-    .change-list {
-        display: grid;
-        gap: 8px;
-        margin-top: 12px;
-    }
-    .change-card {
-        display: grid;
-        grid-template-columns: 78px minmax(0, 1fr);
-        gap: 10px;
-        padding: 10px;
-        border: 1px solid var(--border);
-        border-radius: 10px;
-        background: var(--surface-2);
-    }
-    .change-version {
-        color: var(--accent);
-        font-family: 'JetBrains Mono', monospace;
-        font-weight: 800;
-    }
-    .change-card strong { color: var(--text-strong); }
-    @media (max-width: 1180px) {
-        .inventory-filters { grid-template-columns: repeat(3, minmax(0, 1fr)); }
-    }
-    @media (max-width: 760px) {
-        .inventory-filters { grid-template-columns: 1fr; }
+
+    @media (max-width: 767.98px) {
+        .inventory-table-scroll { overflow: visible; }
+        .inventory-table colgroup,
+        .inventory-table thead { display: none; }
+        .inventory-table,
+        .inventory-table tbody { display: block; width: 100%; }
+        .inventory-table tbody { padding: .75rem; }
+        .inventory-table tbody tr { display: block; margin-bottom: .75rem; overflow: hidden; border: 1px solid var(--border); border-radius: var(--bs-border-radius); background: var(--surface-2); }
+        .inventory-table tbody tr:last-child { margin-bottom: 0; }
+        .inventory-table tbody td { display: block; width: 100% !important; min-height: 42px; position: relative; padding: .65rem .75rem .65rem 120px; border-bottom: 1px solid var(--border); }
+        .inventory-table tbody td::before { content: attr(data-label); position: absolute; top: .7rem; left: .75rem; width: 96px; color: var(--text-muted); font: 800 9px/1.25 'JetBrains Mono', monospace; letter-spacing: .06em; text-transform: uppercase; }
+        .inventory-table tbody td:last-child { border-bottom: 0; }
+        .inventory-table tbody td.inventory-empty { min-height: 0; padding: 1rem; text-align: center; }
+        .inventory-table tbody td.inventory-empty::before { display: none; }
     }
 </style>
 {% endblock %}
 
 {% block content %}
-<main class="container">
-    <section class="page-shell wide">
-        <header class="page-header">
-            <div>
-                <div class="page-eyebrow">// INVENTARIO / CASOS DE USO</div>
-                <h1 class="page-title">Inventario de Casos de Uso</h1>
-                <p class="page-subtitle">Vista unificada del inventario principal: fuentes, estado, severidad, cobertura, lifecycle y trazabilidad.</p>
-                <div class="inventory-header-meta">
-                    <span class="badge accent">Versión global v{{ inventory_version }}</span>
-                    <span class="badge">{{ all_filtered_count }} filtrados</span>
-                    <span class="badge good">{{ production_total }} en Produccion</span>
-                    {% if selected_source_label %}<span class="badge accent">Fuente: {{ selected_source_label }}</span>{% endif %}
-                </div>
+<main class="container-xxl py-4 px-3 px-lg-4">
+    <div class="vstack gap-4">
+        <section class="card border shadow-sm">
+            <div class="card-body p-3 p-lg-4">
+                <header class="row g-3 align-items-start">
+                    <div class="col-12 col-xl">
+                        <div class="page-eyebrow">// INVENTARIO / CASOS DE USO</div>
+                        <h1 class="page-title mb-2">Inventario de Casos de Uso</h1>
+                        <p class="page-subtitle mb-0">Vista unificada del inventario principal: fuentes, estado, severidad, cobertura, lifecycle y trazabilidad.</p>
+                        <div class="d-flex flex-wrap gap-2 mt-3" id="inventory-header-badges">
+                            <span class="badge rounded-pill text-bg-primary">Versión global v{{ inventory_version }}</span>
+                            <span class="badge rounded-pill text-bg-secondary">{{ all_filtered_count }} filtrados</span>
+                            <span class="badge rounded-pill text-bg-success">{{ production_total }} en Producción</span>
+                            {% if selected_source_label %}<span class="badge rounded-pill text-bg-primary">Fuente: {{ selected_source_label }}</span>{% endif %}
+                        </div>
+                    </div>
+                    <div class="col-12 col-xl-auto">
+                        <div class="d-flex flex-wrap gap-2 justify-content-xl-end">
+                            <a class="btn btn-outline-secondary btn-sm" data-inventory-export href="{% url 'export_usecases_csv' %}?{{ request.GET.urlencode }}">CSV rápido</a>
+                            <a class="btn btn-outline-secondary btn-sm" data-inventory-export href="{% url 'export_usecases_full_csv' %}?{{ request.GET.urlencode }}">CSV completo</a>
+                            <a class="btn btn-outline-secondary btn-sm" data-inventory-export href="{% url 'export_usecases_xlsx' %}?{{ request.GET.urlencode }}">Excel</a>
+                            <a class="btn btn-outline-secondary btn-sm" href="{% url 'import_usecases_excel' %}">Importar</a>
+                            {% if can_add_usecases %}<a class="btn btn-primary btn-sm" href="{% url 'usecase_create' %}">Nuevo Caso de Uso</a>{% endif %}
+                        </div>
+                    </div>
+                </header>
             </div>
-            <div class="header-actions">
-                <a class="btn" href="{% url 'export_usecases_csv' %}?{{ request.GET.urlencode }}">CSV rapido</a>
-                <a class="btn" href="{% url 'export_usecases_full_csv' %}?{{ request.GET.urlencode }}">CSV completo</a>
-                <a class="btn" href="{% url 'export_usecases_xlsx' %}?{{ request.GET.urlencode }}">Excel</a>
-                <a class="btn" href="{% url 'import_usecases_excel' %}">Importar</a>
-                {% if can_add_usecases %}<a class="btn-primary" href="{% url 'usecase_create' %}">Nuevo Caso de Uso</a>{% endif %}
-            </div>
-        </header>
-
-        <section class="kpi-grid">
-            <a class="kpi-card" href="{% url 'usecase_list' %}" style="text-decoration:none;color:inherit;"><div class="kpi-label">Total visible</div><div class="kpi-value">{{ all_filtered_count }}</div></a>
-            <a class="kpi-card" href="?quick=enabled" style="text-decoration:none;color:inherit;"><div class="kpi-label">Habilitados</div><div class="kpi-value">{{ visible_enabled }}</div></a>
-            <a class="kpi-card" href="?quick=critical" style="text-decoration:none;color:inherit;"><div class="kpi-label">Critical</div><div class="kpi-value">{{ visible_critical }}</div></a>
-            <a class="kpi-card" href="?quick=overdue" style="text-decoration:none;color:inherit;"><div class="kpi-label">Lifecycle vencido</div><div class="kpi-value">{{ visible_overdue }}</div></a>
         </section>
 
-        <section class="filter-panel">
-            <form method="get" class="inventory-filters">
-                <input type="text" name="q" value="{{ q }}" placeholder="Busqueda global">
-                <select name="source">
-                    <option value="">Fuente</option>
-                    {% for item in sources %}
-                        <option value="{{ item.pk }}" {% if selected_source == item.pk|stringformat:"s" %}selected{% endif %}>{{ item.display_name }}</option>
-                    {% endfor %}
-                </select>
-                <select name="severity">
-                    <option value="">Severidad</option>
-                    {% for value, label in severity_choices %}
-                        <option value="{{ value }}" {% if selected_severity == value %}selected{% endif %}>{{ label }}</option>
-                    {% endfor %}
-                </select>
-                <select name="status">
-                    <option value="">Estado</option>
-                    {% for value, label in status_choices %}
-                        <option value="{{ value }}" {% if selected_status == value %}selected{% endif %}>{{ label }}</option>
-                    {% endfor %}
-                </select>
-                <select name="enabled">
-                    <option value="">Habilitación</option>
-                    <option value="yes" {% if selected_enabled == "yes" %}selected{% endif %}>Habilitados</option>
-                    <option value="no" {% if selected_enabled == "no" %}selected{% endif %}>Deshabilitados</option>
-                </select>
-                <select name="review_state">
-                    <option value="">Lifecycle</option>
-                    <option value="overdue" {% if selected_review_state == "overdue" %}selected{% endif %}>Vencidos</option>
-                    <option value="soon" {% if selected_review_state == "soon" %}selected{% endif %}>Por vencer</option>
-                    <option value="no_date" {% if selected_review_state == "no_date" %}selected{% endif %}>Sin fecha</option>
-                </select>
-                <button class="btn-primary" type="submit">Filtrar</button>
-                <a class="btn" href="{% url 'usecase_list' %}">Limpiar</a>
-            </form>
+        <section class="row g-3" id="inventory-summary" aria-label="Resumen del inventario">
+            <div class="col-12 col-md-6">
+                <a class="card h-100 border shadow-sm text-decoration-none inventory-kpi-card" href="{% url 'usecase_list' %}">
+                    <div class="card-body p-3">
+                        <div class="small fw-semibold text-body-secondary text-uppercase">Total visible</div>
+                        <div class="display-6 fw-bold lh-1 mt-2">{{ all_filtered_count }}</div>
+                    </div>
+                </a>
+            </div>
+            <div class="col-12 col-md-6">
+                <a class="card h-100 border shadow-sm text-decoration-none inventory-kpi-card" href="?quick=enabled">
+                    <div class="card-body p-3">
+                        <div class="small fw-semibold text-body-secondary text-uppercase">Habilitados</div>
+                        <div class="display-6 fw-bold lh-1 mt-2">{{ visible_enabled }}</div>
+                    </div>
+                </a>
+            </div>
         </section>
 
-        <section class="table-panel" style="margin-top:14px;">
-            <table class="data-table inventory-table">
-                <thead>
-                    <tr>
-                        <th>Caso de Uso</th>
-                        <th>Fuentes de eventos</th>
-                        <th>Severidad</th>
-                        <th>Estado</th>
-                        <th>Operación</th>
-                        <th>Cobertura</th>
-                        <th>Lifecycle</th>
-                        <th>Acciones</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    {% for uc in usecases %}
-                    <tr>
-                        <td>
-                            <div class="inventory-primary">
-                                {% if uc.display_code != uc.name %}
-                                    <code class="entity-code">{{ uc.display_code }}</code>
-                                {% endif %}
-                                <strong class="entity-name">{{ uc.name }}</strong>
-                            </div>
-                            <div class="inventory-meta">
-                                {% for group in uc.group_name|split_multi %}<span class="badge">{{ group }}</span>{% endfor %}
-                                {% for device in uc.device|split_multi %}<span class="badge accent">{{ device }}</span>{% endfor %}
-                                {% if uc.case_type %}<span class="badge">{{ uc.case_type }}</span>{% endif %}
-                            </div>
-                        </td>
-                        <td>
-                            <div class="source-stack">
-                                {% for link in uc.source_links.all %}
-                                    <a class="entity-link" href="{% url 'source_detail' link.source.pk %}">{{ link.source.display_name }}</a>
-                                {% empty %}
-                                    <span class="muted">Sin fuente vinculada</span>
-                                {% endfor %}
-                            </div>
-                        </td>
-                        <td><span class="badge {% if uc.severity == 'Critical' %}bad{% elif uc.severity == 'High' %}warn{% elif uc.severity %}accent{% endif %}">{{ uc.severity|default:"-" }}</span></td>
-                        <td><span class="badge {% if uc.status == 'Producción' %}good{% elif uc.status == 'Baja' %}bad{% else %}accent{% endif %}">{{ uc.status|default:"-" }}</span></td>
-                        <td>
-                            <div class="operation-stack">
-                                <strong>{{ uc.blocking_type|default:"-" }}</strong>
-                                <span class="muted">Escalamiento {{ uc.escalation|default:"-" }}</span>
-                                <span class="muted">{{ uc.owner_name|default:"Sin responsable" }}</span>
-                            </div>
-                        </td>
-                        <td>
-                            <div class="operation-stack">
-                                <span class="badge accent">ATT&CK {{ uc.mitre_attacks.count }}</span>
-                                <span class="badge accent">D3FEND {{ uc.inferred_d3fends|length }}</span>
-                            </div>
-                        </td>
-                        <td>
-                            {% if uc.days_until_review is None %}
-                                <span class="badge">Sin fecha</span>
-                            {% elif uc.days_until_review < 0 %}
-                                <span class="badge bad">{{ uc.review_countdown_label }}</span>
-                            {% elif uc.days_until_review <= 30 %}
-                                <span class="badge warn">{{ uc.review_countdown_label }}</span>
-                            {% else %}
-                                <span class="badge good">{{ uc.review_countdown_label }}</span>
-                            {% endif %}
-                            <div class="muted">Prox. {{ uc.next_review_date|date:"d/m/Y"|default:"-" }}</div>
-                        </td>
-                        <td>
-                            <div class="row-actions">
-                                <a class="btn" href="{% url 'usecase_detail' uc.pk %}">Ver</a>
-                                {% if uc.can_manage_by_user %}<a class="btn" href="{% url 'usecase_edit' uc.pk %}">Editar</a>{% endif %}
-                            </div>
-                        </td>
-                    </tr>
-                    {% empty %}
-                    <tr><td colspan="8" class="muted">No hay Casos de Uso para los filtros seleccionados.</td></tr>
-                    {% endfor %}
-                </tbody>
-            </table>
+        <section class="card border shadow-sm">
+            <div class="card-body p-3 p-lg-4">
+                <form method="get" class="row g-3 align-items-end" id="usecase-inventory-filters" autocomplete="off" data-live-search="off">
+                    <div class="col-12 col-md-8 col-xl-3">
+                        <label class="form-label" for="inventory-q">Búsqueda global</label>
+                        <input class="form-control" id="inventory-q" type="text" name="q" value="{{ q }}" placeholder="Nombre, código o responsable">
+                    </div>
+                    <div class="col-12 col-sm-6 col-md-4 col-xl">
+                        <label class="form-label" for="inventory-source">Fuente</label>
+                        <select class="form-select" id="inventory-source" name="source">
+                            <option value="">Todas</option>
+                            {% for item in sources %}
+                                <option value="{{ item.pk }}" {% if selected_source == item.pk|stringformat:"s" %}selected{% endif %}>{{ item.display_name }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="col-12 col-sm-6 col-md-4 col-xl">
+                        <label class="form-label" for="inventory-severity">Severidad</label>
+                        <select class="form-select" id="inventory-severity" name="severity">
+                            <option value="">Todas</option>
+                            {% for value, label in severity_choices %}
+                                <option value="{{ value }}" {% if selected_severity == value %}selected{% endif %}>{{ label }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="col-12 col-sm-6 col-md-4 col-xl">
+                        <label class="form-label" for="inventory-status">Estado</label>
+                        <select class="form-select" id="inventory-status" name="status">
+                            <option value="">Todos</option>
+                            {% for value, label in status_choices %}
+                                <option value="{{ value }}" {% if selected_status == value %}selected{% endif %}>{{ label }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="col-12 col-sm-6 col-md-4 col-xl">
+                        <label class="form-label" for="inventory-enabled">Habilitación</label>
+                        <select class="form-select" id="inventory-enabled" name="enabled">
+                            <option value="">Todos</option>
+                            <option value="yes" {% if selected_enabled == "yes" %}selected{% endif %}>Habilitados</option>
+                            <option value="no" {% if selected_enabled == "no" %}selected{% endif %}>Deshabilitados</option>
+                        </select>
+                    </div>
+                    <div class="col-12 col-sm-6 col-md-4 col-xl">
+                        <label class="form-label" for="inventory-review-state">Lifecycle</label>
+                        <select class="form-select" id="inventory-review-state" name="review_state">
+                            <option value="">Todos</option>
+                            <option value="overdue" {% if selected_review_state == "overdue" %}selected{% endif %}>Vencidos</option>
+                            <option value="soon" {% if selected_review_state == "soon" %}selected{% endif %}>Por vencer</option>
+                            <option value="no_date" {% if selected_review_state == "no_date" %}selected{% endif %}>Sin fecha</option>
+                        </select>
+                    </div>
+                    <span class="visually-hidden" id="usecase-inventory-live-status" aria-live="polite"></span>
+                </form>
+            </div>
+        </section>
+
+        <div class="vstack gap-4" id="inventory-list-results">
+        <section class="card border shadow-sm inventory-table-card">
+            <div class="card-header d-flex flex-wrap align-items-center justify-content-between gap-2 py-3">
+                <h2 class="h6 mb-0">Casos de Uso</h2>
+                <span class="badge rounded-pill text-bg-secondary">{{ all_filtered_count }} resultados</span>
+            </div>
+            <div class="table-responsive inventory-table-scroll">
+                <table class="table table-hover align-middle mb-0 inventory-table">
+                    <colgroup>
+                        <col class="inventory-col-name">
+                        <col class="inventory-col-sources">
+                        <col class="inventory-col-severity">
+                        <col class="inventory-col-status">
+                        <col class="inventory-col-operation">
+                        <col class="inventory-col-coverage">
+                        <col class="inventory-col-actions">
+                    </colgroup>
+                    <thead>
+                        <tr>
+                            <th scope="col">Caso de Uso</th>
+                            <th scope="col">Fuentes de eventos</th>
+                            <th scope="col">Severidad</th>
+                            <th scope="col">Estado</th>
+                            <th scope="col">Operación</th>
+                            <th scope="col">Cobertura</th>
+                            <th scope="col">Acciones</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for uc in usecases %}
+                        <tr>
+                            <td data-label="Caso de Uso">
+                                <div class="vstack gap-1">
+                                    {% if uc.display_code != uc.name %}
+                                        <code class="entity-code">{{ uc.display_code }}</code>
+                                    {% endif %}
+                                    <strong class="entity-name" title="{{ uc.name }}">{{ uc.name }}</strong>
+                                </div>
+                                <div class="d-flex flex-wrap gap-1 mt-2">
+                                    {% for group in uc.group_name|split_multi %}<span class="badge rounded-pill text-bg-secondary">{{ group }}</span>{% endfor %}
+                                    {% for device in uc.device|split_multi %}<span class="badge rounded-pill text-bg-primary">{{ device }}</span>{% endfor %}
+                                    {% if uc.case_type %}<span class="badge rounded-pill text-bg-secondary">{{ uc.case_type }}</span>{% endif %}
+                                </div>
+                            </td>
+                            <td data-label="Fuentes">
+                                <div class="vstack gap-1">
+                                    {% for link in uc.source_links.all %}
+                                        <a class="entity-link" href="{% url 'source_detail' link.source.pk %}">{{ link.source.display_name }}</a>
+                                    {% empty %}
+                                        <span class="muted">Sin fuente vinculada</span>
+                                    {% endfor %}
+                                </div>
+                            </td>
+                            <td data-label="Severidad"><span class="badge rounded-pill {% if uc.severity == 'Critical' %}text-bg-danger{% elif uc.severity == 'High' %}text-bg-warning{% elif uc.severity %}text-bg-primary{% else %}text-bg-secondary{% endif %}">{{ uc.severity|default:"-" }}</span></td>
+                            <td data-label="Estado"><span class="badge rounded-pill {% if uc.status == 'Producción' %}text-bg-success{% elif uc.status == 'Baja' %}text-bg-danger{% else %}text-bg-primary{% endif %}">{{ uc.status|default:"-" }}</span></td>
+                            <td data-label="Operación">
+                                <div class="vstack gap-1">
+                                    <strong>{{ uc.blocking_type|default:"-" }}</strong>
+                                    <span class="muted">Escalamiento {{ uc.escalation|default:"-" }}</span>
+                                    <span class="muted">{{ uc.owner_name|default:"Sin responsable" }}</span>
+                                </div>
+                            </td>
+                            <td data-label="Cobertura">
+                                <div class="vstack gap-1 align-items-start">
+                                    <span class="badge rounded-pill text-bg-primary">ATT&amp;CK {{ uc.mitre_attacks.count }}</span>
+                                    <span class="badge rounded-pill text-bg-primary">D3FEND {{ uc.inferred_d3fends|length }}</span>
+                                </div>
+                            </td>
+                            <td data-label="Acciones">
+                                <div class="d-flex flex-wrap gap-2">
+                                    <a class="btn btn-outline-secondary btn-sm" href="{% url 'usecase_detail' uc.pk %}">Ver</a>
+                                    {% if uc.can_manage_by_user %}<a class="btn btn-outline-primary btn-sm" href="{% url 'usecase_edit' uc.pk %}">Editar</a>{% endif %}
+                                </div>
+                            </td>
+                        </tr>
+                        {% empty %}
+                        <tr><td colspan="7" class="inventory-empty text-body-secondary text-center py-4">No hay Casos de Uso para los filtros seleccionados.</td></tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
         </section>
 
         {% if page_obj.paginator.num_pages > 1 %}
-            <nav class="pagination">
-                {% if page_obj.has_previous %}<a class="btn" href="?page={{ page_obj.previous_page_number }}&q={{ q|urlencode }}&source={{ selected_source }}&severity={{ selected_severity }}&status={{ selected_status }}&enabled={{ selected_enabled }}&review_state={{ selected_review_state }}">Anterior</a>{% endif %}
-                <span class="btn">Pagina {{ page_obj.number }} / {{ page_obj.paginator.num_pages }}</span>
-                {% if page_obj.has_next %}<a class="btn" href="?page={{ page_obj.next_page_number }}&q={{ q|urlencode }}&source={{ selected_source }}&severity={{ selected_severity }}&status={{ selected_status }}&enabled={{ selected_enabled }}&review_state={{ selected_review_state }}">Siguiente</a>{% endif %}
+            <nav aria-label="Paginación de casos de uso">
+                <ul class="pagination justify-content-center flex-wrap mb-0">
+                    {% if page_obj.has_previous %}
+                        <li class="page-item"><a class="page-link" href="?page={{ page_obj.previous_page_number }}&q={{ q|urlencode }}&source={{ selected_source }}&severity={{ selected_severity }}&status={{ selected_status }}&enabled={{ selected_enabled }}&review_state={{ selected_review_state }}">Anterior</a></li>
+                    {% endif %}
+                    <li class="page-item disabled"><span class="page-link">Página {{ page_obj.number }} / {{ page_obj.paginator.num_pages }}</span></li>
+                    {% if page_obj.has_next %}
+                        <li class="page-item"><a class="page-link" href="?page={{ page_obj.next_page_number }}&q={{ q|urlencode }}&source={{ selected_source }}&severity={{ selected_severity }}&status={{ selected_status }}&enabled={{ selected_enabled }}&review_state={{ selected_review_state }}">Siguiente</a></li>
+                    {% endif %}
+                </ul>
             </nav>
         {% endif %}
-
-    </section>
+        </div>
+    </div>
 </main>
+<script>
+    (() => {
+        const form = document.getElementById("usecase-inventory-filters");
+        const summary = document.getElementById("inventory-summary");
+        const results = document.getElementById("inventory-list-results");
+        const headerBadges = document.getElementById("inventory-header-badges");
+        const liveStatus = document.getElementById("usecase-inventory-live-status");
+
+        if (!form || !summary || !results) return;
+
+        let debounceTimer;
+        let requestController;
+
+        const announce = (message) => {
+            if (liveStatus) liveStatus.textContent = message;
+        };
+
+        const currentFilterUrl = () => {
+            const params = new URLSearchParams(new FormData(form));
+
+            [...params.entries()].forEach(([key, value]) => {
+                if (!String(value).trim()) params.delete(key);
+            });
+
+            const query = params.toString();
+            return `${window.location.pathname}${query ? `?${query}` : ""}`;
+        };
+
+        const syncExportLinks = (parsedDocument) => {
+            const currentLinks = [...document.querySelectorAll("[data-inventory-export]")];
+            const nextLinks = [...parsedDocument.querySelectorAll("[data-inventory-export]")];
+
+            currentLinks.forEach((link, index) => {
+                if (nextLinks[index]) link.href = nextLinks[index].href;
+            });
+        };
+
+        const refreshInventory = async (url = currentFilterUrl()) => {
+            if (requestController) requestController.abort();
+
+            const controller = new AbortController();
+            requestController = controller;
+            summary.classList.add("is-loading");
+            results.classList.add("is-loading");
+            form.setAttribute("aria-busy", "true");
+            announce("Actualizando inventario...");
+
+            try {
+                const response = await fetch(url, {
+                    headers: { "X-Requested-With": "XMLHttpRequest" },
+                    signal: controller.signal,
+                });
+
+                if (!response.ok) throw new Error(`HTTP ${response.status}`);
+
+                const parsedDocument = new DOMParser().parseFromString(
+                    await response.text(),
+                    "text/html",
+                );
+                const nextSummary = parsedDocument.getElementById("inventory-summary");
+                const nextResults = parsedDocument.getElementById("inventory-list-results");
+                const nextHeaderBadges = parsedDocument.getElementById("inventory-header-badges");
+
+                if (!nextSummary || !nextResults) {
+                    throw new Error("La respuesta del inventario esta incompleta");
+                }
+
+                summary.innerHTML = nextSummary.innerHTML;
+                results.innerHTML = nextResults.innerHTML;
+                if (headerBadges && nextHeaderBadges) {
+                    headerBadges.innerHTML = nextHeaderBadges.innerHTML;
+                }
+                syncExportLinks(parsedDocument);
+                window.history.replaceState({}, "", url);
+                announce("Inventario actualizado");
+            } catch (error) {
+                if (error.name !== "AbortError") {
+                    announce("No se pudo actualizar el inventario");
+                }
+            } finally {
+                if (requestController === controller) {
+                    summary.classList.remove("is-loading");
+                    results.classList.remove("is-loading");
+                    form.removeAttribute("aria-busy");
+                    requestController = null;
+                }
+            }
+        };
+
+        const scheduleRefresh = () => {
+            window.clearTimeout(debounceTimer);
+            debounceTimer = window.setTimeout(() => refreshInventory(), 350);
+        };
+
+        form.addEventListener("input", (event) => {
+            if (event.target.matches("input[name='q']")) scheduleRefresh();
+        });
+
+        form.addEventListener("change", () => {
+            window.clearTimeout(debounceTimer);
+            refreshInventory();
+        });
+
+        form.addEventListener("submit", (event) => {
+            event.preventDefault();
+            window.clearTimeout(debounceTimer);
+            refreshInventory();
+        });
+
+        results.addEventListener("click", (event) => {
+            const paginationLink = event.target.closest(".pagination a");
+            if (!paginationLink) return;
+
+            event.preventDefault();
+            refreshInventory(paginationLink.href);
+        });
+    })();
+</script>
 {% endblock %}

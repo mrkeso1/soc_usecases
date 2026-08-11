@@ -3,7 +3,9 @@
     (function () {
         const storedTheme = localStorage.getItem('soc-theme');
         const prefersLight = window.matchMedia && window.matchMedia('(prefers-color-scheme: light)').matches;
-        document.documentElement.dataset.theme = storedTheme || (prefersLight ? 'light' : 'dark');
+        const theme = storedTheme || (prefersLight ? 'light' : 'dark');
+        document.documentElement.dataset.theme = theme;
+        document.documentElement.dataset.bsTheme = theme;
     })();
 </script>
 <script src="{% static 'vendor/htmx.min.js' %}" defer></script>
@@ -661,33 +663,189 @@
         }
     }
 
-    @media (max-width: 680px) {
-        .topbar {
-            gap: 10px !important;
+    @media (max-width: 991.98px) {
+        .mobile-shell-bar {
+            position: sticky;
+            top: 0;
+            z-index: 990;
+            min-height: 56px;
+            display: flex !important;
+            align-items: center;
+            justify-content: space-between;
+            gap: 12px;
+            padding: 8px 12px;
+            border-bottom: 1px solid var(--border);
+            background: color-mix(in srgb, var(--surface-elevated) 94%, transparent);
+            box-shadow: 0 10px 28px rgba(0, 0, 0, .14);
+            backdrop-filter: blur(12px);
         }
 
-        .brand-copy small,
+        .mobile-shell-bar > a {
+            overflow: hidden;
+            color: var(--text-strong);
+            font-family: 'JetBrains Mono', ui-monospace, monospace;
+            font-size: .78rem;
+            font-weight: 850;
+            text-decoration: none;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+
+        .mobile-shell-menu,
+        .mobile-theme-button,
+        .shell-menu-button {
+            min-width: 38px;
+            min-height: 38px;
+            display: inline-flex !important;
+            align-items: center;
+            justify-content: center;
+            gap: 4px;
+            padding: 8px;
+            border: 1px solid var(--border);
+            border-radius: var(--shell-radius);
+            background: var(--surface-2);
+            color: var(--text-strong);
+            cursor: pointer;
+        }
+
+        .mobile-shell-menu,
+        .shell-menu-button {
+            flex-direction: column;
+        }
+
+        .mobile-shell-menu span,
+        .shell-menu-button span {
+            width: 17px;
+            height: 2px;
+            display: block;
+            border-radius: 999px;
+            background: currentColor;
+        }
+
+        .mobile-theme-button {
+            width: auto;
+            font-family: 'JetBrains Mono', ui-monospace, monospace;
+            font-size: 10px;
+            font-weight: 800;
+        }
+
+        .topbar {
+            position: fixed !important;
+            inset: 0 auto 0 0 !important;
+            z-index: 1100 !important;
+            width: min(320px, calc(100vw - 44px)) !important;
+            height: 100dvh !important;
+            min-height: 0 !important;
+            flex-direction: column !important;
+            flex-wrap: nowrap !important;
+            align-items: stretch !important;
+            gap: 14px !important;
+            padding: 14px !important;
+            overflow-x: hidden !important;
+            overflow-y: auto !important;
+            border-right: 1px solid var(--border) !important;
+            border-bottom: 0 !important;
+            transform: translateX(-105%);
+            transition: transform .2s ease;
+        }
+
+        body.shell-nav-open .topbar {
+            transform: translateX(0);
+        }
+
+        body.shell-nav-open {
+            overflow: hidden;
+        }
+
+        .brand {
+            width: 100% !important;
+            min-width: 0 !important;
+            flex: 0 0 auto !important;
+        }
+
+        .brand-main {
+            flex: 1 1 auto;
+        }
+
+        .shell-menu-button {
+            margin-left: auto;
+        }
+
         .shell-status {
             display: none !important;
         }
 
-        .topbar-footer {
-            width: 100%;
-            justify-content: flex-start !important;
-            overflow-x: auto;
+        .topbar-nav {
+            width: 100% !important;
+            display: flex !important;
+            flex: 1 1 auto !important;
+            flex-direction: column !important;
+            align-items: stretch !important;
+            gap: 4px !important;
+            order: initial !important;
+            overflow: visible !important;
+            padding: 0 !important;
+        }
+
+        .nav-label {
+            display: block !important;
+            margin: 12px 8px 3px !important;
+            color: var(--text-muted) !important;
+            font-family: 'JetBrains Mono', ui-monospace, monospace;
+            font-size: 9px;
+            font-weight: 800;
+            letter-spacing: .08em;
+            text-transform: uppercase;
+        }
+
+        .nav-icon {
+            width: 24px;
+            height: 24px;
+            display: inline-grid !important;
+            flex: 0 0 24px;
+            place-items: center;
+            border-radius: 6px;
+            background: var(--surface-3);
+            color: var(--accent);
         }
 
         .topbar-nav a {
-            min-height: 32px !important;
-            padding: 0 9px !important;
-            font-size: 10px !important;
+            width: 100% !important;
+            min-height: 40px !important;
+            justify-content: flex-start !important;
+            gap: 10px !important;
+            padding: 0 10px !important;
+            font-size: 11px !important;
         }
 
+        .topbar-footer {
+            width: 100% !important;
+            flex: 0 0 auto !important;
+            justify-content: stretch !important;
+            margin: 0 !important;
+        }
+
+        .topbar-footer > *,
+        .topbar-logout-form,
         .theme-toggle-button,
-        .admin-link,
         .topbar-logout-button {
-            min-height: 32px !important;
-            font-size: 10px !important;
+            flex: 1 1 0 !important;
+        }
+
+        .shell-scrim {
+            position: fixed;
+            inset: 0;
+            z-index: 1050;
+            display: block !important;
+            background: rgba(0, 0, 0, .58);
+            opacity: 0;
+            visibility: hidden;
+            transition: opacity .2s ease, visibility .2s ease;
+        }
+
+        body.shell-nav-open .shell-scrim {
+            opacity: 1;
+            visibility: visible;
         }
     }
 </style>

@@ -1,4 +1,4 @@
-{% extends "base.html" %}
+{% extends "base_bootstrap.html" %}
 {% load static l10n %}
 
 {% block title %}Dashboard MITRE - SOC Control Manager{% endblock %}
@@ -829,7 +829,7 @@
 {% endblock %}
 
 {% block content %}
-<main class="container dashboard-report-page">
+<main class="container-xxl dashboard-report-page py-4 px-3 px-lg-4">
     <section class="page-shell wide">
         <header class="page-header">
             <div>
@@ -857,11 +857,11 @@
             </nav>
         </section>
 
-        <section class="filter-panel">
+        <section class="filter-panel card">
             <form method="get" class="mitre-filter-grid">
                 <div class="field">
                     <label>Dispositivo</label>
-                    <select name="device">
+                    <select class="form-select" name="device">
                         <option value="">Todos</option>
                         {% for item in devices %}
                             <option value="{{ item }}" {% if selected_device == item %}selected{% endif %}>{{ item }}</option>
@@ -870,7 +870,7 @@
                 </div>
                 <div class="field">
                     <label>Fuente</label>
-                    <select name="source">
+                    <select class="form-select" name="source">
                         <option value="">Todas</option>
                         {% for item in sources %}
                             <option value="{{ item.pk }}" {% if selected_source == item.pk|stringformat:"s" %}selected{% endif %}>{{ item.display_name }}</option>
@@ -879,7 +879,7 @@
                 </div>
                 <div class="field">
                     <label>Severidad</label>
-                    <select name="severity">
+                    <select class="form-select" name="severity">
                         <option value="">Toda</option>
                         {% for value, label in severity_choices %}
                             <option value="{{ value }}" {% if selected_severity == value %}selected{% endif %}>{{ label }}</option>
@@ -888,7 +888,7 @@
                 </div>
                 <div class="field">
                     <label>Habilitado</label>
-                    <select name="enabled">
+                    <select class="form-select" name="enabled">
                         <option value="yes" {% if selected_enabled == "yes" %}selected{% endif %}>Si</option>
                         <option value="all" {% if selected_enabled == "all" %}selected{% endif %}>Ambos</option>
                         <option value="no" {% if selected_enabled == "no" %}selected{% endif %}>No</option>
@@ -896,16 +896,16 @@
                 </div>
                 <div class="field">
                     <label>Periodo índice</label>
-                    <select name="timeline">
+                    <select class="form-select" name="timeline">
                         {% for item in timeline_options %}
                             <option value="{{ item.value }}" {% if selected_timeline == item.value %}selected{% endif %}>{{ item.label }}</option>
                         {% endfor %}
                     </select>
                 </div>
                 <div class="header-actions">
-                    <button type="submit" class="btn-primary">Filtrar</button>
-                    <a href="{% url 'dashboard_mitre' %}" class="btn">Limpiar</a>
-                    <a href="{% url 'dashboard_pdf_export' %}{% if request.GET.urlencode %}?{{ request.GET.urlencode }}{% endif %}" class="btn">Exportar PDF</a>
+                    <button type="submit" class="btn btn-primary">Filtrar</button>
+                    <a href="{% url 'dashboard_mitre' %}" class="btn btn-outline-secondary">Limpiar</a>
+                    <a href="{% url 'dashboard_pdf_export' %}{% if request.GET.urlencode %}?{{ request.GET.urlencode }}{% endif %}" class="btn btn-outline-secondary">Exportar PDF</a>
                 </div>
             </form>
         </section>
@@ -914,7 +914,7 @@
 
         <section class="mitre-summary-strip" aria-label="Resumen productivo">
             {% for card in mitre_summary_cards %}
-                <article class="mitre-summary-card {{ card.level }}">
+                <article class="mitre-summary-card card {{ card.level }}">
                     <span class="mitre-summary-label">{{ card.label }}</span>
                     <strong class="mitre-summary-value">{{ card.value }}</strong>
                     <span class="mitre-summary-detail">{{ card.detail }}</span>
@@ -1038,7 +1038,7 @@
         </div>
         <section class="radial-grid">
             {% for metric in attack_radials %}
-                <article class="radial-card">
+                <article class="radial-card card">
                     <div class="radial-card-title">{{ metric.title }}</div>
                     <div class="radial-wrap">
                         <svg class="radial-svg" viewBox="0 0 190 190">
@@ -1076,7 +1076,7 @@
         </div>
         <section class="radial-grid">
             {% for metric in d3fend_radials %}
-                <article class="radial-card">
+                <article class="radial-card card">
                     <div class="radial-card-title">{{ metric.title }}</div>
                     <div class="radial-wrap">
                         <svg class="radial-svg" viewBox="0 0 190 190">
@@ -1113,7 +1113,7 @@
             <span class="section-line"></span>
         </div>
         <section class="stats-grid">
-            <article class="panel">
+            <article class="panel card">
                 <div class="panel-head"><span class="panel-title">Cobertura por tactica ATT&amp;CK</span></div>
                 <div class="panel-body">
                     {% if tactic_coverage_rows %}
@@ -1142,7 +1142,7 @@
                 </div>
             </article>
 
-            <article class="panel">
+            <article class="panel card">
                 <div class="panel-head"><span class="panel-title">Cobertura D3FEND Detect</span></div>
                 <div class="panel-body">
                     {% if d3fend_detect_coverage_rows %}
@@ -1171,7 +1171,7 @@
                 </div>
             </article>
 
-            <article class="panel">
+            <article class="panel card">
                 <div class="panel-head"><span class="panel-title">Tacticas ATT&amp;CK sin cobertura productiva</span></div>
                 <div class="panel-body">
                     {% if uncovered_tactics %}
@@ -1189,7 +1189,7 @@
                 </div>
             </article>
 
-            <article class="panel">
+            <article class="panel card">
                 <div class="panel-head"><span class="panel-title">Tecnicas ATT&amp;CK sin cobertura productiva</span></div>
                 <div class="panel-body">
                     {% if uncovered_attacks %}
@@ -1210,7 +1210,7 @@
                 </div>
             </article>
 
-            <article class="panel">
+            <article class="panel card">
                 <div class="panel-head"><span class="panel-title">Tecnicas D3FEND sin cobertura ATT&amp;CK productiva</span></div>
                 <div class="panel-body">
                     {% if uncovered_d3fends %}

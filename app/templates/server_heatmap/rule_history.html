@@ -1,10 +1,9 @@
-{% extends "base.html" %}
+{% extends "base_bootstrap.html" %}
 
 {% block title %}Historial de reglas - SOC Control Manager{% endblock %}
 
 {% block extra_css %}
 <style>
-    .history-filters{display:grid;grid-template-columns:minmax(220px,1fr) 220px auto;gap:10px;align-items:end}
     .history-table-shell{overflow:auto;border:1px solid var(--border);border-radius:12px;background:var(--surface);margin-top:14px}
     .history-table{width:100%;min-width:980px;border-collapse:collapse}
     .history-table th,.history-table td{padding:10px;border-bottom:1px solid var(--border);text-align:left;vertical-align:top;font-size:.79rem}
@@ -14,12 +13,12 @@
     .history-change strong{color:var(--text-strong)}
     .history-value{overflow-wrap:anywhere;white-space:pre-wrap}
     .history-meta{color:var(--text-muted);font-size:.72rem}
-    @media(max-width:800px){.history-filters{grid-template-columns:1fr}.history-change{grid-template-columns:1fr}.history-arrow{display:none}}
+    @media(max-width:800px){.history-change{grid-template-columns:1fr}.history-arrow{display:none}}
 </style>
 {% endblock %}
 
 {% block content %}
-<main class="container">
+<main class="container-fluid px-3 px-lg-4">
     <section class="page-shell wide">
         <header class="page-header">
             <div>
@@ -28,30 +27,30 @@
                 <p class="page-subtitle">Cada versión conserva quién realizó el cambio, cuándo ocurrió y qué valores se modificaron.</p>
             </div>
             <div class="header-actions">
-                <a class="btn" href="{% url 'server_heatmap_filter_list' %}">Reglas de inventario</a>
-                <a class="btn" href="{% url 'server_heatmap_administration' %}">Volver al panel</a>
+                <a class="btn btn-outline-secondary" href="{% url 'server_heatmap_filter_list' %}">Reglas de inventario</a>
+                <a class="btn btn-outline-secondary" href="{% url 'server_heatmap_administration' %}">Volver al panel</a>
             </div>
         </header>
 
-        <form method="get" class="history-filters">
-            <div class="field">
-                <label for="history-q">Buscar regla</label>
-                <input id="history-q" name="q" value="{{ query }}" placeholder="Nombre de la regla">
+        <form method="get" class="history-filters row g-2 align-items-end">
+            <div class="field col-12 col-md">
+                <label class="form-label" for="history-q">Buscar regla</label>
+                <input class="form-control" id="history-q" name="q" value="{{ query }}" placeholder="Nombre de la regla">
             </div>
-            <div class="field">
-                <label for="history-type">Tipo</label>
-                <select id="history-type" name="type">
+            <div class="field col-12 col-md-4 col-lg-3">
+                <label class="form-label" for="history-type">Tipo</label>
+                <select class="form-select" id="history-type" name="type">
                     <option value="">Todos</option>
                     <option value="naming" {% if selected_type == "naming" %}selected{% endif %}>Nomenclatura anterior</option>
                     <option value="filter" {% if selected_type == "filter" %}selected{% endif %}>Regla de inventario</option>
                 </select>
             </div>
-            <button class="btn-primary" type="submit">Filtrar</button>
+            <div class="col-12 col-md-auto"><button class="btn btn-primary w-100" type="submit">Filtrar</button></div>
             {% if selected_id %}<input type="hidden" name="id" value="{{ selected_id }}">{% endif %}
         </form>
 
-        <div class="history-table-shell">
-            <table class="history-table">
+        <div class="history-table-shell table-responsive card">
+            <table class="history-table table table-hover align-middle mb-0">
                 <thead>
                     <tr><th>Fecha</th><th>Regla</th><th>Versión</th><th>Acción</th><th>Usuario</th><th>Cambios</th></tr>
                 </thead>
@@ -87,11 +86,11 @@
         </div>
 
         {% if page.paginator.num_pages > 1 %}
-            <div class="header-actions" style="margin-top:14px">
-                {% if page.has_previous %}<a class="btn" href="?page={{ page.previous_page_number }}&q={{ query|urlencode }}&type={{ selected_type }}&id={{ selected_id }}">Anterior</a>{% endif %}
-                <span class="page-subtitle">Página {{ page.number }} de {{ page.paginator.num_pages }}</span>
-                {% if page.has_next %}<a class="btn" href="?page={{ page.next_page_number }}&q={{ query|urlencode }}&type={{ selected_type }}&id={{ selected_id }}">Siguiente</a>{% endif %}
-            </div>
+            <nav class="mt-3" aria-label="Paginación del historial"><ul class="pagination justify-content-end mb-0">
+                {% if page.has_previous %}<li class="page-item"><a class="page-link" href="?page={{ page.previous_page_number }}&q={{ query|urlencode }}&type={{ selected_type }}&id={{ selected_id }}">Anterior</a></li>{% endif %}
+                <li class="page-item disabled"><span class="page-link">Página {{ page.number }} de {{ page.paginator.num_pages }}</span></li>
+                {% if page.has_next %}<li class="page-item"><a class="page-link" href="?page={{ page.next_page_number }}&q={{ query|urlencode }}&type={{ selected_type }}&id={{ selected_id }}">Siguiente</a></li>{% endif %}
+            </ul></nav>
         {% endif %}
     </section>
 </main>

@@ -39,6 +39,17 @@ class ReportTemplateConfigForm(forms.ModelForm):
 
     def __init__(self, *args, report_type=None, **kwargs):
         super().__init__(*args, **kwargs)
+        for field in self.fields.values():
+            widget = field.widget
+            if isinstance(widget, (forms.CheckboxInput, forms.CheckboxSelectMultiple)):
+                bootstrap_class = "form-check-input"
+            elif isinstance(widget, forms.Select):
+                bootstrap_class = "form-select"
+            else:
+                bootstrap_class = "form-control"
+            existing_classes = widget.attrs.get("class", "").split()
+            if bootstrap_class not in existing_classes:
+                widget.attrs["class"] = " ".join([*existing_classes, bootstrap_class])
         report_type = report_type or getattr(self.instance, "report_type", "")
         choices = [
             (key, f"{label} - {description}")

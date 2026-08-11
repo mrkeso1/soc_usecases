@@ -37,6 +37,8 @@ class ControlPermissionTests(TestCase):
 
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "Endpoint telemetry control")
+        self.assertContains(response, 'data-ui="bootstrap"')
+        self.assertContains(response, "vendor/bootstrap/5.3.8/bootstrap.min.css")
 
     def test_readonly_cannot_view_controls(self):
         self.client.login(username="readonly", password="pass")
@@ -102,3 +104,10 @@ class ControlFormTests(TestCase):
 
         self.assertFalse(form.is_valid())
         self.assertIn("control_conditions_text", form.errors)
+
+    def test_control_widgets_use_bootstrap_classes(self):
+        form = ControlForm()
+
+        self.assertIn("form-select", form.fields["classification"].widget.attrs["class"])
+        self.assertIn("form-control", form.fields["name"].widget.attrs["class"])
+        self.assertIn("form-check-input", form.fields["use_cases"].widget.attrs["class"])

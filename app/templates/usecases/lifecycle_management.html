@@ -1,4 +1,4 @@
-{% extends "base.html" %}
+{% extends "base_bootstrap.html" %}
 
 {% block title %}Ciclo de Vida - SOC Use Cases Manager{% endblock %}
 
@@ -117,6 +117,10 @@
     }
     .segmented-control input {
         position: absolute;
+        width: 1px;
+        height: 1px;
+        min-height: 0;
+        padding: 0;
         opacity: 0;
         pointer-events: none;
     }
@@ -364,36 +368,31 @@
 {% endblock %}
 
 {% block content %}
-<main class="container lifecycle-page">
-    <section class="page-shell wide">
-        <header class="page-header">
-            <div>
-                <div class="page-eyebrow">// INVENTARIO / CICLO DE VIDA</div>
-                <h1 class="page-title">Ciclo de Vida de Casos de Uso</h1>
-                <p class="page-subtitle">Revisión cuatrimestral de alertamiento, validación técnica, fuentes y mejora continua.</p>
-            </div>
-            {% if can_manage_lifecycle %}
-                <div class="header-actions">
-                    <a class="btn" href="{% url 'lifecycle_periods_admin' %}">Administrar periodos</a>
+<main class="container-xxl py-4 px-3 px-lg-4 lifecycle-page">
+    <div class="vstack gap-4">
+        <header class="card border shadow-sm">
+            <div class="card-body p-3 p-lg-4">
+                <div class="row g-3 align-items-start">
+                    <div class="col-12 col-xl">
+                        <div class="page-eyebrow">// INVENTARIO / CICLO DE VIDA</div>
+                        <h1 class="page-title mb-2">Ciclo de Vida de Casos de Uso</h1>
+                        <p class="page-subtitle mb-0">Revisión cuatrimestral de alertamiento, validación técnica, fuentes y mejora continua.</p>
+                    </div>
+                    {% if can_manage_lifecycle %}<div class="col-12 col-xl-auto"><a class="btn btn-outline-secondary btn-sm" href="{% url 'lifecycle_periods_admin' %}">Administrar períodos</a></div>{% endif %}
                 </div>
-            {% endif %}
+            </div>
         </header>
 
-        <section class="panel">
-            <div class="page-header" style="margin-bottom:12px;">
-                <div>
-                    <h2 class="page-title" style="font-size:1.08rem;">Informes de Ciclo de Vida</h2>
-                    <p class="page-subtitle">Estado formal de los cierres cuatrimestrales del anio {{ state.year }}.</p>
+        <section class="card border shadow-sm">
+            <div class="card-body p-3 p-lg-4">
+                <div class="row g-3 align-items-start mb-3">
+                    <div class="col-12 col-xl"><h2 class="h5 mb-1">Informes de Ciclo de Vida</h2><p class="text-body-secondary mb-0">Estado formal de los cierres cuatrimestrales del año {{ state.year }}.</p></div>
+                    <div class="col-12 col-xl-auto"><div class="d-flex flex-wrap gap-2 justify-content-xl-end"><span class="badge rounded-pill accent">Período activo: {{ active_state.label }}</span><span class="badge rounded-pill {% if state.annual_ready %}good{% else %}warn{% endif %}">{% if state.annual_ready %}Anual listo{% else %}Anual pendiente{% endif %}</span></div></div>
                 </div>
-                <div class="header-actions">
-                    <span class="badge accent">Período activo: {{ active_state.label }}</span>
-                    <span class="badge {% if state.annual_ready %}good{% else %}warn{% endif %}">{% if state.annual_ready %}Anual listo{% else %}Anual pendiente{% endif %}</span>
-                </div>
-            </div>
 
-            <div class="period-grid">
+                <div class="row g-3">
                 {% for period in state.periods %}
-                    <article class="period-card">
+                    <div class="col-12 col-lg-4"><article class="card h-100 border period-card">
                         <div class="period-heading">
                             <div>
                                 <strong>{{ period.label }}</strong>
@@ -410,21 +409,17 @@
                         {% if can_manage_lifecycle %}
                             <form class="period-actions" method="post" action="{% url 'lifecycle_reset_period' period.period %}" onsubmit="return confirm('Resetear este periodo y los posteriores?');">
                                 {% csrf_token %}
-                                <button class="btn" type="submit">Reset periodo</button>
+                                <button class="btn btn-outline-secondary btn-sm" type="submit">Reset período</button>
                             </form>
                         {% endif %}
-                    </article>
+                    </article></div>
                 {% endfor %}
-            </div>
+                </div>
 
-            <div class="annual-control-grid">
-                <section class="panel" style="padding:12px;">
-                    <div class="page-header" style="margin-bottom:10px;">
-                        <div>
-                            <h2 class="page-title" style="font-size:1rem;">Reportes obligatorios</h2>
-                            <p class="page-subtitle">Para cerrar el ciclo anual tienen que quedar descargados los tres cuatrimestrales y el anual.</p>
-                        </div>
-                    </div>
+                <div class="row g-3 mt-1">
+                    <div class="col-12 col-xl-8"><section class="card h-100 border"><div class="card-body p-3">
+                    <h2 class="h6 mb-1">Reportes obligatorios</h2>
+                    <p class="text-body-secondary small">Para cerrar el ciclo anual tienen que quedar descargados los tres cuatrimestrales y el anual.</p>
                     <div class="report-status-list">
                         {% for report in report_statuses %}
                             <div class="report-status-item">
@@ -435,78 +430,76 @@
                                 {% if report.done %}
                                     <small class="muted">{{ report.exported_at|slice:":16" }}</small>
                                 {% elif report.available and can_export_lifecycle_reports %}
-                                    <a class="btn-primary" href="{% url 'report_download' 'lifecycle' %}?lifecycle_report_key={{ report.key }}">Descargar</a>
+                                    <a class="btn btn-primary btn-sm" href="{% url 'report_download' 'lifecycle' %}?lifecycle_report_key={{ report.key }}">Descargar</a>
                                 {% else %}
                                     <small class="muted">Se habilita al completar controles.</small>
                                 {% endif %}
                             </div>
                         {% endfor %}
-                    </div>
-                </section>
+                    </div></div></section></div>
 
-                <section class="panel" style="padding:12px;">
-                    <h2 class="page-title" style="font-size:1rem;">Cierre anual</h2>
-                    <p class="page-subtitle">Ciclo {{ state.year }}: {{ state.cycle.get_status_display }}. Proximo ciclo objetivo: {{ state.next_cycle_year }}.</p>
+                    <div class="col-12 col-xl-4"><section class="card h-100 border"><div class="card-body p-3">
+                    <h2 class="h6 mb-1">Cierre anual</h2>
+                    <p class="text-body-secondary small">Ciclo {{ state.year }}: {{ state.cycle.get_status_display }}. Próximo ciclo objetivo: {{ state.next_cycle_year }}.</p>
                     {% if can_manage_lifecycle %}
                         {% if state.can_start_new_cycle %}
                             <form method="post" action="{% url 'lifecycle_start_cycle' %}">
                                 {% csrf_token %}
-                                <button class="btn-primary" type="submit">Cerrar e iniciar ciclo nuevo</button>
+                                <button class="btn btn-primary" type="submit">Cerrar e iniciar ciclo nuevo</button>
                             </form>
                         {% else %}
                             <span class="badge {% if state.reports_ready %}good{% else %}warn{% endif %}">
                                 {% if state.reports_ready %}Reportes OK{% else %}Faltan reportes{% endif %}
                             </span>
-                            <p class="muted" style="margin-top:8px;">El inicio de ciclo nuevo se habilita cuando el ciclo anual esta completo, los reportes obligatorios estan descargados y ya comenzo el siguiente anio.</p>
+                            <p class="text-body-secondary small mt-2 mb-0">El inicio de ciclo nuevo se habilita cuando el ciclo anual está completo, los reportes obligatorios están descargados y ya comenzó el siguiente año.</p>
                         {% endif %}
                     {% endif %}
-                </section>
+                    </div></section></div>
+                </div>
             </div>
         </section>
 
-        <section class="kpi-grid">
-            <div class="kpi-card"><div class="kpi-label">Casos del periodo</div><div class="kpi-value">{{ active_state.total_use_cases }}</div></div>
-            <div class="kpi-card"><div class="kpi-label">Revisados</div><div class="kpi-value">{{ active_state.reviewed_use_cases }}</div></div>
-            <div class="kpi-card"><div class="kpi-label">Pendientes</div><div class="kpi-value">{{ active_state.pending_use_cases }}</div></div>
-            <div class="kpi-card"><div class="kpi-label">Avance</div><div class="kpi-value">{{ active_state.progress }}%</div></div>
+        <section class="row g-3" aria-label="Resumen del período activo">
+            <div class="col-12 col-sm-6 col-xl-3"><div class="card h-100 border shadow-sm"><div class="card-body"><div class="small fw-semibold text-body-secondary text-uppercase">Casos del período</div><div class="h3 fw-bold mb-0 mt-2">{{ active_state.total_use_cases }}</div></div></div></div>
+            <div class="col-12 col-sm-6 col-xl-3"><div class="card h-100 border shadow-sm"><div class="card-body"><div class="small fw-semibold text-body-secondary text-uppercase">Revisados</div><div class="h3 fw-bold mb-0 mt-2">{{ active_state.reviewed_use_cases }}</div></div></div></div>
+            <div class="col-12 col-sm-6 col-xl-3"><div class="card h-100 border shadow-sm"><div class="card-body"><div class="small fw-semibold text-body-secondary text-uppercase">Pendientes</div><div class="h3 fw-bold mb-0 mt-2">{{ active_state.pending_use_cases }}</div></div></div></div>
+            <div class="col-12 col-sm-6 col-xl-3"><div class="card h-100 border shadow-sm"><div class="card-body"><div class="small fw-semibold text-body-secondary text-uppercase">Avance</div><div class="h3 fw-bold mb-0 mt-2">{{ active_state.progress }}%</div></div></div></div>
         </section>
 
         {% if owner_pending_summary %}
-            <p class="muted" style="margin-bottom:12px;">
+            <p class="text-body-secondary mb-0">
                 Top pendientes por responsable:
                 {% for owner, count in owner_pending_summary %}
-                    <strong style="color:var(--text-strong);">{{ owner }}</strong> ({{ count }}){% if not forloop.last %}, {% endif %}
+                    <strong>{{ owner }}</strong> ({{ count }}){% if not forloop.last %}, {% endif %}
                 {% endfor %}
             </p>
         {% endif %}
 
-        <section class="panel">
-            <div class="review-queue-heading">
-                <div>
-                    <h2 class="page-title" style="font-size:1.08rem;">Bandeja de revisión</h2>
-                    <p class="page-subtitle">Cuatrimestre a revisar: {{ active_state.label }} {{ state.year }}.</p>
-                </div>
-                <div class="review-progress">
+        <section class="card border shadow-sm">
+            <div class="card-body p-3 p-lg-4">
+            <div class="row g-3 align-items-start mb-3">
+                <div class="col-12 col-lg"><h2 class="h5 mb-1">Bandeja de revisión</h2><p class="text-body-secondary mb-0">Cuatrimestre a revisar: {{ active_state.label }} {{ state.year }}.</p></div>
+                <div class="col-12 col-lg-4 review-progress">
                     <div>
                         <span class="badge accent">{{ active_state.state }}</span>
                         <span class="badge">{{ active_state.reviewed_use_cases }}/{{ active_state.total_use_cases }} revisados</span>
                     </div>
-                    <small class="muted">Avance del cuatrimestre <strong style="color:var(--text-strong);">{{ active_state.progress }}%</strong></small>
+                    <small class="text-body-secondary">Avance del cuatrimestre <strong>{{ active_state.progress }}%</strong></small>
                     <progress value="{{ active_state.progress }}" max="100"></progress>
                 </div>
             </div>
 
-            <form id="lifecycle-filters" class="review-filters" method="get">
-                <input name="q" value="{{ q }}" placeholder="Buscar por nombre, fuente, dispositivo o severidad">
-                <div class="segmented-control">
+            <form id="lifecycle-filters" class="row g-3 align-items-center mb-3" method="get">
+                <div class="col-12 col-lg"><label class="visually-hidden" for="lifecycle-search">Buscar</label><input class="form-control" id="lifecycle-search" name="q" value="{{ q }}" placeholder="Buscar por nombre, fuente, dispositivo o severidad"></div>
+                <div class="col-12 col-lg-auto"><div class="segmented-control">
                     <label><input type="radio" name="bucket" value="all" {% if bucket == "all" %}checked{% endif %} onchange="this.form.submit()"><span>Todos</span></label>
                     <label><input type="radio" name="bucket" value="pending" {% if bucket == "pending" %}checked{% endif %} onchange="this.form.submit()"><span>Pendientes</span></label>
                     <label><input type="radio" name="bucket" value="reviewed" {% if bucket == "reviewed" %}checked{% endif %} onchange="this.form.submit()"><span>Revisados</span></label>
-                </div>
+                </div></div>
             </form>
 
-            <section class="table-panel">
-                <table class="data-table lifecycle-table">
+            <section class="table-responsive border rounded">
+                <table class="table table-hover align-middle mb-0 lifecycle-table">
                     <thead>
                         <tr>
                             <th>ID</th>
@@ -532,13 +525,13 @@
                                 {% if row.can_assign_owner %}
                                     <form class="owner-form" method="post" action="{% url 'lifecycle_assign_owner' row.usecase.pk %}">
                                         {% csrf_token %}
-                                        <select name="lifecycle_control_owner">
+                                        <select class="form-select form-select-sm" name="lifecycle_control_owner">
                                             <option value="">Sin responsable</option>
                                             {% for user in lifecycle_users %}
                                                 <option value="{{ user.pk }}" {% if row.owner and row.owner.pk == user.pk %}selected{% endif %}>{{ user.get_full_name|default:user.username }}</option>
                                             {% endfor %}
                                         </select>
-                                        <button class="btn" type="submit">Guardar</button>
+                                        <button class="btn btn-outline-secondary btn-sm" type="submit">Guardar</button>
                                     </form>
                                 {% else %}
                                     {% if row.owner %}{{ row.owner.get_full_name|default:row.owner.username }}{% else %}<span class="muted">Sin responsable</span>{% endif %}
@@ -555,7 +548,7 @@
                                     </div>
                                 {% elif row.can_finish %}
                                     <div class="review-action-stack">
-                                        <button class="btn-primary" type="button" data-review-open="review-modal-{{ row.usecase.pk }}">Registrar revisión</button>
+                                        <button class="btn btn-primary btn-sm" type="button" data-review-open="review-modal-{{ row.usecase.pk }}">Registrar revisión</button>
                                         <div class="review-check-summary" aria-label="Controles requeridos">
                                             {% for check in row.control_checks %}
                                                 <span class="badge {% if check.ok %}good{% else %}warn{% endif %}">{{ check.label }}</span>
@@ -575,26 +568,26 @@
                                                     <span>// {{ active_review_type }}</span>
                                                     <strong id="review-title-{{ row.usecase.pk }}">{{ row.usecase.name }}</strong>
                                                 </div>
-                                                <button class="btn" type="button" data-review-close>Cerrar</button>
+                                                <button class="btn btn-outline-secondary btn-sm" type="button" data-review-close>Cerrar</button>
                                             </div>
 
                                             <div class="review-modal-body">
                                                 <div class="review-modal-grid">
                                                     <div class="field">
                                                         <label class="field-label">Cantidad de alertas</label>
-                                                        <input type="number" name="trigger_count" min="0" value="0" required>
+                                                        <input class="form-control" type="number" name="trigger_count" min="0" value="0" required>
                                                     </div>
                                                     <div class="field">
                                                         <label class="field-label">Incidentes reales</label>
-                                                        <input type="number" name="true_incidents" min="0" value="0" required>
+                                                        <input class="form-control" type="number" name="true_incidents" min="0" value="0" required>
                                                     </div>
                                                     <div class="field">
                                                         <label class="field-label">Falsos positivos</label>
-                                                        <input type="number" name="false_positives" min="0" value="0" required>
+                                                        <input class="form-control" type="number" name="false_positives" min="0" value="0" required>
                                                     </div>
                                                     <div class="field">
                                                         <label class="field-label">Resultado</label>
-                                                        <select name="validation_result" required>
+                                                        <select class="form-select" name="validation_result" required>
                                                             <option value="">Seleccionar resultado</option>
                                                             {% for value, label in validation_result_choices %}
                                                                 <option value="{{ value }}">{{ label }}</option>
@@ -606,19 +599,19 @@
                                                 <section class="review-modal-section">
                                                     <div class="review-modal-section-title">Checklist técnico</div>
                                                     <div class="review-check-grid">
-                                                        <label><input type="checkbox" name="logic_valid" checked> Lógica funcional</label>
-                                                        <label><input type="checkbox" name="sources_active" checked> Fuentes activas</label>
-                                                        <label><input type="checkbox" name="event_ids_valid" checked> Event IDs vigentes</label>
-                                                        <label><input type="checkbox" name="fields_exist" checked> Campos existentes</label>
+                                                        <label class="form-check m-0"><input class="form-check-input" type="checkbox" name="logic_valid" checked> <span class="form-check-label">Lógica funcional</span></label>
+                                                        <label class="form-check m-0"><input class="form-check-input" type="checkbox" name="sources_active" checked> <span class="form-check-label">Fuentes activas</span></label>
+                                                        <label class="form-check m-0"><input class="form-check-input" type="checkbox" name="event_ids_valid" checked> <span class="form-check-label">Event IDs vigentes</span></label>
+                                                        <label class="form-check m-0"><input class="form-check-input" type="checkbox" name="fields_exist" checked> <span class="form-check-label">Campos existentes</span></label>
                                                     </div>
                                                 </section>
 
                                                 <section class="review-modal-section">
                                                     <div class="review-modal-section-title">Hallazgos</div>
                                                     <div class="review-check-grid review-flags">
-                                                        <label><input type="checkbox" name="requires_tuning"> Requiere ajuste</label>
-                                                        <label><input type="checkbox" name="requires_optimization"> Optimizacion</label>
-                                                        <label><input type="checkbox" name="requires_retirement"> Baja</label>
+                                                        <label class="form-check m-0"><input class="form-check-input" type="checkbox" name="requires_tuning"> <span class="form-check-label">Requiere ajuste</span></label>
+                                                        <label class="form-check m-0"><input class="form-check-input" type="checkbox" name="requires_optimization"> <span class="form-check-label">Optimización</span></label>
+                                                        <label class="form-check m-0"><input class="form-check-input" type="checkbox" name="requires_retirement"> <span class="form-check-label">Baja</span></label>
                                                     </div>
                                                 </section>
 
@@ -633,13 +626,13 @@
 
                                                 <div class="field">
                                                     <label class="field-label">Comentarios y evidencia</label>
-                                                    <textarea name="notes" required placeholder="Detalle de la revisión, evidencia y observaciones"></textarea>
+                                                    <textarea class="form-control" name="notes" required placeholder="Detalle de la revisión, evidencia y observaciones"></textarea>
                                                 </div>
                                             </div>
 
                                             <div class="review-modal-footer">
-                                                <button class="btn" type="button" data-review-close>Cancelar</button>
-                                                <button class="btn-primary" type="submit">Guardar revisión</button>
+                                                <button class="btn btn-outline-secondary" type="button" data-review-close>Cancelar</button>
+                                                <button class="btn btn-primary" type="submit">Guardar revisión</button>
                                             </div>
                                         </form>
                                     </div>
@@ -656,15 +649,20 @@
             </section>
 
             {% if queue.paginator.num_pages > 1 %}
-                <nav class="pagination">
-                    {% if queue.has_previous %}<a class="btn" href="?page={{ queue.previous_page_number }}&q={{ q|urlencode }}&bucket={{ bucket }}">Anterior</a>{% endif %}
-                    <span class="btn">Pagina {{ queue.number }} / {{ queue.paginator.num_pages }}</span>
-                    {% if queue.has_next %}<a class="btn" href="?page={{ queue.next_page_number }}&q={{ q|urlencode }}&bucket={{ bucket }}">Siguiente</a>{% endif %}
+                <nav aria-label="Paginación de revisiones" class="mt-3"><ul class="pagination justify-content-center flex-wrap mb-0">
+                    {% if queue.has_previous %}<li class="page-item"><a class="page-link" href="?page={{ queue.previous_page_number }}&amp;q={{ q|urlencode }}&amp;bucket={{ bucket }}">Anterior</a></li>{% endif %}
+                    <li class="page-item disabled"><span class="page-link">Página {{ queue.number }} / {{ queue.paginator.num_pages }}</span></li>
+                    {% if queue.has_next %}<li class="page-item"><a class="page-link" href="?page={{ queue.next_page_number }}&amp;q={{ q|urlencode }}&amp;bucket={{ bucket }}">Siguiente</a></li>{% endif %}
+                </ul>
                 </nav>
             {% endif %}
+            </div>
         </section>
-    </section>
+    </div>
 </main>
+{% endblock %}
+
+{% block extra_js %}
 <script>
     (function () {
         const openButtons = document.querySelectorAll('[data-review-open]');

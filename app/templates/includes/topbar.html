@@ -1,4 +1,4 @@
-<nav class="topbar" data-shell-nav>
+<nav class="topbar" id="soc-shell-navigation" data-shell-nav aria-label="Navegación principal">
     <div class="brand">
         <a class="brand-main" href="{% url 'dashboard' %}" aria-label="Ir al dashboard">
             <span class="brand-icon" aria-hidden="true">
@@ -11,7 +11,7 @@
                 <small>Security Operations</small>
             </span>
         </a>
-        <button type="button" class="shell-menu-button" data-shell-menu aria-label="Abrir navegacion">
+        <button type="button" class="shell-menu-button" data-shell-menu aria-controls="soc-shell-navigation" aria-expanded="false" aria-label="Cerrar navegación">
             <span></span><span></span><span></span>
         </button>
     </div>
@@ -76,13 +76,13 @@
     </div>
 </nav>
 <div class="mobile-shell-bar">
-    <button type="button" class="mobile-shell-menu" data-shell-menu aria-label="Abrir navegacion">
+    <button type="button" class="mobile-shell-menu" data-shell-menu aria-controls="soc-shell-navigation" aria-expanded="false" aria-label="Abrir navegación">
         <span></span><span></span><span></span>
     </button>
     <a href="{% url 'dashboard' %}">SOC Control Manager</a>
     <button type="button" class="mobile-theme-button" data-theme-toggle aria-label="Cambiar tema">Tema</button>
 </div>
-<div class="shell-scrim" data-shell-scrim></div>
+<div class="shell-scrim" data-shell-scrim aria-hidden="true"></div>
 <script>
     (function () {
         const root = document.documentElement;
@@ -99,13 +99,23 @@
             });
         }
 
+        function syncNavState() {
+            const expanded = document.body.classList.contains('shell-nav-open');
+            menuButtons.forEach(function (button) {
+                button.setAttribute('aria-expanded', expanded ? 'true' : 'false');
+            });
+            if (scrim) scrim.setAttribute('aria-hidden', expanded ? 'false' : 'true');
+        }
+
         function closeNav() {
             document.body.classList.remove('shell-nav-open');
+            syncNavState();
         }
 
         menuButtons.forEach(function (button) {
             button.addEventListener('click', function () {
                 document.body.classList.toggle('shell-nav-open');
+                syncNavState();
             });
         });
 
@@ -113,17 +123,25 @@
         nav && nav.querySelectorAll('a').forEach(function (link) {
             link.addEventListener('click', closeNav);
         });
+        document.addEventListener('keydown', function (event) {
+            if (event.key === 'Escape') closeNav();
+        });
+        window.addEventListener('resize', function () {
+            if (window.matchMedia('(min-width: 992px)').matches) closeNav();
+        });
 
         themeButtons.forEach(function (button) {
             button.addEventListener('click', function () {
                 const current = root.dataset.theme || 'dark';
                 const next = current === 'light' ? 'dark' : 'light';
                 root.dataset.theme = next;
+                root.dataset.bsTheme = next;
                 localStorage.setItem('soc-theme', next);
                 syncThemeLabels();
             });
         });
 
         syncThemeLabels();
+        syncNavState();
     })();
 </script>

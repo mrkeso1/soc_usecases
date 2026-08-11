@@ -69,6 +69,20 @@ PERMISSION_CATALOG = [
 ]
 
 
+def _apply_bootstrap_widget_classes(form):
+    for field in form.fields.values():
+        widget = field.widget
+        if isinstance(widget, (forms.CheckboxInput, forms.CheckboxSelectMultiple)):
+            bootstrap_class = "form-check-input"
+        elif isinstance(widget, forms.Select):
+            bootstrap_class = "form-select"
+        else:
+            bootstrap_class = "form-control"
+        existing_classes = widget.attrs.get("class", "").split()
+        if bootstrap_class not in existing_classes:
+            widget.attrs["class"] = " ".join([*existing_classes, bootstrap_class])
+
+
 def catalog_permission_codenames():
     return [codename for _, items in PERMISSION_CATALOG for codename, _ in items]
 
@@ -88,6 +102,7 @@ class AccessRoleForm(forms.ModelForm):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
+        _apply_bootstrap_widget_classes(self)
         pairs = [item.split(".", 1) for item in catalog_permission_codenames()]
         query = Permission.objects.none()
         for app_label, codename in pairs:
@@ -106,3 +121,7 @@ class UserRoleAssignmentForm(forms.Form):
         widget=forms.CheckboxSelectMultiple,
         label="Roles",
     )
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        _apply_bootstrap_widget_classes(self)

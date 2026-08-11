@@ -1,144 +1,58 @@
-{% extends "base.html" %}
+{% extends "base_bootstrap.html" %}
 
 {% block title %}Vista previa PDF - SOC Control Manager{% endblock %}
 
 {% block extra_css %}
 <style>
-    .preview-layout {
-        display: grid;
-        grid-template-columns: minmax(0, 1fr) 360px;
-        gap: 16px;
-        align-items: start;
-    }
-
-    .pdf-preview {
-        overflow: hidden;
-        border: 1px solid var(--border);
-        border-radius: 14px;
-        background: var(--surface);
-        box-shadow: 0 18px 48px rgba(15, 23, 42, .18);
-    }
-
-    .pdf-preview-toolbar {
-        display: flex;
-        align-items: center;
-        justify-content: space-between;
-        gap: 12px;
-        padding: 12px 14px;
-        border-bottom: 1px solid var(--border);
-        background: color-mix(in srgb, var(--surface-2) 72%, transparent);
-    }
-
-    .pdf-preview-toolbar strong {
-        display: block;
-        color: var(--text-strong);
-        font-size: .92rem;
-        font-weight: 760;
-    }
-
-    .pdf-preview-toolbar span {
-        display: block;
-        margin-top: 2px;
-        color: var(--text-muted);
-        font-size: .75rem;
-        font-weight: 700;
-    }
-
-    .pdf-preview-frame {
-        display: block;
-        width: 100%;
-        min-height: 78vh;
-        border: 0;
-        background: #1f2937;
-    }
-
-    .pdf-preview-fallback {
-        padding: 12px 14px;
-        border-top: 1px solid var(--border);
-        color: var(--text-muted);
-        font-size: .82rem;
-        line-height: 1.4;
-    }
-
-    .template-summary {
-        display: grid;
-        gap: 10px;
-    }
-
-    .color-row {
-        display: flex;
-        align-items: center;
-        gap: 8px;
-        color: var(--text-muted);
-    }
-
-    .color-swatch {
-        width: 20px;
-        height: 20px;
-        border: 1px solid var(--border);
-        border-radius: 999px;
-        background: var(--swatch);
-    }
-
-    @media (max-width: 980px) {
-        .preview-layout {
-            grid-template-columns: 1fr;
-        }
-
-        .pdf-preview-frame {
-            min-height: 72vh;
-        }
-    }
+    .pdf-preview-frame { display: block; width: 100%; min-height: 78vh; border: 0; background: #1f2937; }
+    .color-swatch { width: 22px; height: 22px; flex: 0 0 22px; border: 1px solid var(--border); border-radius: 50%; background: var(--swatch); }
+    @media (max-width: 991.98px) { .pdf-preview-frame { min-height: 72vh; } }
 </style>
 {% endblock %}
 
 {% block content %}
-<main class="container">
-    <section class="page-shell wide">
-        <header class="page-header">
-            <div>
-                <div class="page-eyebrow">// REPORTES / PREVIEW</div>
-                <h1 class="page-title">{{ config.report_title|default:definition.title }}</h1>
-                <p class="page-subtitle">Vista previa real del PDF que se va a descargar.</p>
-            </div>
-            <div class="header-actions">
-                <a class="btn-secondary" href="{% url 'report_index' %}">Volver</a>
-                {% if can_configure_templates %}
-                    <a class="btn-secondary" href="{% url 'report_template_settings' %}?report_type={{ report_type }}">Configurar</a>
-                {% endif %}
-                {% if can_export_reports %}
-                    <a class="btn-primary" href="{% url 'report_download' report_type %}">Descargar PDF</a>
-                {% endif %}
-            </div>
-        </header>
+<main class="container-xxl py-4 px-3 px-lg-4">
+    <header class="row g-3 align-items-start mb-4">
+        <div class="col-12 col-lg">
+            <div class="page-eyebrow">// REPORTES / PREVIEW</div>
+            <h1 class="page-title">{{ config.report_title|default:definition.title }}</h1>
+            <p class="page-subtitle mb-0">Vista previa real del PDF que se va a descargar.</p>
+        </div>
+        <div class="col-12 col-lg-auto d-flex flex-column flex-sm-row flex-wrap gap-2">
+            <a class="btn btn-outline-secondary" href="{% url 'report_index' %}">Volver</a>
+            {% if can_configure_templates %}<a class="btn btn-outline-secondary" href="{% url 'report_template_settings' %}?report_type={{ report_type }}">Configurar</a>{% endif %}
+            {% if can_export_reports %}<a class="btn btn-primary" href="{% url 'report_download' report_type %}">Descargar PDF</a>{% endif %}
+        </div>
+    </header>
 
-        <section class="preview-layout">
-            <article class="pdf-preview">
-                <div class="pdf-preview-toolbar">
+    <section class="row g-3 align-items-start">
+        <div class="col-12 col-xl-9">
+            <article class="card shadow-sm overflow-hidden">
+                <div class="card-header d-flex flex-column flex-sm-row align-items-sm-center justify-content-between gap-3 p-3">
                     <div>
-                        <strong>{{ definition.title }}</strong>
-                        <span>PDF generado con datos actuales</span>
+                        <strong class="d-block">{{ definition.title }}</strong>
+                        <span class="muted">PDF generado con datos actuales</span>
                     </div>
-                    <a class="btn-secondary" href="{% url 'report_preview_pdf' report_type %}" target="_blank" rel="noopener">Abrir PDF</a>
+                    <a class="btn btn-outline-secondary" href="{% url 'report_preview_pdf' report_type %}" target="_blank" rel="noopener">Abrir PDF</a>
                 </div>
                 <iframe class="pdf-preview-frame" src="{{ preview_pdf_url }}" title="Vista previa real del PDF {{ definition.title }}"></iframe>
-                <div class="pdf-preview-fallback">
-                    Si el navegador no muestra el visor embebido, usa Abrir PDF para ver la misma vista previa en una pestaña nueva.
-                </div>
+                <div class="card-footer p-3 muted">Si el navegador no muestra el visor embebido, usa Abrir PDF para ver la misma vista previa en una pestaña nueva.</div>
             </article>
+        </div>
 
-            <aside class="panel template-summary">
-                <div>
-                    <h2 class="page-title" style="font-size:1.08rem;">Plantilla activa</h2>
-                    <p class="page-subtitle">La preview y la descarga usan estos parametros para este tipo de reporte.</p>
+        <aside class="col-12 col-xl-3">
+            <div class="card shadow-sm">
+                <div class="card-header p-3"><h2 class="h5 mb-0">Plantilla activa</h2></div>
+                <div class="card-body d-grid gap-3">
+                    <p class="page-subtitle mb-0">La preview y la descarga usan estos parámetros para este tipo de reporte.</p>
+                    <div class="d-flex align-items-center gap-2"><span class="color-swatch" style="--swatch: {{ config.primary_color }}"></span><span>Primario {{ config.primary_color }}</span></div>
+                    <div class="d-flex align-items-center gap-2"><span class="color-swatch" style="--swatch: {{ config.accent_color }}"></span><span>Acento {{ config.accent_color }}</span></div>
+                    <div><span class="badge text-bg-secondary">{{ config.document_label }}</span></div>
+                    <div class="muted">Footer: {{ config.footer_text|default:"Sin footer" }}</div>
+                    <div class="muted">Secciones habilitadas: {{ enabled_sections|length }}</div>
                 </div>
-                <div class="color-row"><span class="color-swatch" style="--swatch: {{ config.primary_color }}"></span>Primario {{ config.primary_color }}</div>
-                <div class="color-row"><span class="color-swatch" style="--swatch: {{ config.accent_color }}"></span>Acento {{ config.accent_color }}</div>
-                <div><span class="badge">{{ config.document_label }}</span></div>
-                <div class="muted">Footer: {{ config.footer_text|default:"Sin footer" }}</div>
-                <div class="muted">Secciones habilitadas: {{ enabled_sections|length }}</div>
-            </aside>
-        </section>
+            </div>
+        </aside>
     </section>
 </main>
 {% endblock %}

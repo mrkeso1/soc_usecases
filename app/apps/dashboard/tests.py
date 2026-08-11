@@ -17,7 +17,7 @@ from apps.dashboard.reports import build_dashboard_pdf
 from apps.dashboard.models import MitreCoverageSnapshot
 from apps.mitre.models import D3Fend, MitreAttack
 from apps.usecases.models import UseCase
-from apps.server_heatmap.models import ServerAsset
+from apps.server_heatmap.models import ServerAsset, ServerCategory
 
 
 class DashboardPdfReportTests(TestCase):
@@ -103,24 +103,28 @@ class DashboardInventoryScopeTests(TestCase):
     def test_executive_heatmap_contains_only_windows_and_linux_unix(self):
         ServerAsset.objects.create(
             hostname="win-covered",
+            environment="PROD",
             os_family=ServerAsset.OS_WINDOWS,
             in_active_directory=True,
             in_siem=True,
         )
         ServerAsset.objects.create(
             hostname="linux-pending",
+            environment="PROD",
             os_family=ServerAsset.OS_LINUX,
             in_active_directory=True,
             in_siem=False,
         )
         ServerAsset.objects.create(
             hostname="aix-covered",
+            environment="PROD",
             os_family=ServerAsset.OS_UNIX,
             in_active_directory=True,
             in_siem=True,
         )
         ServerAsset.objects.create(
             hostname="other-ignored",
+            environment="PROD",
             os_family=ServerAsset.OS_OTHER,
             in_active_directory=True,
             in_siem=True,
@@ -132,12 +136,68 @@ class DashboardInventoryScopeTests(TestCase):
             "Windows",
             "Linux / Unix / AIX",
         ])
+        self.assertEqual(
+            [item["key"] for item in context["server_heatmap_matrix_rows"]],
+            [ServerAsset.OS_WINDOWS, ServerAsset.OS_LINUX],
+        )
         self.assertEqual(context["server_heatmap_total"], 3)
         self.assertEqual(context["server_heatmap_covered"], 2)
         self.assertEqual(context["server_heatmap_pending"], 1)
         self.assertEqual(context["server_heatmap_percent"], 66.7)
         self.assertEqual(context["server_heatmap_rows"][1]["total"], 2)
         self.assertEqual(context["server_heatmap_rows"][1]["covered"], 1)
+
+    def test_executive_heatmap_defaults_to_prod_and_all_includes_every_environment(self):
+        category = ServerCategory.objects.get(code="application")
+        ServerAsset.objects.create(
+            hostname="prod-win",
+            environment="prod",
+            category=category,
+            os_family=ServerAsset.OS_WINDOWS,
+            in_active_directory=True,
+            in_siem=True,
+        )
+        ServerAsset.objects.create(
+            hostname="desa-win",
+            environment="DESA",
+            category=category,
+            os_family=ServerAsset.OS_WINDOWS,
+            in_active_directory=True,
+            in_siem=False,
+        )
+
+        default_context = build_executive_dashboard_context(
+            self._request("/dashboard/?tab=mapa-calor")
+        )
+        all_context = build_executive_dashboard_context(
+            self._request("/dashboard/?tab=mapa-calor&environment=all")
+        )
+
+        self.assertEqual(default_context["selected_server_environment"], "PROD")
+        self.assertEqual(default_context["server_heatmap_total"], 1)
+        self.assertEqual(all_context["server_heatmap_total"], 2)
+        self.assertEqual(all_context["server_heatmap_pending"], 1)
+        self.assertEqual(all_context["server_environment_choices"], ["DESA", "PROD"])
+        default_windows = next(
+            row for row in default_context["server_heatmap_matrix_rows"]
+            if row["key"] == ServerAsset.OS_WINDOWS
+        )
+        all_windows = next(
+            row for row in all_context["server_heatmap_matrix_rows"]
+            if row["key"] == ServerAsset.OS_WINDOWS
+        )
+        default_cell = next(
+            cell for cell in default_windows["cells"]
+            if cell["category"].id == category.id
+        )
+        all_cell = next(
+            cell for cell in all_windows["cells"]
+            if cell["category"].id == category.id
+        )
+        self.assertEqual(default_cell["ad_count"], 1)
+        self.assertEqual(default_cell["percent"], 100.0)
+        self.assertEqual(all_cell["ad_count"], 2)
+        self.assertEqual(all_cell["pending"], 1)
 
     def test_executive_distribution_bars_use_total_cases_as_one_hundred_percent(self):
         UseCase.objects.create(name="ICBC 1", status=UseCase.STATUS_PRODUCTION, owner_name="ICBC")

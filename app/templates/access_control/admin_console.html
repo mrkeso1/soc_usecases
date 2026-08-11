@@ -1,73 +1,39 @@
-{% extends "base.html" %}
+{% extends "base_bootstrap.html" %}
 
-{% block title %}Administracion - SOC Control Manager{% endblock %}
-
-{% block extra_css %}
-<style>
-    .card-grid {
-        display: grid;
-        grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
-        gap: 16px;
-    }
-    .admin-console-card {
-        display: flex;
-        flex-direction: column;
-        min-height: 210px;
-        padding: 18px;
-        border: 1px solid var(--border-bright);
-        border-radius: 10px;
-        background: var(--surface);
-        box-shadow: 0 14px 30px rgba(0, 0, 0, .18);
-    }
-    html[data-theme="light"] .admin-console-card {
-        background: #ffffff;
-        border-color: #cbd5e1;
-        box-shadow: 0 12px 26px rgba(15, 23, 42, .10);
-    }
-    .card-head {
-        display: flex;
-        align-items: center;
-        justify-content: space-between;
-        gap: 10px;
-        margin-bottom: 12px;
-    }
-    .admin-console-card .page-subtitle {
-        flex: 1;
-        margin-top: 8px;
-    }
-</style>
-{% endblock %}
+{% block title %}Administración - SOC Control Manager{% endblock %}
 
 {% block content %}
-<main class="container">
-    <section class="page-shell wide">
-        <header class="page-header">
-            <div>
-                <div class="page-eyebrow">// ADMINISTRACION</div>
-                <h1 class="page-title">Panel de administración</h1>
-                <p class="page-subtitle">Entrada única para configuraciones operativas: accesos, fuentes, cobertura, reportes, auditoría y administración avanzada.</p>
-            </div>
-            <div class="header-actions">
-                <a class="btn" href="{% url 'dashboard' %}">Dashboard</a>
-                <a class="btn-primary" href="/admin/">Django Admin</a>
-            </div>
-        </header>
+<main class="container-xxl py-4 px-3 px-lg-4">
+    <header class="row g-3 align-items-start mb-4">
+        <div class="col-12 col-lg">
+            <div class="page-eyebrow">// ADMINISTRACIÓN</div>
+            <h1 class="page-title">Panel de administración</h1>
+            <p class="page-subtitle mb-0">Entrada única para configuraciones operativas: accesos, fuentes, cobertura, reportes, auditoría y administración avanzada.</p>
+        </div>
+        <div class="col-12 col-lg-auto d-flex flex-column flex-sm-row gap-2">
+            <a class="btn btn-outline-secondary" href="{% url 'dashboard' %}">Dashboard</a>
+            <a class="btn btn-primary" href="/admin/">Django Admin</a>
+        </div>
+    </header>
 
-        <section class="card-grid">
-            {% for card in cards %}
-                <article class="admin-console-card">
-                    <div class="card-head">
-                        <span class="entity-code">{{ card.eyebrow }}</span>
-                        <span class="badge accent">{{ card.badge }}</span>
-                    </div>
-                    <h2 class="page-title" style="font-size:1.12rem;">{{ card.title }}</h2>
-                    <p class="page-subtitle">{{ card.description }}</p>
-                    <div class="form-actions" style="margin-top:14px;">
-                        <a class="btn-primary" href="{{ card.url }}">Abrir</a>
+    <section class="row g-3">
+        {% for card in cards %}
+            <div class="col-12 col-md-6 col-xl-4">
+                <article class="card h-100 shadow-sm">
+                    <div class="card-body d-flex flex-column p-3 p-lg-4">
+                        <div class="d-flex align-items-center justify-content-between gap-2 mb-3">
+                            <span class="entity-code">{{ card.eyebrow }}</span>
+                            <span class="badge rounded-pill text-bg-primary accent">{{ card.badge }}</span>
+                        </div>
+                        <h2 class="h5">{{ card.title }}</h2>
+                        <p class="page-subtitle flex-grow-1">{{ card.description }}</p>
+                        <div class="d-grid d-sm-flex justify-content-sm-end mt-3">
+                            <a class="btn btn-primary" href="{{ card.url }}">Abrir</a>
+                        </div>
                     </div>
                 </article>
-            {% endfor %}
-        </section>
+            </div>
+        {% endfor %}
     </section>
 </main>
 {% endblock %}

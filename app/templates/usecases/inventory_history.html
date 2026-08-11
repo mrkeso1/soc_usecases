@@ -1,84 +1,66 @@
-{% extends "base.html" %}
+{% extends "base_bootstrap.html" %}
 
 {% block title %}Historial de Inventario - SOC Control Manager{% endblock %}
 
 {% block extra_css %}
 <style>
-    .history-list { display: grid; gap: 10px; }
-    .history-card {
-        display: grid;
-        grid-template-columns: 90px minmax(0, 1fr);
-        gap: 12px;
-        padding: 12px;
-        border: 1px solid var(--border);
-        border-radius: 12px;
-        background: var(--surface);
-    }
     .history-version {
-        color: var(--accent);
+        color: var(--bs-primary);
         font-family: 'JetBrains Mono', monospace;
         font-weight: 800;
-    }
-    .history-card strong { color: var(--text-strong); }
-    .history-values {
-        display: grid;
-        grid-template-columns: repeat(2, minmax(0, 1fr));
-        gap: 8px;
-        margin-top: 8px;
-    }
-    .history-values div {
-        padding: 8px;
-        border: 1px solid var(--border);
-        border-radius: 8px;
-        background: var(--surface-2);
-    }
-    .history-values small {
-        display: block;
-        margin-bottom: 4px;
-        color: var(--text-muted);
-        font-family: 'JetBrains Mono', monospace;
-        font-size: 10px;
-        font-weight: 800;
-        text-transform: uppercase;
-    }
-    @media (max-width: 760px) {
-        .history-card,
-        .history-values { grid-template-columns: 1fr; }
     }
 </style>
 {% endblock %}
 
 {% block content %}
-<main class="container">
-    <section class="page-shell">
-        <header class="page-header">
-            <div>
-                <div class="page-eyebrow">// INVENTARIO / TRAZABILIDAD</div>
-                <h1 class="page-title">Cambios de Casos de Uso</h1>
-                <p class="page-subtitle">Versión global v{{ inventory_version }}. Altas, modificaciones y bajas auditables del inventario.</p>
+<main class="container-xxl py-4 px-3 px-lg-4">
+    <div class="vstack gap-4">
+        <section class="card border shadow-sm">
+            <div class="card-body p-3 p-lg-4">
+                <header class="row g-3 align-items-start">
+                    <div class="col-12 col-xl">
+                        <div class="page-eyebrow">// INVENTARIO / TRAZABILIDAD</div>
+                        <h1 class="page-title mb-2">Cambios de Casos de Uso</h1>
+                        <p class="page-subtitle mb-0">Versión global v{{ inventory_version }}. Altas, modificaciones y bajas auditables del inventario.</p>
+                    </div>
+                    <div class="col-12 col-xl-auto">
+                        <a class="btn btn-outline-secondary btn-sm" href="{% url 'usecase_list' %}">Volver al inventario</a>
+                    </div>
+                </header>
             </div>
-            <div class="header-actions">
-                <a class="btn" href="{% url 'usecase_list' %}">Volver al inventario</a>
-            </div>
-        </header>
+        </section>
 
-        <div class="history-list">
+        <section class="vstack gap-3" aria-label="Historial de cambios">
             {% for change in changes %}
-                <article class="history-card">
-                    <div class="history-version">v{{ forloop.revcounter }}</div>
-                    <div>
-                        <strong>{{ change.use_case.name }}</strong>
-                        <div class="muted">{{ change.field_label }} · {{ change.changed_at|date:"d/m/Y H:i" }} · {{ change.changed_by|default:"Sistema" }}</div>
-                        <div class="history-values">
-                            <div><small>Valor anterior</small>{{ change.old_value_pretty }}</div>
-                            <div><small>Valor nuevo</small>{{ change.new_value_pretty }}</div>
+                <article class="card border shadow-sm">
+                    <div class="card-body p-3">
+                        <div class="row g-3 align-items-start">
+                            <div class="col-12 col-md-auto"><span class="history-version">v{{ forloop.revcounter }}</span></div>
+                            <div class="col-12 col-md">
+                                <strong>{{ change.use_case.name }}</strong>
+                                <div class="text-body-secondary small mt-1">{{ change.field_label }} · {{ change.changed_at|date:"d/m/Y H:i" }} · {{ change.changed_by|default:"Sistema" }}</div>
+                                <div class="row g-2 mt-1">
+                                    <div class="col-12 col-lg-6">
+                                        <div class="h-100 p-3 border rounded bg-body-tertiary">
+                                            <small class="d-block fw-semibold text-body-secondary text-uppercase mb-1">Valor anterior</small>
+                                            {{ change.old_value_pretty }}
+                                        </div>
+                                    </div>
+                                    <div class="col-12 col-lg-6">
+                                        <div class="h-100 p-3 border rounded bg-body-tertiary">
+                                            <small class="d-block fw-semibold text-body-secondary text-uppercase mb-1">Valor nuevo</small>
+                                            {{ change.new_value_pretty }}
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
                         </div>
                     </div>
                 </article>
             {% empty %}
-                <section class="panel"><p class="muted">Todavia no hay cambios registrados.</p></section>
+                <div class="card border shadow-sm"><div class="card-body text-body-secondary">Todavía no hay cambios registrados.</div></div>
             {% endfor %}
-        </div>
-    </section>
+        </section>
+    </div>
 </main>
 {% endblock %}

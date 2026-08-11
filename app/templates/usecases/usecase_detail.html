@@ -1,14 +1,10 @@
-<!DOCTYPE html>
-<html lang="es">
+{% extends "base_bootstrap.html" %}
 {% load usecase_tags %}
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>{{ usecase.name }} — SOC Use Cases Manager</title>
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;600;700&family=Syne:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-    <style>
+
+{% block title %}{{ usecase.name }} — SOC Use Cases Manager{% endblock %}
+
+{% block extra_css %}
+<style>
         :root {
             --bg: #060b14;
             --surface: #0c1524;
@@ -546,7 +542,6 @@
     .side-card { padding: 14px !important; }
 
 </style>
-    {% include "includes/topbar_styles.html" %}
 <style>
     .container {
         max-width: 1280px !important;
@@ -771,14 +766,15 @@
         .detail-item.third { grid-column: 1 / -1 !important; }
     }
 </style>
-    {% include "includes/usecase_compact_overrides.html" %}
-</head>
-<body>
-{% include "includes/topbar.html" %}
+{% include "includes/usecase_compact_overrides.html" %}
+{% endblock %}
 
-<div class="container">
-    <div class="page-header">
-        <div class="page-heading">
+{% block content %}
+<main class="container-xxl py-4 px-3 px-lg-4">
+    <section class="card border shadow-sm mb-4">
+        <div class="card-body p-3 p-lg-4">
+        <header class="row g-3 align-items-start">
+        <div class="col-12 col-xl page-heading">
             <div class="page-eyebrow">// INVENTARIO / DETALLE</div>
             <h1 class="page-title">Detalle del caso de uso</h1>
             <div class="case-title-box">
@@ -789,23 +785,25 @@
                 Vista de lectura del caso de uso. Para modificar datos operativos usá la edición completa; los controles de lifecycle se administran desde su módulo específico.
             </p>
         </div>
-        <div class="header-actions">
-            <a class="btn" href="{% url 'usecase_list' %}">Volver al inventario</a>
+        <div class="col-12 col-xl-auto"><div class="d-flex flex-wrap gap-2 justify-content-xl-end">
+            <a class="btn btn-outline-secondary btn-sm" href="{% url 'usecase_list' %}">Volver al inventario</a>
             {% if can_manage_usecases %}
-                <a class="btn" href="{% url 'usecase_edit' usecase.pk %}">Editar regla</a>
-                <a class="btn btn-primary" href="{% url 'usecase_edit' usecase.pk %}">Editar completo</a>
+                <a class="btn btn-outline-secondary btn-sm" href="{% url 'usecase_edit' usecase.pk %}">Editar regla</a>
+                <a class="btn btn-primary btn-sm" href="{% url 'usecase_edit' usecase.pk %}">Editar completo</a>
             {% endif %}
             {% if can_delete_usecases %}
                 <form class="delete-inline-form" method="post" action="{% url 'usecase_delete' usecase.pk %}" onsubmit="return confirm('¿Eliminar este caso de uso? Esta acción no se puede deshacer.');">
                     {% csrf_token %}
-                    <button class="btn btn-danger" type="submit">Eliminar</button>
+                    <button class="btn btn-outline-danger btn-sm" type="submit">Eliminar</button>
                 </form>
             {% endif %}
+        </div></div>
+        </header>
         </div>
-    </div>
+    </section>
 
-    <div class="detail-shell">
-        <main class="card">
+    <div class="row g-3 align-items-start">
+        <section class="col-12 col-xl-9"><div class="card border shadow-sm overflow-hidden">
             <section class="section">
                 <div class="section-header">
                     <div>
@@ -850,7 +848,7 @@
                         <span class="detail-label">Fuentes de eventos normalizadas</span>
                         <div class="detail-value">
                             {% for link in usecase.source_links.all %}
-                                <div style="display:grid;grid-template-columns:minmax(0,1fr) auto;gap:10px;padding:10px 0;border-bottom:1px solid var(--border);">
+                                <div class="d-flex flex-wrap justify-content-between gap-2 py-2 border-bottom">
                                     <div>
                                         <a class="entity-link" href="{% url 'source_detail' link.source.pk %}">{{ link.source.display_name }}</a>
                                         <div class="muted">
@@ -1186,9 +1184,9 @@
                     {% endif %}
                 </div>
             </section>
-        </main>
+        </div></section>
 
-        <aside class="card side-card">
+        <aside class="col-12 col-xl-3"><div class="card border shadow-sm side-card">
             <div class="section-header">
                 <div>
                     <h2 class="section-title">Resumen</h2>
@@ -1246,9 +1244,8 @@
                     {% endif %}
                 </div>
             </div>
-        </aside>
+        </div></aside>
     </div>
 
-</div>
-</body>
-</html>
+</main>
+{% endblock %}

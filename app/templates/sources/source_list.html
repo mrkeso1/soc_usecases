@@ -1,101 +1,103 @@
-{% extends "base.html" %}
+{% extends "base_bootstrap.html" %}
 {% load source_tags %}
 
 {% block title %}Fuentes - SOC Control Manager{% endblock %}
 
 {% block extra_css %}
 <style>
-    .source-filter-grid { grid-template-columns:repeat(5, minmax(150px, 1fr)); }
-    .source-table { min-width:1540px; }
-    .source-table th, .source-table td { vertical-align:middle; }
-    .source-table .technical-value { max-width:230px; overflow-wrap:anywhere; }
-    .source-sort { display:inline-flex; align-items:center; gap:6px; border:0; background:transparent; color:inherit; font:inherit; font-weight:inherit; text-transform:inherit; letter-spacing:inherit; text-decoration:none; white-space:nowrap; }
-    .source-sort:hover, .source-sort:focus { color:var(--accent); outline:none; }
-    .source-sort-arrow { color:var(--accent); font-size:.9rem; }
-    @media (max-width:1100px) { .source-filter-grid { grid-template-columns:repeat(2, minmax(0, 1fr)); } }
-    @media (max-width:680px) { .source-filter-grid { grid-template-columns:1fr; } }
+    .source-table { min-width: 1540px; }
+    .source-table th, .source-table td { vertical-align: middle; }
+    .source-table .technical-value { max-width: 230px; overflow-wrap: anywhere; }
+    .source-sort { display: inline-flex; align-items: center; gap: 6px; border: 0; background: transparent; color: inherit; font: inherit; font-weight: inherit; text-transform: inherit; letter-spacing: inherit; text-decoration: none; white-space: nowrap; }
+    .source-sort:hover, .source-sort:focus { color: var(--accent); outline: none; }
+    .source-sort-arrow { color: var(--accent); font-size: .9rem; }
 </style>
 {% endblock %}
 
 {% block content %}
-<main class="container">
-    <div class="page-shell wide">
-        <header class="page-header">
-            <div>
-                <div class="page-eyebrow">// FUENTES</div>
-                <h1 class="page-title">Fuentes de eventos</h1>
-                <p class="page-subtitle">Catalogo del inventario para vincular tecnologias, logs y sensores a los casos de uso.</p>
+<main class="container-xxl py-4 px-3 px-lg-4">
+    <header class="row g-3 align-items-start mb-4">
+        <div class="col-12 col-lg">
+            <div class="page-eyebrow">// FUENTES</div>
+            <h1 class="page-title">Fuentes de eventos</h1>
+            <p class="page-subtitle mb-0">Catálogo del inventario para vincular tecnologías, logs y sensores a los casos de uso.</p>
+        </div>
+        {% if can_manage_sources %}
+            <div class="col-12 col-lg-auto d-flex flex-column flex-sm-row flex-wrap gap-2">
+                <a class="btn btn-primary" href="{% url 'source_create' %}">Nueva fuente</a>
+                <a class="btn btn-outline-secondary" href="{% url 'source_admin_catalog' %}">Catálogos</a>
+                <a class="btn btn-outline-secondary" href="{% url 'usecase_source_create' %}">Vincular caso</a>
             </div>
-            <div class="header-actions">
-                {% if can_manage_sources %}
-                    <a class="btn-primary" href="{% url 'source_create' %}">Nueva fuente</a>
-                    <a class="btn" href="{% url 'source_admin_catalog' %}">Catálogos</a>
-                    <a class="btn" href="{% url 'usecase_source_create' %}">Vincular caso</a>
-                {% endif %}
-            </div>
-        </header>
+        {% endif %}
+    </header>
 
-        <section class="kpi-grid">
-            <div class="kpi-card"><div class="kpi-label">Total</div><div class="kpi-value">{{ total_sources }}</div></div>
-            <div class="kpi-card"><div class="kpi-label">Activas</div><div class="kpi-value">{{ active_sources }}</div></div>
-            <div class="kpi-card"><div class="kpi-label">Vinculadas</div><div class="kpi-value">{{ linked_sources }}</div></div>
-            <div class="kpi-card"><div class="kpi-label">Pagina</div><div class="kpi-value">{{ sources.number }}/{{ sources.paginator.num_pages }}</div></div>
-        </section>
+    <section class="row g-3 mb-4" aria-label="Resumen de fuentes">
+        <div class="col-12 col-sm-6 col-xl-3"><article class="card h-100 shadow-sm"><div class="card-body"><div class="kpi-label">Total</div><div class="kpi-value">{{ total_sources }}</div></div></article></div>
+        <div class="col-12 col-sm-6 col-xl-3"><article class="card h-100 shadow-sm"><div class="card-body"><div class="kpi-label">Activas</div><div class="kpi-value">{{ active_sources }}</div></div></article></div>
+        <div class="col-12 col-sm-6 col-xl-3"><article class="card h-100 shadow-sm"><div class="card-body"><div class="kpi-label">Vinculadas</div><div class="kpi-value">{{ linked_sources }}</div></div></article></div>
+        <div class="col-12 col-sm-6 col-xl-3"><article class="card h-100 shadow-sm"><div class="card-body"><div class="kpi-label">Página</div><div class="kpi-value">{{ sources.number }}/{{ sources.paginator.num_pages }}</div></div></article></div>
+    </section>
 
-        <section class="filter-panel">
-            <form method="get" class="filter-grid source-filter-grid">
-                <div class="field">
-                    <label>Buscar</label>
-                    <input type="text" name="q" value="{{ q }}" placeholder="Nombre, código, vendor, host">
+    <form method="get" class="card shadow-sm mb-4">
+        <div class="card-body">
+            <div class="row g-3 align-items-end">
+                <div class="field col-12 col-lg-6 col-xl-4">
+                    <label class="form-label" for="source-search">Buscar</label>
+                    <input class="form-control" id="source-search" type="text" name="q" value="{{ q }}" placeholder="Nombre, código, vendor, host">
                 </div>
-                <div class="field">
-                    <label>Tipo</label>
-                    <select name="source_type">
+                <div class="field col-12 col-md-6 col-lg-3 col-xl-2">
+                    <label class="form-label" for="source-type">Tipo</label>
+                    <select class="form-select" id="source-type" name="source_type">
                         <option value="">Todos</option>
-                        {% for value,label in type_choices %}
-                            <option value="{{ value }}" {% if selected_source_type == value %}selected{% endif %}>{{ label }}</option>
-                        {% endfor %}
+                        {% for value,label in type_choices %}<option value="{{ value }}" {% if selected_source_type == value %}selected{% endif %}>{{ label }}</option>{% endfor %}
                     </select>
                 </div>
-                <div class="field">
-                    <label>Estado</label>
-                    <select name="status">
+                <div class="field col-12 col-md-6 col-lg-3 col-xl-2">
+                    <label class="form-label" for="source-status">Estado</label>
+                    <select class="form-select" id="source-status" name="status">
                         <option value="">Todos</option>
-                        {% for value,label in status_choices %}
-                            <option value="{{ value }}" {% if selected_status == value %}selected{% endif %}>{{ label }}</option>
-                        {% endfor %}
+                        {% for value,label in status_choices %}<option value="{{ value }}" {% if selected_status == value %}selected{% endif %}>{{ label }}</option>{% endfor %}
                     </select>
                 </div>
-                <div class="field">
-                    <label>Taxonomía</label>
-                    <select name="category">
+                <div class="field col-12 col-md-6 col-lg-3 col-xl-2">
+                    <label class="form-label" for="source-category">Taxonomía</label>
+                    <select class="form-select" id="source-category" name="category">
                         <option value="">Todas</option>
-                        {% for item in category_choices %}
-                            <option value="{{ item.pk }}" {% if selected_category == item.pk|stringformat:"s" %}selected{% endif %}>{{ item }}</option>
-                        {% endfor %}
+                        {% for item in category_choices %}<option value="{{ item.pk }}" {% if selected_category == item.pk|stringformat:"s" %}selected{% endif %}>{{ item }}</option>{% endfor %}
                     </select>
                 </div>
-                <div class="field">
-                    <label>Método de envío</label>
-                    <select name="delivery_method">
+                <div class="field col-12 col-md-6 col-lg-3 col-xl-2">
+                    <label class="form-label" for="source-delivery">Método de envío</label>
+                    <select class="form-select" id="source-delivery" name="delivery_method">
                         <option value="">Todos</option>
                         {% for item in delivery_method_choices %}<option value="{{ item.pk }}" {% if selected_delivery_method == item.pk|stringformat:"s" %}selected{% endif %}>{{ item.name }}</option>{% endfor %}
                     </select>
                 </div>
-                <div class="field"><label>Puerto</label><input type="number" min="1" max="65535" name="port" value="{{ selected_port }}" placeholder="Ej. 514"></div>
-                <div class="field">
-                    <label>Protocolo</label>
-                    <select name="protocol"><option value="">Todos</option>{% for item in protocol_choices %}<option value="{{ item }}" {% if selected_protocol == item %}selected{% endif %}>{{ item }}</option>{% endfor %}</select>
+                <div class="field col-12 col-md-6 col-lg-3 col-xl-2">
+                    <label class="form-label" for="source-port">Puerto</label>
+                    <input class="form-control" id="source-port" type="number" min="1" max="65535" name="port" value="{{ selected_port }}" placeholder="Ej. 514">
                 </div>
-                <div class="field"><label>Cuenta de servicio</label><input type="text" name="service_account" value="{{ selected_service_account }}" placeholder="Nombre o parte de la cuenta"></div>
-                <div class="field"><label>Host / endpoint</label><input type="text" name="host" value="{{ selected_host }}" placeholder="Host, IP o URL"></div>
-                <button class="btn-primary" type="submit">Filtrar</button>
-                <a class="btn" href="{% url 'source_list' %}">Limpiar</a>
-            </form>
-        </section>
+                <div class="field col-12 col-md-6 col-lg-3 col-xl-2">
+                    <label class="form-label" for="source-protocol">Protocolo</label>
+                    <select class="form-select" id="source-protocol" name="protocol"><option value="">Todos</option>{% for item in protocol_choices %}<option value="{{ item }}" {% if selected_protocol == item %}selected{% endif %}>{{ item }}</option>{% endfor %}</select>
+                </div>
+                <div class="field col-12 col-md-6 col-lg-4 col-xl-3">
+                    <label class="form-label" for="source-account">Cuenta de servicio</label>
+                    <input class="form-control" id="source-account" type="text" name="service_account" value="{{ selected_service_account }}" placeholder="Nombre o parte de la cuenta">
+                </div>
+                <div class="field col-12 col-md-6 col-lg-5 col-xl-3">
+                    <label class="form-label" for="source-host">Host / endpoint</label>
+                    <input class="form-control" id="source-host" type="text" name="host" value="{{ selected_host }}" placeholder="Host, IP o URL">
+                </div>
+                <div class="col-12 col-sm-auto d-grid"><button class="btn btn-primary" type="submit">Filtrar</button></div>
+                <div class="col-12 col-sm-auto d-grid"><a class="btn btn-outline-secondary" href="{% url 'source_list' %}">Limpiar</a></div>
+            </div>
+        </div>
+    </form>
 
-        <section class="table-panel" style="margin-top:14px;">
-            <table class="data-table source-table">
+    <section class="card shadow-sm overflow-hidden">
+        <div class="table-responsive">
+            <table class="table data-table source-table table-hover align-middle mb-0">
                 <thead>
                     <tr>
                         <th><a class="source-sort" href="{% source_sort_url request 'source' %}">Fuente <span class="source-sort-arrow">{% source_sort_indicator request 'source' %}</span></a></th>
@@ -119,31 +121,37 @@
                                 <a class="entity-link" href="{% url 'source_detail' source.pk %}">{{ source.name }}</a>
                                 <div class="entity-subtitle">{{ source.taxonomy_label|default:"Sin taxonomía" }}</div>
                             </td>
-                            <td><span class="badge accent">{{ source.get_protection_display }}</span></td>
-                            <td><span class="badge accent">{{ source.source_type_label }}</span></td>
+                            <td><span class="badge rounded-pill text-bg-primary accent">{{ source.get_protection_display }}</span></td>
+                            <td><span class="badge rounded-pill text-bg-primary accent">{{ source.source_type_label }}</span></td>
                             <td>{{ source.owner|default:"-" }}</td>
                             <td>{{ source.delivery_method|default:"-" }}</td>
                             <td>{{ source.port|default:"-" }}</td>
                             <td>{{ source.protocol|default:"-" }}</td>
                             <td class="technical-value">{{ source.service_account|default:"-" }}</td>
                             <td class="technical-value">{{ source.host|default:"-" }}</td>
-                            <td><span class="badge {% if source.status == 'active' %}good{% elif source.status == 'planned' %}warn{% elif source.status == 'retired' %}bad{% endif %}">{{ source.get_status_display }}</span></td>
+                            <td><span class="badge rounded-pill {% if source.status == 'active' %}text-bg-success good{% elif source.status == 'planned' %}text-bg-warning warn{% elif source.status == 'retired' %}text-bg-danger bad{% endif %}">{{ source.get_status_display }}</span></td>
                             <td>{{ source.usecase_count }}</td>
                         </tr>
                     {% empty %}
-                        <tr><td colspan="11" class="muted">No hay fuentes para los filtros seleccionados.</td></tr>
+                        <tr><td colspan="11" class="muted text-center py-4">No hay fuentes para los filtros seleccionados.</td></tr>
                     {% endfor %}
                 </tbody>
             </table>
-        </section>
+        </div>
+    </section>
 
-        {% if sources.paginator.num_pages > 1 %}
-            <nav class="pagination">
-                {% if sources.has_previous %}<a class="btn" href="{% source_page_url request sources.previous_page_number %}">Anterior</a>{% endif %}
-                <span class="btn">Pagina {{ sources.number }} / {{ sources.paginator.num_pages }}</span>
-                {% if sources.has_next %}<a class="btn" href="{% source_page_url request sources.next_page_number %}">Siguiente</a>{% endif %}
-            </nav>
-        {% endif %}
-    </div>
+    {% if sources.paginator.num_pages > 1 %}
+        <nav class="mt-4" aria-label="Paginación de fuentes">
+            <ul class="pagination justify-content-center mb-0">
+                <li class="page-item {% if not sources.has_previous %}disabled{% endif %}">
+                    {% if sources.has_previous %}<a class="page-link" href="{% source_page_url request sources.previous_page_number %}">Anterior</a>{% else %}<span class="page-link">Anterior</span>{% endif %}
+                </li>
+                <li class="page-item disabled"><span class="page-link">Página {{ sources.number }} / {{ sources.paginator.num_pages }}</span></li>
+                <li class="page-item {% if not sources.has_next %}disabled{% endif %}">
+                    {% if sources.has_next %}<a class="page-link" href="{% source_page_url request sources.next_page_number %}">Siguiente</a>{% else %}<span class="page-link">Siguiente</span>{% endif %}
+                </li>
+            </ul>
+        </nav>
+    {% endif %}
 </main>
 {% endblock %}

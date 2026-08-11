@@ -1,6 +1,6 @@
 {% load static %}
 <!DOCTYPE html>
-<html lang="es">
+<html lang="es" data-ui="{% block ui_mode %}legacy{% endblock %}">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -8,6 +8,7 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;600;700&family=Syne:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    {% block framework_css %}{% endblock %}
     <style>
         :root {
             --bg: #060b14;
@@ -392,10 +393,11 @@
     {% include "includes/topbar_styles.html" %}
     {% block extra_css %}{% endblock %}
     <link rel="stylesheet" href="{% static 'css/soc-ui.css' %}?v=20260625-2">
+    {% block framework_overrides %}{% endblock %}
 </head>
 <body>
-    {% include "includes/topbar.html" %}
-    {% include "includes/notifications.html" %}
+    {% block topbar %}{% include "includes/topbar.html" %}{% endblock %}
+    {% block notifications %}{% include "includes/notifications.html" %}{% endblock %}
     {% block content %}{% endblock %}
     <script>
         document.addEventListener("submit", function (event) {
@@ -416,6 +418,7 @@
             });
         });
     </script>
+    {% block framework_js %}{% endblock %}
     {% block extra_js %}{% endblock %}
 </body>
 </html>

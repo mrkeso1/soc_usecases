@@ -1,71 +1,74 @@
-{% extends "base.html" %}
+{% extends "base_bootstrap.html" %}
 
 {% block title %}{{ source.display_name }} - Fuentes{% endblock %}
 
 {% block content %}
-<main class="container">
-    <div class="page-shell">
-        <header class="page-header">
-            <div>
-                <div class="page-eyebrow">// FUENTES / DETALLE</div>
-                <h1 class="page-title">{{ source.name }}</h1>
-                <p class="page-subtitle">{% if source.code %}<span class="entity-code">{{ source.code }}</span>{% endif %} {{ source.source_type_label }}{% if source.taxonomy_label %} · {{ source.taxonomy_label }}{% endif %}</p>
-            </div>
-            <div class="header-actions">
-                <a class="btn" href="{% url 'source_list' %}">Volver</a>
-                {% if can_manage_sources %}
-                    <a class="btn-primary" href="{% url 'source_edit' source.pk %}">Editar</a>
-                    <a class="btn" href="{% url 'usecase_source_create' %}?source={{ source.pk }}">Vincular caso</a>
-                {% endif %}
-            </div>
-        </header>
+<main class="container-xxl py-4 px-3 px-lg-4">
+    <header class="row g-3 align-items-start mb-4">
+        <div class="col-12 col-lg">
+            <div class="page-eyebrow">// FUENTES / DETALLE</div>
+            <h1 class="page-title">{{ source.name }}</h1>
+            <p class="page-subtitle mb-0">{% if source.code %}<span class="entity-code">{{ source.code }}</span>{% endif %} {{ source.source_type_label }}{% if source.taxonomy_label %} · {{ source.taxonomy_label }}{% endif %}</p>
+        </div>
+        <div class="col-12 col-lg-auto d-flex flex-column flex-sm-row flex-wrap gap-2">
+            <a class="btn btn-outline-secondary" href="{% url 'source_list' %}">Volver</a>
+            {% if can_manage_sources %}
+                <a class="btn btn-primary" href="{% url 'source_edit' source.pk %}">Editar</a>
+                <a class="btn btn-outline-secondary" href="{% url 'usecase_source_create' %}?source={{ source.pk }}">Vincular caso</a>
+            {% endif %}
+        </div>
+    </header>
 
-        <div class="split-layout">
-            <section class="panel">
-                <h2 class="page-title" style="font-size:1rem;margin-bottom:12px;">Datos de la fuente</h2>
-                <div class="detail-grid">
-                    <div class="detail-item"><div class="detail-label">Estado</div><div class="detail-value">{{ source.get_status_display }}</div></div>
-                    <div class="detail-item"><div class="detail-label">Proteccion</div><div class="detail-value">{{ source.get_protection_display }}</div></div>
-                    <div class="detail-item"><div class="detail-label">Tipo</div><div class="detail-value">{{ source.source_type_label }}</div></div>
-                    <div class="detail-item"><div class="detail-label">Categoría</div><div class="detail-value">{{ source.category_ref|default:"-" }}</div></div>
-                    <div class="detail-item"><div class="detail-label">Subcategoria</div><div class="detail-value">{{ source.subcategory_ref|default:"-" }}</div></div>
-                    <div class="detail-item"><div class="detail-label">Vendor</div><div class="detail-value">{{ source.vendor|default:"-" }}</div></div>
-                    <div class="detail-item"><div class="detail-label">Producto</div><div class="detail-value">{{ source.product|default:"-" }}</div></div>
-                    <div class="detail-item"><div class="detail-label">Ambiente</div><div class="detail-value">{{ source.environment|default:"-" }}</div></div>
-                    <div class="detail-item"><div class="detail-label">Responsable</div><div class="detail-value">{{ source.owner|default:"-" }}</div></div>
-                    <div class="detail-item"><div class="detail-label">Host</div><div class="detail-value">{{ source.host|default:"-" }}</div></div>
-                    <div class="detail-item"><div class="detail-label">Metodo de envio</div><div class="detail-value">{{ source.delivery_method|default:"-" }}</div></div>
-                    <div class="detail-item"><div class="detail-label">Puerto / protocolo</div><div class="detail-value">{{ source.protocol|default:"-" }} {{ source.port|default:"" }}</div></div>
-                    <div class="detail-item"><div class="detail-label">Cuenta de servicio</div><div class="detail-value">{{ source.service_account|default:"-" }}</div></div>
-                    {% if source.description %}
-                        <div class="detail-item full">
-                            <div class="detail-label">Descripción</div>
-                            <div class="detail-value">{{ source.description|linebreaksbr }}</div>
-                        </div>
-                    {% endif %}
-                </div>
-            </section>
-
-            <aside class="panel">
-                <h2 class="page-title" style="font-size:1rem;margin-bottom:12px;">Casos vinculados</h2>
-                {% for link in links %}
-                    <div style="display:grid;grid-template-columns:minmax(0,1fr) auto;gap:10px;align-items:center;padding:11px 0;border-bottom:1px solid var(--border);">
-                        <div>
-                            <a class="entity-link" href="{% url 'usecase_detail' link.use_case.pk %}">{{ link.use_case.name }}</a>
-                            <div class="muted">{{ link.get_role_display }}{% if link.is_required %} · obligatoria{% endif %}</div>
-                        </div>
-                        {% if can_manage_sources %}
-                            <form method="post" action="{% url 'usecase_source_delete' link.pk %}">
-                                {% csrf_token %}
-                                <button class="btn-danger" type="submit">Quitar</button>
-                            </form>
+    <div class="row g-3">
+        <section class="col-12 col-xl-8">
+            <div class="card h-100 shadow-sm">
+                <div class="card-header"><h2 class="h5 mb-0">Datos de la fuente</h2></div>
+                <div class="card-body">
+                    <div class="row g-3">
+                        <div class="col-12 col-md-6"><div class="detail-item h-100"><div class="detail-label">Estado</div><div class="detail-value">{{ source.get_status_display }}</div></div></div>
+                        <div class="col-12 col-md-6"><div class="detail-item h-100"><div class="detail-label">Protección</div><div class="detail-value">{{ source.get_protection_display }}</div></div></div>
+                        <div class="col-12 col-md-6"><div class="detail-item h-100"><div class="detail-label">Tipo</div><div class="detail-value">{{ source.source_type_label }}</div></div></div>
+                        <div class="col-12 col-md-6"><div class="detail-item h-100"><div class="detail-label">Categoría</div><div class="detail-value">{{ source.category_ref|default:"-" }}</div></div></div>
+                        <div class="col-12 col-md-6"><div class="detail-item h-100"><div class="detail-label">Subcategoría</div><div class="detail-value">{{ source.subcategory_ref|default:"-" }}</div></div></div>
+                        <div class="col-12 col-md-6"><div class="detail-item h-100"><div class="detail-label">Vendor</div><div class="detail-value">{{ source.vendor|default:"-" }}</div></div></div>
+                        <div class="col-12 col-md-6"><div class="detail-item h-100"><div class="detail-label">Producto</div><div class="detail-value">{{ source.product|default:"-" }}</div></div></div>
+                        <div class="col-12 col-md-6"><div class="detail-item h-100"><div class="detail-label">Ambiente</div><div class="detail-value">{{ source.environment|default:"-" }}</div></div></div>
+                        <div class="col-12 col-md-6"><div class="detail-item h-100"><div class="detail-label">Responsable</div><div class="detail-value">{{ source.owner|default:"-" }}</div></div></div>
+                        <div class="col-12 col-md-6"><div class="detail-item h-100"><div class="detail-label">Host</div><div class="detail-value">{{ source.host|default:"-" }}</div></div></div>
+                        <div class="col-12 col-md-6"><div class="detail-item h-100"><div class="detail-label">Método de envío</div><div class="detail-value">{{ source.delivery_method|default:"-" }}</div></div></div>
+                        <div class="col-12 col-md-6"><div class="detail-item h-100"><div class="detail-label">Puerto / protocolo</div><div class="detail-value">{{ source.protocol|default:"-" }} {{ source.port|default:"" }}</div></div></div>
+                        <div class="col-12 col-md-6"><div class="detail-item h-100"><div class="detail-label">Cuenta de servicio</div><div class="detail-value">{{ source.service_account|default:"-" }}</div></div></div>
+                        {% if source.description %}
+                            <div class="col-12"><div class="detail-item"><div class="detail-label">Descripción</div><div class="detail-value">{{ source.description|linebreaksbr }}</div></div></div>
                         {% endif %}
                     </div>
-                {% empty %}
-                    <p class="muted">Todavia no hay casos vinculados.</p>
-                {% endfor %}
-            </aside>
-        </div>
+                </div>
+            </div>
+        </section>
+
+        <aside class="col-12 col-xl-4">
+            <div class="card shadow-sm">
+                <div class="card-header"><h2 class="h5 mb-0">Casos vinculados</h2></div>
+                <div class="list-group list-group-flush">
+                    {% for link in links %}
+                        <div class="list-group-item bg-transparent d-flex flex-column flex-sm-row align-items-sm-center justify-content-between gap-3">
+                            <div>
+                                <a class="entity-link" href="{% url 'usecase_detail' link.use_case.pk %}">{{ link.use_case.name }}</a>
+                                <div class="muted">{{ link.get_role_display }}{% if link.is_required %} · obligatoria{% endif %}</div>
+                            </div>
+                            {% if can_manage_sources %}
+                                <form method="post" action="{% url 'usecase_source_delete' link.pk %}">
+                                    {% csrf_token %}
+                                    <button class="btn btn-sm btn-outline-danger" type="submit">Quitar</button>
+                                </form>
+                            {% endif %}
+                        </div>
+                    {% empty %}
+                        <div class="card-body"><p class="muted mb-0">Todavía no hay casos vinculados.</p></div>
+                    {% endfor %}
+                </div>
+            </div>
+        </aside>
     </div>
 </main>
 {% endblock %}

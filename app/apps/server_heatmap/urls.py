@@ -16,7 +16,9 @@ from .views import (
     reprocess_inventory,
     queue_full_inventory_sync,
     server_heatmap_view,
+    server_inventory_results,
     server_administration,
+    server_administration_list_results,
     server_asset_results,
     server_naming_rules,
     server_sections,
@@ -26,6 +28,7 @@ from .views import (
 
 urlpatterns = [
     path("", server_heatmap_view, name="server_heatmap"),
+    path("inventory/results/", server_inventory_results, name="server_heatmap_inventory_results"),
     path("siem/upload/", upload_siem_inventory, name="server_heatmap_siem_upload"),
     path("gaps/export/", export_ingestion_gaps, name="server_heatmap_gap_export"),
     path("gaps/diagnose/", diagnose_gaps, name="server_heatmap_gap_diagnose"),
@@ -36,6 +39,11 @@ urlpatterns = [
         name="server_heatmap_sync",
     ),
     path("administration/", server_administration, name="server_heatmap_administration"),
+    path(
+        "administration/lists/results/",
+        server_administration_list_results,
+        name="server_heatmap_administration_list_results",
+    ),
     path(
         "administration/assets/results/",
         server_asset_results,

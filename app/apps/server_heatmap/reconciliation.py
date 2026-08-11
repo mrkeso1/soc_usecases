@@ -189,6 +189,10 @@ def reconcile_observation(observation, record, *, classification_rules=None):
     observed_at = record.observed_at or timezone.now()
     if source == InventorySyncRun.SOURCE_AD:
         asset.in_active_directory = True
+        # Los equipos deshabilitados por cargas heredadas vuelven a entrar en
+        # alcance al reaparecer en AD. Una baja manual auditada siempre se respeta.
+        if not asset.is_enabled and not asset.disable_events.exists():
+            asset.is_enabled = True
         asset.ad_last_seen_at = timezone.now()
         asset.ad_last_logon_at = record.observed_at
         if record.organizational_unit:

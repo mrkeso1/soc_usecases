@@ -1,46 +1,54 @@
-{% extends "base.html" %}
+{% extends "base_bootstrap.html" %}
 
 {% block title %}{{ item.code }} - SOC Control Manager{% endblock %}
 
 {% block content %}
-<main class="container">
-    <section class="page-shell wide">
-        <header class="page-header">
-            <div>
+<main class="container-xxl py-4 px-3 px-lg-4">
+    <section>
+        <header class="row g-3 align-items-start mb-4">
+            <div class="col-12 col-lg">
                 <div class="page-eyebrow">// CONTROLES / DETALLE</div>
                 <h1 class="page-title">{{ item.name }}</h1>
-                <p class="page-subtitle"><span class="entity-code">{{ item.code }}</span> versión {{ item.version }} · {{ item.source.display_name }}</p>
+                <p class="page-subtitle mb-0"><span class="entity-code">{{ item.code }}</span> versión {{ item.version }} · {{ item.source.display_name }}</p>
             </div>
-            <div class="header-actions">
-                <a class="btn" href="{% url 'control_list' %}">Volver</a>
-                {% if can_change_controls %}<a class="btn-primary" href="{% url 'control_edit' item.pk %}">Editar</a>{% endif %}
+            <div class="col-12 col-lg-auto d-flex flex-column flex-sm-row gap-2">
+                <a class="btn btn-outline-secondary" href="{% url 'control_list' %}">Volver</a>
+                {% if can_change_controls %}<a class="btn btn-primary" href="{% url 'control_edit' item.pk %}">Editar</a>{% endif %}
             </div>
         </header>
 
-        <section class="split-layout">
-            <div class="panel">
-                <div class="detail-grid">
-                    <div class="detail-item"><div class="detail-label">Estado</div><div class="detail-value">{{ item.status }}</div></div>
-                    <div class="detail-item"><div class="detail-label">Clasificación</div><div class="detail-value">{{ item.classification }}</div></div>
-                    <div class="detail-item"><div class="detail-label">Responsable</div><div class="detail-value">{{ item.owner|default:"-" }}</div></div>
-                    <div class="detail-item"><div class="detail-label">Próxima revisión</div><div class="detail-value">{{ item.next_review_at|date:"d/m/Y"|default:"-" }}</div></div>
-                    <div class="detail-item full"><div class="detail-label">Objetivo</div><div class="detail-value">{{ item.objective|linebreaksbr|default:"-" }}</div></div>
-                    <div class="detail-item full"><div class="detail-label">Descripción</div><div class="detail-value">{{ item.description|linebreaksbr|default:"-" }}</div></div>
-                    <div class="detail-item full"><div class="detail-label">Riesgo mitigado</div><div class="detail-value">{{ item.mitigated_risk|linebreaksbr|default:"-" }}</div></div>
-                    <div class="detail-item full"><div class="detail-label">Evidencia</div><div class="detail-value">{{ item.evidence|linebreaksbr|default:"-" }}</div></div>
+        <section class="row g-3">
+            <div class="col-12 col-xl-8">
+                <div class="card h-100 shadow-sm">
+                    <div class="card-body p-3 p-lg-4">
+                        <div class="row g-3">
+                            <div class="col-12 col-md-6"><div class="detail-item h-100"><div class="detail-label">Estado</div><div class="detail-value">{{ item.status }}</div></div></div>
+                            <div class="col-12 col-md-6"><div class="detail-item h-100"><div class="detail-label">Clasificación</div><div class="detail-value">{{ item.classification }}</div></div></div>
+                            <div class="col-12 col-md-6"><div class="detail-item h-100"><div class="detail-label">Responsable</div><div class="detail-value">{{ item.owner|default:"-" }}</div></div></div>
+                            <div class="col-12 col-md-6"><div class="detail-item h-100"><div class="detail-label">Próxima revisión</div><div class="detail-value">{{ item.next_review_at|date:"d/m/Y"|default:"-" }}</div></div></div>
+                            <div class="col-12"><div class="detail-item"><div class="detail-label">Objetivo</div><div class="detail-value">{{ item.objective|linebreaksbr|default:"-" }}</div></div></div>
+                            <div class="col-12"><div class="detail-item"><div class="detail-label">Descripción</div><div class="detail-value">{{ item.description|linebreaksbr|default:"-" }}</div></div></div>
+                            <div class="col-12"><div class="detail-item"><div class="detail-label">Riesgo mitigado</div><div class="detail-value">{{ item.mitigated_risk|linebreaksbr|default:"-" }}</div></div></div>
+                            <div class="col-12"><div class="detail-item"><div class="detail-label">Evidencia</div><div class="detail-value">{{ item.evidence|linebreaksbr|default:"-" }}</div></div></div>
+                        </div>
+                    </div>
                 </div>
             </div>
-            <aside class="panel">
-                <h2 class="page-title" style="font-size:1.08rem;">Casos vinculados</h2>
-                <div class="metric-list" style="margin-top:12px;">
-                    {% for usecase in item.use_cases.all %}
-                        <a class="entity-link" href="{% url 'usecase_detail' usecase.pk %}">{{ usecase.name }}</a>
-                    {% empty %}
-                        <p class="muted">Sin casos vinculados.</p>
-                    {% endfor %}
+            <aside class="col-12 col-xl-4">
+                <div class="card shadow-sm">
+                    <div class="card-body p-3 p-lg-4">
+                        <h2 class="h5 mb-3">Casos vinculados</h2>
+                        <div class="metric-list d-grid gap-2">
+                            {% for usecase in item.use_cases.all %}
+                                <a class="entity-link" href="{% url 'usecase_detail' usecase.pk %}">{{ usecase.name }}</a>
+                            {% empty %}
+                                <p class="muted mb-0">Sin casos vinculados.</p>
+                            {% endfor %}
+                        </div>
+                        <h2 class="h5 mt-4 mb-3">Condiciones</h2>
+                        <pre class="detail-item bg-body-tertiary rounded p-3 overflow-auto mb-0" style="white-space:pre-wrap;">{{ item.control_conditions|default:"[]" }}</pre>
+                    </div>
                 </div>
-                <h2 class="page-title" style="font-size:1.08rem; margin-top:18px;">Condiciones</h2>
-                <pre class="detail-item" style="white-space:pre-wrap; margin-top:12px;">{{ item.control_conditions|default:"[]" }}</pre>
             </aside>
         </section>
     </section>

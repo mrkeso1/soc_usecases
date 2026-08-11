@@ -1,5 +1,7 @@
 import ipaddress
+import re
 import socket
+import unicodedata
 from datetime import datetime, timedelta, timezone as dt_timezone
 from urllib.parse import urlparse
 
@@ -22,8 +24,18 @@ def _ou_from_dn(dn):
 
 
 def _environment(ou):
-    normalized = ou.lower()
-    return "PROD" if any(token in normalized for token in ("prod", "prd", "domain controllers")) else "LAB"
+    normalized = unicodedata.normalize("NFKD", ou or "")
+    normalized = "".join(
+        character for character in normalized
+        if not unicodedata.combining(character)
+    ).casefold()
+    words = set(re.findall(r"[a-z0-9]+", normalized))
+    is_production = "domain controllers" in normalized or bool(
+        words.intersection(
+            {"prod", "prd", "production", "produccion", "productivo"}
+        )
+    )
+    return "PROD" if is_production else "LAB"
 
 
 def _last_logon(value):

@@ -1,4 +1,4 @@
-{% extends "base.html" %}
+{% extends "base_bootstrap.html" %}
 {% load static l10n %}
 {% block title %}Centro de Operaciones - SOC Control Manager{% endblock %}
 
@@ -30,14 +30,45 @@
     .heat-card-stats strong { display:block; margin-top:4px; color:var(--text-strong); font:900 1rem 'JetBrains Mono',monospace; }
     .heat-legend-inline { display:flex; gap:14px; flex-wrap:wrap; margin-top:12px; color:var(--text-muted); font-size:.72rem; }
     .heat-legend-inline i { display:inline-block; width:8px; height:8px; margin-right:5px; border-radius:50%; }
+    .heat-filter-wrap { display:flex; justify-content:flex-end; margin-bottom:14px; }
+    .heat-filter { display:flex; align-items:center; gap:10px; width:auto; padding:9px 10px 9px 14px; border:1px solid var(--border); border-radius:12px; background:var(--surface); box-shadow:0 8px 24px rgba(0,0,0,.12); }
+    .heat-filter label { margin:0; white-space:nowrap; }
+    .heat-filter select { min-width:150px; margin:0; }
+    .heat-filter .btn-primary { min-height:36px; padding:8px 15px; }
+    .heat-matrix-legend { display:flex; flex-wrap:wrap; gap:12px; margin:16px 0 10px; color:var(--text-muted); font-size:.76rem; }
+    .heat-matrix-legend i { display:inline-block; width:9px; height:9px; margin-right:5px; border-radius:3px; }
+    .heat-matrix-shell { overflow:auto; border:1px solid var(--border); border-radius:14px; background:var(--surface); }
+    .heat-matrix { width:100%; min-width:1180px; border-collapse:separate; border-spacing:7px; padding:8px; }
+    .heat-matrix th { padding:8px; color:#8bb7e8; font:800 10px 'JetBrains Mono',monospace; letter-spacing:.08em; text-align:center; text-transform:uppercase; }
+    .heat-matrix th:first-child { min-width:145px; position:sticky; left:0; z-index:2; background:var(--surface); text-align:left; }
+    .heat-matrix-row { position:sticky; left:0; z-index:1; min-width:145px; padding:14px; border:1px solid var(--border); border-radius:11px; background:var(--surface-2); vertical-align:top; }
+    .heat-matrix-row strong,.heat-matrix-row small { display:block; }
+    .heat-matrix-row small { margin-top:5px; color:var(--text-muted); }
+    .heat-matrix-cell { min-width:190px; padding:13px; border:1px solid var(--border); border-radius:12px; background:var(--surface-2); vertical-align:top; }
+    .heat-matrix-cell.good { background:rgba(0,229,160,.18); border-color:rgba(0,229,160,.48); }
+    .heat-matrix-cell.medium { background:rgba(45,122,255,.18); border-color:rgba(45,122,255,.48); }
+    .heat-matrix-cell.warning { background:rgba(245,166,35,.20); border-color:rgba(245,166,35,.5); }
+    .heat-matrix-cell.bad { background:rgba(255,71,87,.20); border-color:rgba(255,71,87,.5); }
+    .heat-matrix-cell.empty { opacity:.42; }
+    .heat-matrix-head,.heat-matrix-metric { display:flex; align-items:baseline; justify-content:space-between; gap:10px; }
+    .heat-matrix-head span { color:var(--text-muted); font:800 9px 'JetBrains Mono',monospace; letter-spacing:.06em; text-transform:uppercase; }
+    .heat-matrix-head strong { color:var(--text-strong); font-size:1.05rem; }
+    .heat-matrix-progress { height:8px; margin:9px 0 10px; overflow:hidden; border-radius:999px; background:rgba(78,106,142,.24); }
+    .heat-matrix-progress span { display:block; height:100%; border-radius:inherit; background:var(--text-muted); }
+    .heat-matrix-cell.good .heat-matrix-progress span { background:var(--good); }
+    .heat-matrix-cell.medium .heat-matrix-progress span { background:var(--accent); }
+    .heat-matrix-cell.warning .heat-matrix-progress span { background:var(--medium); }
+    .heat-matrix-cell.bad .heat-matrix-progress span { background:var(--bad); }
+    .heat-matrix-metric { padding:2px 0; color:var(--text-muted); font-size:.72rem; }
+    .heat-matrix-metric strong { color:var(--text-strong); }
     @media(max-width:1100px) { .ops-kpi-grid.case-summary-grid { grid-template-columns:repeat(2, minmax(0, 1fr)); } }
     @media(max-width:1100px) { .heat-overview-grid { grid-template-columns:1fr 1fr; }.heat-summary-card{grid-column:1/-1;min-height:340px}.heat-thermometer{height:170px} }
-    @media(max-width:760px) { .ops-kpi-grid.case-summary-grid,.heat-overview-grid { grid-template-columns:1fr; }.heat-summary-card{grid-column:auto}.heat-summary-card,.heat-os-card{min-height:auto} }
+    @media(max-width:760px) { .ops-kpi-grid.case-summary-grid,.heat-overview-grid { grid-template-columns:1fr; }.heat-summary-card{grid-column:auto}.heat-summary-card,.heat-os-card{min-height:auto}.heat-filter-wrap{justify-content:stretch}.heat-filter{width:100%;flex-wrap:wrap}.heat-filter select{flex:1;min-width:130px} }
 </style>
 {% endblock %}
 
 {% block content %}
-<main class="container ops-dashboard" style="--ops-primary: {{ report_template.primary_color|default:'#1d4ed8' }}; --ops-accent: {{ report_template.accent_color|default:'#22c55e' }};">
+<main class="container-xxl ops-dashboard py-4 px-3 px-lg-4" style="--ops-primary: {{ report_template.primary_color|default:'#1d4ed8' }}; --ops-accent: {{ report_template.accent_color|default:'#22c55e' }};">
     <section class="page-shell wide">
         <header class="ops-header">
             <div>
@@ -276,6 +307,17 @@
         </section>
 
         <section class="ops-tab-panel" data-panel="mapa-calor" hidden>
+            <div class="heat-filter-wrap">
+                <form method="get" class="heat-filter">
+                    <input type="hidden" name="tab" value="mapa-calor">
+                    <label for="heatmap-environment" class="heat-card-kicker">Ambiente</label>
+                    <select class="form-select" id="heatmap-environment" name="environment">
+                        <option value="all" {% if selected_server_environment == 'all' %}selected{% endif %}>Todos</option>
+                        {% for environment in server_environment_choices %}<option value="{{ environment }}" {% if selected_server_environment|upper == environment %}selected{% endif %}>{{ environment }}</option>{% endfor %}
+                    </select>
+                    <button class="btn btn-primary" type="submit">Filtrar</button>
+                </form>
+            </div>
             <div class="heat-overview-grid">
                 <article class="heat-summary-card" style="--heat-color:#00e5a0">
                     <span class="heat-card-kicker">AD × SIEM</span>
@@ -317,6 +359,30 @@
                     <section class="ops-panel"><p class="muted">Todavía no hay inventario de servidores disponible.</p></section>
                 {% endfor %}
             </div>
+            <div class="heat-matrix-legend">
+                <span><i style="background:var(--good)"></i>90–100%</span>
+                <span><i style="background:var(--accent)"></i>70–89%</span>
+                <span><i style="background:var(--medium)"></i>1–69%</span>
+                <span><i style="background:var(--bad)"></i>0%</span>
+                <span>Porcentaje = equipos AD también presentes en SIEM.</span>
+            </div>
+            <section class="heat-matrix-shell">
+                {% if server_heatmap_matrix_rows and server_heatmap_matrix_types %}
+                <table class="heat-matrix">
+                    <thead><tr><th>OS / sección</th>{% for category in server_heatmap_matrix_types %}<th>{{ category.name }}</th>{% endfor %}</tr></thead>
+                    <tbody>{% for row in server_heatmap_matrix_rows %}<tr>
+                        <td class="heat-matrix-row"><strong>{{ row.label }}</strong><small>{{ row.total }} equipos</small></td>
+                        {% for cell in row.cells %}<td class="heat-matrix-cell {{ cell.level }}">
+                            <div class="heat-matrix-head"><span>Cobertura SIEM</span><strong>{% if cell.percent != None %}{{ cell.percent }}%{% else %}—{% endif %}</strong></div>
+                            <div class="heat-matrix-progress"><span style="width:{% if cell.percent != None %}{{ cell.percent|unlocalize }}{% else %}0{% endif %}%"></span></div>
+                            <div class="heat-matrix-metric"><span>Cubiertos</span><strong>{{ cell.covered_count }}</strong></div>
+                            <div class="heat-matrix-metric"><span>Pendientes</span><strong>{{ cell.pending }}</strong></div>
+                            <div class="heat-matrix-metric"><span>Total en AD</span><strong>{{ cell.ad_count }}</strong></div>
+                        </td>{% endfor %}
+                    </tr>{% endfor %}</tbody>
+                </table>
+                {% else %}<div class="empty-state">No hay equipos para construir el mapa con el ambiente seleccionado.</div>{% endif %}
+            </section>
         </section>
     </section>
 </main>

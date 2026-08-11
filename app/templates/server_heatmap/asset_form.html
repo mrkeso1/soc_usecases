@@ -1,20 +1,20 @@
-{% extends "base.html" %}
+{% extends "base_bootstrap.html" %}
 {% block title %}Editar equipo - SOC Control Manager{% endblock %}
 {% block content %}
-<main class="container"><section class="page-shell">
+<main class="container-xxl"><section class="page-shell">
     <header class="page-header">
         <div><div class="page-eyebrow">// EQUIPO</div><h1 class="page-title">{{ asset.hostname }}</h1><p class="page-subtitle">Los datos provenientes de AD y SIEM se conservan; acá se administra la clasificación y el estado operativo.</p></div>
-        <a class="btn" href="{% url 'server_heatmap_administration' %}">Volver</a>
+        <a class="btn btn-outline-secondary" href="{% url 'server_heatmap_administration' %}">Volver</a>
     </header>
-    <section class="detail-card">
-        <form method="post" data-submit-once>{% csrf_token %}{{ form.as_p }}
-            <div class="header-actions" style="margin-top:16px"><button class="btn-primary" type="submit">Guardar equipo</button><a class="btn" href="{% url 'server_heatmap_administration' %}">Cancelar</a></div>
+    <section class="detail-card card p-3">
+        <form method="post" data-submit-once>{% csrf_token %}{% for field in form %}<div class="field mb-3">{{ field.label_tag }}{{ field }}{{ field.errors }}{% if field.help_text %}<small class="form-text text-body-secondary">{{ field.help_text }}</small>{% endif %}</div>{% endfor %}
+            <div class="header-actions mt-3"><button class="btn btn-primary" type="submit">Guardar equipo</button><a class="btn btn-outline-secondary" href="{% url 'server_heatmap_administration' %}">Cancelar</a></div>
         </form>
     </section>
-    <section class="detail-card" style="margin-top:14px">
+    <section class="detail-card card p-3 mt-3">
         <h2 class="section-title">Historial de deshabilitaciones</h2>
         <p class="page-subtitle">Registro inalterable del motivo, usuario y origen de cada deshabilitación realizada desde el panel.</p>
-        <div class="table-wrap"><table>
+        <div class="table-wrap table-responsive"><table class="table table-hover align-middle mb-0">
             <thead><tr><th>Fecha</th><th>Usuario</th><th>Justificación</th><th>IP de origen</th></tr></thead>
             <tbody>
             {% for event in disable_events %}

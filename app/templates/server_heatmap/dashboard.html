@@ -1,17 +1,15 @@
-{% extends "base.html" %}
+{% extends "base_bootstrap.html" %}
 {% load l10n %}
 
 {% block title %}Mapa de servidores - SOC Control Manager{% endblock %}
 
 {% block extra_css %}
 <style>
-    .server-kpis { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:10px; margin:12px 0; }
+    .server-card { border-color:var(--border); border-radius:14px; background:var(--surface); }
     .server-kpi { border:1px solid var(--border); border-radius:12px; background:var(--surface); padding:11px 13px; }
     .server-kpi span { display:block; color:var(--text-muted); font:700 10px 'JetBrains Mono',monospace; text-transform:uppercase; letter-spacing:.08em; }
     .server-kpi strong { display:block; margin-top:6px; color:var(--text-strong); font:800 1.08rem 'JetBrains Mono',monospace; line-height:1.1; }
     .server-kpi small { display:block; margin-top:3px; color:var(--text-muted); font-size:.76rem; }
-    .server-filters { grid-template-columns:repeat(5,minmax(150px,1fr)); }
-    .inventory-strip { display:grid; grid-template-columns:minmax(420px,1.45fr) repeat(2,minmax(220px,.7fr)); gap:0; margin:12px 0; border:1px solid var(--border); border-radius:12px; background:var(--surface); overflow:hidden; }
     .inventory-update,.inventory-run { min-width:0; padding:12px 14px; }
     .inventory-update { border-right:1px solid var(--border); }
     .inventory-update h2 { margin:0; color:var(--text-strong); font-size:.96rem; }
@@ -19,20 +17,21 @@
     .inventory-upload { display:flex; align-items:end; gap:8px; margin-top:8px; }
     .inventory-upload .field { flex:1 1 auto; min-width:0; }
     .inventory-upload .field label { display:none; }
-    .inventory-run + .inventory-run { border-left:1px solid var(--border); }
     .inventory-run-label { display:block; color:var(--text-muted); font:800 9px 'JetBrains Mono',monospace; letter-spacing:.08em; text-transform:uppercase; }
     .inventory-run > strong { display:block; margin-top:6px; color:var(--text-strong); font-size:.9rem; }
     .inventory-run > small { display:block; margin-top:4px; color:var(--text-muted); font-size:.72rem; line-height:1.35; }
     .inventory-run-meta { display:flex; flex-wrap:wrap; gap:5px 10px; margin-top:7px; color:var(--text-muted); font-size:.7rem; }
     .inventory-run-meta strong { color:var(--text-strong); font-size:inherit; }
     .heatmap-shell { margin-top:14px; border:1px solid var(--border); border-radius:16px; background:var(--surface); overflow:auto; }
-    .heatmap { width:100%; min-width:1050px; border-collapse:separate; border-spacing:7px; padding:8px; }
-    .heatmap th { padding:8px; color:var(--text-muted); font:700 10px 'JetBrains Mono',monospace; text-transform:uppercase; text-align:center; }
-    .heatmap th:first-child { text-align:left; position:sticky; left:0; z-index:2; background:var(--surface); }
-    .heatmap-row-title { min-width:120px; position:sticky; left:0; z-index:1; border:1px solid var(--border); border-radius:10px; background:var(--surface-2); padding:12px; }
+    .heatmap { width:100%; min-width:720px; table-layout:fixed; border-collapse:separate; border-spacing:clamp(4px,.45vw,7px); padding:clamp(4px,.5vw,8px); }
+    .heatmap.is-compact { min-width:900px; }
+    .heatmap.is-dense { min-width:1080px; }
+    .heatmap th { padding:clamp(5px,.5vw,8px); overflow-wrap:anywhere; color:var(--text-muted); font:700 10px/1.25 'JetBrains Mono',monospace; text-transform:uppercase; text-align:center; }
+    .heatmap th:first-child { width:112px; text-align:left; position:sticky; left:0; z-index:2; background:var(--surface); }
+    .heatmap-row-title { min-width:0; position:sticky; left:0; z-index:1; overflow-wrap:anywhere; border:1px solid var(--border); border-radius:10px; background:var(--surface-2); padding:clamp(7px,.65vw,10px); }
     .heatmap-row-title strong,.heatmap-row-title small { display:block; }
     .heatmap-row-title small { margin-top:4px; color:var(--text-muted); }
-    .heat-cell { min-width:185px; border:1px solid var(--border); border-radius:12px; padding:12px; text-align:left; vertical-align:top; background:var(--surface-2); }
+    .heat-cell { min-width:0; position:relative; border:1px solid var(--border); border-radius:12px; padding:0; text-align:left; vertical-align:top; background:var(--surface-2); transition:border-color .15s ease,box-shadow .15s ease,filter .15s ease; }
     .heat-cell.good { background:rgba(0,229,160,.18); border-color:rgba(0,229,160,.45); }
     .heat-cell.medium { background:rgba(45,122,255,.18); border-color:rgba(45,122,255,.45); }
     .heat-cell.warning { background:rgba(245,166,35,.18); border-color:rgba(245,166,35,.45); }
@@ -50,10 +49,21 @@
     .heat-cell.bad .heat-progress span { background:var(--bad); }
     .heat-metric { display:flex; justify-content:space-between; gap:10px; padding:2px 0; color:var(--text-muted); font-size:.72rem; }
     .heat-metric strong { color:var(--text-strong); font-size:.76rem; }
+    .heat-cell-content,.heat-cell-link { display:block; height:100%; padding:clamp(7px,.65vw,10px); color:inherit; text-decoration:none; }
+    .heatmap.is-compact .heat-cell-content,.heatmap.is-compact .heat-cell-link { padding:8px; }
+    .heatmap.is-dense .heat-cell-content,.heatmap.is-dense .heat-cell-link { padding:6px; }
+    .heatmap.is-dense .heat-cell-head span { font-size:8px; letter-spacing:.03em; }
+    .heatmap.is-dense .heat-metric { gap:4px; font-size:.66rem; }
+    .heat-cell.is-actionable { cursor:pointer; }
+    .heat-cell.is-actionable:hover { border-color:var(--accent); box-shadow:0 0 0 1px color-mix(in srgb,var(--accent) 40%,transparent),0 8px 20px rgba(0,0,0,.15); filter:brightness(1.07); }
+    .heat-cell.is-selected { border-color:var(--accent); box-shadow:0 0 0 2px var(--accent),0 10px 24px var(--accent-glow); filter:brightness(1.08); }
+    .heat-cell.is-actionable:focus-within { outline:2px solid var(--accent); outline-offset:2px; }
+    .heat-cell-link::after { content:""; position:absolute; inset:0; border-radius:inherit; }
+    .heat-cell-link:focus-visible { outline:none; }
+    .heat-pending-value { color:var(--medium); font-weight:800; }
     .heat-cell-note { margin-top:6px; color:var(--text-muted); font-size:.68rem; }
     .heat-legend { display:flex; flex-wrap:wrap; gap:12px; margin:12px 0; color:var(--text-muted); font-size:.82rem; }
     .heat-legend i { display:inline-block; width:10px; height:10px; margin-right:5px; border-radius:3px; }
-    .server-grid { display:grid; grid-template-columns:1fr; gap:12px; margin-top:14px; }
     .server-panel { border:1px solid var(--border); border-radius:14px; background:var(--surface); padding:15px; min-width:0; }
     .server-panel h2 { color:var(--text-strong); font-size:1rem; margin-bottom:3px; }
     .server-panel > small { color:var(--text-muted); }
@@ -61,7 +71,6 @@
     .os-coverage-head h2 { margin:0 0 4px; font-size:1.08rem; }
     .os-coverage-head p { margin:0; color:var(--text-muted); font-size:.8rem; }
     .os-coverage-legend { color:var(--text-muted); font:700 10px 'JetBrains Mono',monospace; text-transform:uppercase; letter-spacing:.07em; white-space:nowrap; }
-    .os-coverage-grid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:12px; }
     .os-coverage-card { --os-color:var(--accent); position:relative; overflow:hidden; border:1px solid color-mix(in srgb,var(--os-color) 38%,var(--border)); border-radius:14px; padding:16px; background:linear-gradient(145deg,color-mix(in srgb,var(--os-color) 12%,var(--surface-2)),var(--surface-2) 62%); }
     .os-coverage-card.windows { --os-color:#2d7aff; }
     .os-coverage-card.linux { --os-color:#00e5a0; }
@@ -87,42 +96,50 @@
     .server-bar-track { height:7px; margin-top:5px; border-radius:999px; overflow:hidden; background:rgba(78,106,142,.2); }
     .server-bar-track span { display:block; height:100%; border-radius:inherit; background:var(--accent); }
     .gap-table { width:100%; min-width:760px; border-collapse:collapse; }
-    .gap-table th,.gap-table td { padding:10px; border-bottom:1px solid var(--border); text-align:left; }
+    .gap-table th,.gap-table td { padding:10px; border-bottom:1px solid var(--border); text-align:center; }
     .gap-table th { color:var(--text-muted); font:700 10px 'JetBrains Mono',monospace; text-transform:uppercase; }
     .table-pagination { display:flex; justify-content:space-between; align-items:center; gap:12px; padding:12px 14px 14px; border-top:1px solid var(--border); flex-wrap:wrap; }
     .table-page-summary { color:var(--text-muted); font:700 11px 'JetBrains Mono',monospace; }
-    @media(max-width:1100px){.server-kpis{grid-template-columns:repeat(2,1fr)}.server-grid{grid-template-columns:1fr}.inventory-strip{grid-template-columns:1fr 1fr}.inventory-update{grid-column:1/-1;border-right:0;border-bottom:1px solid var(--border)}.server-filters{grid-template-columns:repeat(2,1fr)}}
-    @media(max-width:760px){.os-coverage-grid{grid-template-columns:1fr}.os-coverage-head{align-items:start;flex-direction:column}.os-coverage-legend{white-space:normal}}
-    @media(max-width:650px){.server-kpis,.server-filters,.inventory-strip{grid-template-columns:1fr}.inventory-update{grid-column:auto}.inventory-run + .inventory-run{border-left:0;border-top:1px solid var(--border)}.inventory-upload{align-items:stretch;flex-direction:column}.os-card-head{align-items:flex-start}.os-percent{font-size:1.3rem}.os-metrics{gap:5px}}
+    .filter-panel { padding:0; overflow:hidden; }
+    #inventory-live-filters { padding:10px 14px 12px; --bs-gutter-x:.75rem; --bs-gutter-y:.5rem; }
+    #inventory-live-filters .field { min-width:0; }
+    #inventory-live-filters .form-label { margin-bottom:5px; color:var(--text-muted); font:800 9px 'JetBrains Mono',monospace; letter-spacing:.07em; text-transform:uppercase; }
+    #inventory-live-filters input,
+    #inventory-live-filters select { width:100%; min-height:38px; }
+    #inventory-live-filters > .inventory-filter-reset { flex:0 0 auto; width:auto; min-height:38px; margin-left:auto; margin-right:calc(var(--bs-gutter-x) * .5); padding:7px 9px; align-self:flex-end; border-color:color-mix(in srgb,var(--accent) 45%,var(--border)); color:var(--text-strong); background:var(--surface-2); font-size:10px; white-space:nowrap; }
+    #inventory-live-filters > .inventory-filter-reset:hover,
+    #inventory-live-filters > .inventory-filter-reset:focus-visible { border-color:var(--accent); color:#fff; background:var(--accent); box-shadow:0 0 0 3px var(--accent-dim); }
+    @media(min-width:1200px){
+        #inventory-live-filters .filter-search { flex:1.6 1 280px; width:auto; }
+        #inventory-live-filters .field:not(.filter-search) { flex:1 1 150px; width:auto; }
+    }
+    #inventory-results { transition:opacity .15s ease; }
+    #inventory-results.is-loading { opacity:.5; pointer-events:none; }
+    .inventory-state { display:inline-flex; padding:4px 8px; border-radius:999px; font-size:.7rem; font-weight:800; }
+    .inventory-state.ingested { color:var(--good); background:rgba(0,229,160,.12); }
+    .inventory-state.pending { color:var(--medium); background:rgba(245,166,35,.14); }
+    @media(max-width:760px){.os-coverage-head{align-items:start;flex-direction:column}.os-coverage-legend{white-space:normal}}
+    @media(max-width:650px){.inventory-upload{align-items:stretch;flex-direction:column}.os-card-head{align-items:flex-start}.os-percent{font-size:1.3rem}.os-metrics{gap:5px}}
 </style>
 {% endblock %}
 
 {% block content %}
-<main class="container"><section class="page-shell wide">
+<main class="container-fluid px-3 px-lg-4 py-4"><section class="page-shell wide">
     <header class="page-header">
         <div><div class="page-eyebrow">// INVENTARIO AD × SIEM</div><h1 class="page-title">Mapa de calor de servidores</h1><p class="page-subtitle">Compara equipos registrados en Active Directory con los que tienen ingesta en el SIEM. La clasificación surge de las reglas de inventario o de una corrección manual.</p></div>
         <div class="header-actions">
             <form method="post" action="{% url 'server_heatmap_reprocess' %}" data-submit-once>
                 {% csrf_token %}
-                <button class="btn-primary" type="submit" data-busy-text="Encolando…">Cruzar y aplicar reglas</button>
+                <button class="btn btn-primary" type="submit" data-busy-text="Encolando…">Cruzar y aplicar reglas</button>
             </form>
             {% if can_manage_inventory %}
-                <a class="btn" href="{% url 'server_heatmap_administration' %}">Panel de administración</a>
+                <a class="btn btn-outline-secondary" href="{% url 'server_heatmap_administration' %}">Panel de administración</a>
             {% endif %}
         </div>
     </header>
 
-    <section class="inventory-strip">
-        <div class="inventory-update">
-            <h2>Actualizar inventario SIEM</h2>
-            <p>Subí el CSV del SIEM para compararlo con el inventario AD actual.</p>
-            <form class="inventory-upload" method="post" action="{% url 'server_heatmap_siem_upload' %}" enctype="multipart/form-data" data-submit-once>
-                {% csrf_token %}
-                <div class="field"><label for="siem-csv">Archivo CSV del SIEM</label><input id="siem-csv" name="siem_csv" type="file" accept=".csv,text/csv" aria-label="Archivo CSV del SIEM" required></div>
-                <button class="btn-primary" type="submit" data-busy-text="Procesando CSV…">Comparar con AD</button>
-            </form>
-        </div>
-        <article class="inventory-run">
+    <section class="inventory-strip row g-3 my-1">
+        <div class="col-12 col-md-6"><article class="inventory-run server-card card h-100">
             <span class="inventory-run-label">Inventario AD</span>
             {% if latest_ad_run %}
                 <strong>{{ latest_ad_run.finished_at|date:"d/m/Y H:i" }}</strong>
@@ -131,8 +148,8 @@
                 <strong>Carga inicial</strong>
                 <small>Sin sincronización directa con AD todavía.</small>
             {% endif %}
-        </article>
-        <article class="inventory-run">
+        </article></div>
+        <div class="col-12 col-md-6"><article class="inventory-run server-card card h-100">
             <span class="inventory-run-label">Último CSV SIEM</span>
             {% if latest_siem_run %}
                 <strong>{{ latest_siem_run.finished_at|date:"d/m/Y H:i" }}</strong>
@@ -141,102 +158,322 @@
                 <strong>Sin carga</strong>
                 <small>Todavía no se cargó un CSV mediante este flujo.</small>
             {% endif %}
-        </article>
+        </article></div>
     </section>
 
-    <section class="server-kpis">
-        <article class="server-kpi"><span>En AD</span><strong>{{ ad_count }}</strong><small>inventario esperado</small></article>
-        <article class="server-kpi"><span>Cubiertos</span><strong>{{ both_count }}</strong><small>{{ siem_coverage_percent }}% del inventario AD</small></article>
-        <article class="server-kpi"><span>Pendientes</span><strong>{{ ad_only_count }}</strong><small>equipos AD sin SIEM</small></article>
-        <article class="server-kpi"><span>Solo SIEM</span><strong>{{ siem_only_count }}</strong><small>no encontrados en AD</small></article>
+    <section class="server-kpis row g-3 my-1">
+        <div class="col-12 col-md-6 col-xl-3"><article class="server-kpi server-card card h-100"><span>En AD</span><strong>{{ ad_count }}</strong><small>inventario esperado</small></article></div>
+        <div class="col-12 col-md-6 col-xl-3"><article class="server-kpi server-card card h-100"><span>Cubiertos</span><strong>{{ both_count }}</strong><small>{{ siem_coverage_percent }}% del inventario AD</small></article></div>
+        <div class="col-12 col-md-6 col-xl-3"><article class="server-kpi server-card card h-100"><span>Pendientes</span><strong>{{ ad_only_count }}</strong><small>equipos AD sin SIEM</small></article></div>
+        <div class="col-12 col-md-6 col-xl-3"><article class="server-kpi server-card card h-100"><span>Solo SIEM</span><strong>{{ siem_only_count }}</strong><small>no encontrados en AD</small></article></div>
     </section>
 
-    <section class="filter-panel"><form class="filter-grid server-filters" method="get">
-        <div class="field"><label>Sistema operativo</label><select name="os"><option value="">Todos</option>{% for value,label in os_choices %}<option value="{{ value }}" {% if selected_os == value %}selected{% endif %}>{{ label }}</option>{% endfor %}</select></div>
-        <div class="field"><label>Sección funcional</label><select name="type"><option value="">Todas</option>{% for category in type_choices %}<option value="{{ category.id }}" {% if selected_type == category.id|stringformat:"s" %}selected{% endif %}>{{ category.name }}</option>{% endfor %}</select></div>
-        <div class="field"><label>Cobertura</label><select name="coverage"><option value="">Todas</option><option value="both" {% if selected_coverage == 'both' %}selected{% endif %}>AD + SIEM</option><option value="ad_only" {% if selected_coverage == 'ad_only' %}selected{% endif %}>Solo AD</option><option value="siem_only" {% if selected_coverage == 'siem_only' %}selected{% endif %}>Solo SIEM</option></select></div>
-        <div class="field"><label>Estado</label><select name="enabled"><option value="yes" {% if selected_enabled == 'yes' %}selected{% endif %}>Habilitados</option><option value="all" {% if selected_enabled == 'all' %}selected{% endif %}>Todos</option><option value="no" {% if selected_enabled == 'no' %}selected{% endif %}>Deshabilitados</option></select></div>
-        <div class="header-actions"><button class="btn-primary" type="submit">Filtrar</button><a class="btn" href="{% url 'server_heatmap' %}">Limpiar</a></div>
-    </form></section>
+    <section class="filter-panel server-card card mt-3">
 
-    <div class="heat-legend"><span><i style="background:var(--good)"></i>90–100%</span><span><i style="background:var(--accent)"></i>70–89%</span><span><i style="background:var(--medium)"></i>1–69%</span><span><i style="background:var(--bad)"></i>0%</span><span><i style="background:var(--text-muted)"></i>Sin línea base AD</span><span>Porcentaje = equipos AD también presentes en SIEM.</span></div>
-    <section class="heatmap-shell">
-        {% if matrix_rows and matrix_types %}<table class="heatmap"><thead><tr><th>OS / sección</th>{% for item in matrix_types %}<th>{{ item.name }}</th>{% endfor %}</tr></thead><tbody>
-        {% for row in matrix_rows %}<tr><td class="heatmap-row-title"><strong>{{ row.label }}</strong><small>{{ row.total }} equipos</small></td>{% for cell in row.cells %}<td class="heat-cell {{ cell.level }}" title="{% if cell.level == 'no_baseline' %}{{ cell.siem_count }} equipos detectados solo por SIEM, sin correspondencia en AD{% elif cell.level == 'empty' %}Sin inventario registrado{% else %}{{ cell.covered_count }} de {{ cell.ad_count }} equipos AD tienen ingesta SIEM{% endif %}"><div class="heat-cell-head"><span>Cobertura SIEM</span><strong>{% if cell.coverage_percent != None %}{{ cell.coverage_percent }}%{% else %}—{% endif %}</strong></div><div class="heat-progress" role="progressbar" aria-label="Cobertura SIEM" aria-valuemin="0" aria-valuemax="100" aria-valuenow="{{ cell.coverage_percent|default:0|unlocalize }}"><span style="width:{% if cell.coverage_percent != None %}{{ cell.coverage_percent|unlocalize }}{% else %}0{% endif %}%"></span></div><div class="heat-metric"><span>Cubiertos</span><strong>{{ cell.covered_count }}</strong></div><div class="heat-metric"><span>Pendientes</span><strong>{{ cell.gap_count }}</strong></div><div class="heat-metric"><span>Total en AD</span><strong>{{ cell.ad_count }}</strong></div>{% if cell.level == 'no_baseline' and cell.siem_count %}<div class="heat-cell-note">{{ cell.siem_count }} detectados solo en SIEM</div>{% endif %}</td>{% endfor %}</tr>{% endfor %}
-        </tbody></table>{% else %}<div class="empty-state">Todavía no hay equipos clasificados para construir el mapa. Administrá las secciones y reglas desde el panel propio de servidores.</div>{% endif %}
+
+
+
+
+        <form
+            class="row align-items-end"
+            method="get"
+            id="inventory-live-filters"
+            autocomplete="off"
+            data-live-search="off"
+        >
+            <input id="inventory-type" name="type" type="hidden" value="{{ selected_type }}">
+            <input id="inventory-coverage" name="coverage" type="hidden" value="{{ selected_coverage }}">
+
+            <!-- Búsqueda principal -->
+            <div class="field filter-search col-12 col-lg-4">
+                <label class="form-label" for="inventory-query">Buscar equipo</label>
+                <input
+                    class="form-control form-control-sm"
+                    id="inventory-query"
+                    name="inventory_q"
+                    type="search"
+                    value="{{ inventory_query }}"
+                    placeholder="Hostname, IP, OS, aplicación u OU"
+                >
+            </div>
+
+
+            <!-- Ambiente -->
+            <div class="field col-12 col-sm-6 col-md-3 col-lg-2">
+                <label class="form-label" for="environment">Ambiente</label>
+                <select class="form-select form-select-sm" id="environment" name="environment">
+                    <option
+                        value="all"
+                        {% if selected_environment == 'all' %}selected{% endif %}
+                    >
+                        Todos
+                    </option>
+                    {% for environment in environment_choices %}
+                        <option
+                            value="{{ environment }}"
+                            {% if selected_environment|upper == environment %}selected{% endif %}
+                        >
+                            {{ environment }}
+                        </option>
+                    {% endfor %}
+                </select>
+            </div>
+
+            <!-- Sistema operativo -->
+            <div class="field col-12 col-sm-6 col-md-3 col-lg-2">
+                <label class="form-label" for="inventory-os">Sistema operativo</label>
+                <select class="form-select form-select-sm" id="inventory-os" name="os">
+                    <option value="">Todos</option>
+                    {% for value, label in os_choices %}
+                        <option
+                            value="{{ value }}"
+                            {% if selected_os == value %}selected{% endif %}
+                        >
+                            {{ label }}
+                        </option>
+                    {% endfor %}
+                </select>
+            </div>
+
+            <!-- Estado -->
+            <div class="field col-12 col-sm-6 col-md-3 col-lg-2">
+                <label class="form-label" for="inventory-enabled">Estado</label>
+                <select class="form-select form-select-sm" id="inventory-enabled" name="enabled">
+                    <option
+                        value="yes"
+                        {% if selected_enabled == 'yes' %}selected{% endif %}
+                    >
+                        Habilitados
+                    </option>
+                    <option
+                        value="all"
+                        {% if selected_enabled == 'all' %}selected{% endif %}
+                    >
+                        Todos
+                    </option>
+                    <option
+                        value="no"
+                        {% if selected_enabled == 'no' %}selected{% endif %}
+                    >
+                        Deshabilitados
+                    </option>
+                </select>
+            </div>
+
+            <!-- Estado de ingesta -->
+            <div class="field col-12 col-sm-6 col-md-3 col-lg-2">
+                <label class="form-label" for="inventory-status">Estado de ingesta</label>
+                <select class="form-select form-select-sm" id="inventory-status" name="inventory_status">
+                    <option
+                        value="all"
+                        {% if selected_inventory_status == 'all' %}selected{% endif %}
+                    >
+                        Todos
+                    </option>
+                    <option
+                        value="ingested"
+                        {% if selected_inventory_status == 'ingested' %}selected{% endif %}
+                    >
+                        Ingestados
+                    </option>
+                    <option
+                        value="pending"
+                        {% if selected_inventory_status == 'pending' %}selected{% endif %}
+                    >
+                        Pendientes de ingesta
+                    </option>
+                </select>
+            </div>
+                         <a
+                    class="btn btn-outline-secondary inventory-filter-reset"
+                    href="{% url 'server_heatmap' %}"
+                >
+                    Limpiar filtros
+                </a>
+        </form>
     </section>
 
-    <section class="server-grid">
-        <article class="server-panel"><div class="os-coverage-head"><div><h2>Cobertura por sistema operativo</h2><p>Qué porcentaje del inventario AD ya tiene ingesta en el SIEM.</p></div><span class="os-coverage-legend">Total AD = 100%</span></div><div class="os-coverage-grid">{% for item in os_rows %}<section class="os-coverage-card {{ item.key }}"><div class="os-card-head"><div class="os-identity"><span class="os-code">{% if item.key == 'windows' %}WIN{% else %}LNX{% endif %}</span><div><small>Sistema operativo</small><strong>{{ item.label }}</strong></div></div><strong class="os-percent">{{ item.percent }}%</strong></div><div class="os-progress" role="progressbar" aria-label="Cobertura {{ item.label }}" aria-valuemin="0" aria-valuemax="100" aria-valuenow="{{ item.percent|unlocalize }}"><span style="width:{{ item.percent|unlocalize }}%"></span></div><div class="os-coverage-copy"><span><strong>{{ item.covered_count }} de {{ item.ad_count }}</strong> cubiertos</span><span>{{ item.gap_count }} pendientes</span></div><div class="os-metrics"><div class="os-metric"><span>Cubiertos</span><strong>{{ item.covered_count }}</strong></div><div class="os-metric"><span>Pendientes</span><strong>{{ item.gap_count }}</strong></div><div class="os-metric"><span>Total en AD</span><strong>{{ item.ad_count }}</strong></div></div></section>{% empty %}<p class="muted">Sin equipos AD.</p>{% endfor %}</div></article>
-        <article class="server-panel"><h2>Cobertura por sección funcional</h2><small>En cada sección, el total de equipos AD representa el 100%</small><div class="server-bars">{% for item in type_rows %}<div><div class="server-bar-head"><span>{{ item.label }}</span><strong>{{ item.covered_count }}/{{ item.ad_count }} · {{ item.percent }}%</strong></div><div class="server-bar-track"><span style="width:{{ item.percent|unlocalize }}%"></span></div><small>{{ item.gap_count }} pendientes de ingesta</small></div>{% empty %}<p class="muted">Sin equipos AD clasificados.</p>{% endfor %}</div></article>
+    <section class="row g-3 mt-1">
+        <div class="col-12"><article class="server-panel server-card card"><div class="os-coverage-head"><div><h2>Cobertura por sistema operativo</h2></div><span class="os-coverage-legend">Total AD = 100%</span></div><div class="os-coverage-grid row g-3">{% for item in os_rows %}<div class="col-12 col-md-6"><section class="os-coverage-card {{ item.key }} server-card card h-100"><div class="os-card-head"><div class="os-identity"><span class="os-code">{% if item.key == 'windows' %}WIN{% else %}LNX{% endif %}</span><div><small>Sistema operativo</small><strong>{{ item.label }}</strong></div></div><strong class="os-percent">{{ item.percent }}%</strong></div><div class="os-progress" role="progressbar" aria-label="Cobertura {{ item.label }}" aria-valuemin="0" aria-valuemax="100" aria-valuenow="{{ item.percent|unlocalize }}"><span style="width:{{ item.percent|unlocalize }}%"></span></div><div class="os-coverage-copy"><span><strong>{{ item.covered_count }} de {{ item.ad_count }}</strong> cubiertos</span><span>{{ item.gap_count }} pendientes</span></div><div class="os-metrics"><div class="os-metric"><span>Cubiertos</span><strong>{{ item.covered_count }}</strong></div><div class="os-metric"><span>Pendientes</span><strong>{{ item.gap_count }}</strong></div><div class="os-metric"><span>Total en AD</span><strong>{{ item.ad_count }}</strong></div></div></section></div>{% empty %}<div class="col-12"><p class="muted">Sin equipos AD.</p></div>{% endfor %}</div></article></div>
     </section>
 
-    <section class="table-panel" style="margin-top:14px">
-        <div style="padding:14px 14px 4px;display:flex;justify-content:space-between;gap:12px;align-items:start;flex-wrap:wrap">
+    <div class="os-coverage-head mt-3"><div><h2>Cobertura por secciones</h2></div></div>
+    <div class="heat-legend"><span><i style="background:var(--good)"></i>90–100%</span><span><i style="background:var(--accent)"></i>70–89%</span><span><i style="background:var(--medium)"></i>1–69%</span><span><i style="background:var(--bad)"></i>0%</span><span><i style="background:var(--text-muted)"></i>Sin línea base AD</span></div>
+    <section class="heatmap-shell server-card card" id="coverage-heatmap">
+        {% if matrix_rows and matrix_types %}
+            <table class="heatmap{% if matrix_types|length > 9 %} is-dense{% elif matrix_types|length > 6 %} is-compact{% endif %}">
+                <thead>
+                    <tr>
+                        <th scope="col">OS / sección</th>
+                        {% for item in matrix_types %}<th scope="col" title="{{ item.name }}">{{ item.name }}</th>{% endfor %}
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for row in matrix_rows %}
+                        <tr>
+                            <td class="heatmap-row-title"><strong>{{ row.label }}</strong><small>{{ row.total }} equipos</small></td>
+                            {% for cell in row.cells %}
+                                <td
+                                    class="heat-cell {{ cell.level }}{% if cell.gap_count %} is-actionable{% endif %}"
+                                    title="{% if cell.level == 'no_baseline' %}{{ cell.siem_count }} equipos detectados solo por SIEM, sin correspondencia en AD{% elif cell.level == 'empty' %}Sin inventario registrado{% else %}{{ cell.covered_count }} de {{ cell.ad_count }} equipos AD tienen ingesta SIEM{% endif %}"
+                                >
+                                    {% if cell.gap_count %}
+                                        <a
+                                            class="heat-cell-link"
+                                            href="?environment={{ selected_environment|urlencode }}&os={{ row.filter_value|urlencode }}&type={{ cell.category.id }}&coverage=&enabled={{ selected_enabled|urlencode }}&inventory_status=pending&inventory_q=#inventory-results"
+                                            data-heatmap-filter
+                                            data-os="{{ row.filter_value }}"
+                                            data-type="{{ cell.category.id }}"
+                                            role="button"
+                                            aria-pressed="false"
+                                            aria-label="Ver {{ cell.gap_count }} equipos {{ row.label }} pendientes de ingesta en {{ cell.category.name }}"
+                                        >
+                                    {% else %}
+                                        <div class="heat-cell-content">
+                                    {% endif %}
+                                        <div class="heat-cell-head"><span>Cobertura SIEM</span><strong>{% if cell.coverage_percent != None %}{{ cell.coverage_percent }}%{% else %}—{% endif %}</strong></div>
+                                        <div class="heat-progress" role="progressbar" aria-label="Cobertura SIEM" aria-valuemin="0" aria-valuemax="100" aria-valuenow="{{ cell.coverage_percent|default:0|unlocalize }}"><span style="width:{% if cell.coverage_percent != None %}{{ cell.coverage_percent|unlocalize }}{% else %}0{% endif %}%"></span></div>
+                                        <div class="heat-metric"><span>Cubiertos</span><strong>{{ cell.covered_count }}</strong></div>
+                                        <div class="heat-metric"><span>Pendientes</span><strong class="heat-pending-value">{{ cell.gap_count }}</strong></div>
+                                        <div class="heat-metric"><span>Total en AD</span><strong>{{ cell.ad_count }}</strong></div>
+                                        {% if cell.level == 'no_baseline' and cell.siem_count %}<div class="heat-cell-note">{{ cell.siem_count }} detectados solo en SIEM</div>{% endif %}
+                                    {% if cell.gap_count %}</a>{% else %}</div>{% endif %}
+                                </td>
+                            {% endfor %}
+                        </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        {% else %}
+            <div class="empty-state">Todavía no hay equipos clasificados para construir el mapa. Administrá las secciones y reglas desde el panel propio de servidores.</div>
+        {% endif %}
+    </section>
+
+    <section class="table-panel server-card card mt-3">
+        <div class="d-flex justify-content-between gap-3 align-items-start flex-wrap p-3 pb-1">
             <div>
-                <h2 class="section-title">Pendientes de ingesta: equipos AD sin SIEM</h2>
-                <p class="page-subtitle">{{ gap_total }} pendientes · {{ dns_resolved_count }} con DNS · {{ reachable_count }} responden · {{ unreachable_count }} no responden.</p>
+                <h2 class="section-title">Inventario de equipos</h2>
+
             </div>
             <div class="header-actions">
-                <form method="post" action="{% url 'server_heatmap_gap_diagnose' %}" data-submit-once>{% csrf_token %}<button class="btn" type="submit" data-busy-text="Diagnosticando…">Diagnosticar próximos 200</button></form>
-                <a class="btn" href="{% url 'server_heatmap_gap_export' %}">Descargar pendientes CSV</a>
+                <form method="post" action="{% url 'server_heatmap_gap_diagnose' %}" data-submit-once>{% csrf_token %}<button class="btn btn-outline-secondary" type="submit" data-busy-text="Diagnosticando…">Diagnosticar próximos 200</button></form>
+                <a class="btn btn-outline-secondary" href="{% url 'server_heatmap_gap_export' %}">Descargar pendientes CSV</a>
             </div>
         </div>
-        <div style="overflow:auto"><table class="gap-table">
-            <thead><tr><th>Hostname</th><th>OS</th><th>Tipo</th><th>Ambiente</th><th>DNS</th><th>IP resuelta</th><th>Ping</th><th>Última actividad AD</th><th>Resultado</th></tr></thead>
-            <tbody>{% for item in gaps %}<tr>
-                <td><strong>{{ item.hostname }}</strong></td>
-                <td>{{ item.os_name|default:item.get_os_family_display }}</td>
-                <td>{% if item.category %}{{ item.category.name }}{% else %}{{ item.get_server_type_display }}{% endif %}</td>
-                <td>{{ item.environment|default:'-' }}</td>
-                <td>{{ item.get_dns_status_display }}</td>
-                <td>{{ item.resolved_ip_address|default:item.ip_address|default:'-' }}</td>
-                <td>{{ item.get_reachability_status_display }}</td>
-                <td>{{ item.ad_last_logon_at|date:"d/m/Y H:i"|default:'-' }}</td>
-                <td><strong>{{ item.diagnostic_result }}</strong></td>
-            </tr>{% empty %}<tr><td colspan="9" class="muted">No hay equipos AD pendientes de ingesta con los filtros actuales.</td></tr>{% endfor %}</tbody>
-        </table></div>
-        {% if gap_page.paginator.count %}
-            <nav class="table-pagination" aria-label="Paginación de equipos pendientes">
-                <span class="table-page-summary">Página {{ gap_page.number }} de {{ gap_page.paginator.num_pages }} · {{ gap_page.paginator.count }} equipos</span>
-                <div class="header-actions">
-                    {% if gap_page.has_previous %}
-                        <a class="btn" href="?os={{ selected_os|urlencode }}&type={{ selected_type|urlencode }}&coverage={{ selected_coverage|urlencode }}&enabled={{ selected_enabled|urlencode }}{% if unmatched_siem_page %}&conflict_page={{ unmatched_siem_page.number }}{% endif %}&gap_page={{ gap_page.previous_page_number }}">Anterior</a>
-                    {% endif %}
-                    {% if gap_page.has_next %}
-                        <a class="btn" href="?os={{ selected_os|urlencode }}&type={{ selected_type|urlencode }}&coverage={{ selected_coverage|urlencode }}&enabled={{ selected_enabled|urlencode }}{% if unmatched_siem_page %}&conflict_page={{ unmatched_siem_page.number }}{% endif %}&gap_page={{ gap_page.next_page_number }}">Siguiente</a>
-                    {% endif %}
-                </div>
-            </nav>
-        {% endif %}
+        <div id="inventory-results">{% include "server_heatmap/_inventory_results.html" %}</div>
     </section>
-
-    {% if latest_siem_run %}
-    <section class="table-panel" style="margin-top:14px">
-        <div style="padding:14px 14px 4px">
-            <h2 class="section-title">Conflictos SIEM pendientes</h2>
-            <p class="page-subtitle">{{ unmatched_siem_count }} sin resolver: {{ unresolved_issue_counts.not_in_ad }} no encontrados en AD · {{ unresolved_issue_counts.ambiguous }} ambiguos · {{ unresolved_issue_counts.missing_identifier }} sin identificador.</p>
-        </div>
-        <div style="overflow:auto">
-            <table class="gap-table">
-                <thead><tr><th>Identificador SIEM</th><th>Hostname</th><th>IP</th><th>Tipo informado</th></tr></thead>
-                <tbody>{% for item in unmatched_siem %}<tr><td>{{ item.external_id }}</td><td>{{ item.hostname|default:'-' }}</td><td>{{ item.ip_address|default:'-' }}</td><td>{{ item.server_type_hint|default:'-' }}</td></tr>{% empty %}<tr><td colspan="4" class="muted">No hay conflictos SIEM pendientes.</td></tr>{% endfor %}</tbody>
-            </table>
-        </div>
-        {% if unmatched_siem_page.paginator.count %}
-            <nav class="table-pagination" aria-label="Paginación de conflictos SIEM">
-                <span class="table-page-summary">Página {{ unmatched_siem_page.number }} de {{ unmatched_siem_page.paginator.num_pages }} · {{ unmatched_siem_page.paginator.count }} registros</span>
-                <div class="header-actions">
-                    {% if unmatched_siem_page.has_previous %}
-                        <a class="btn" href="?os={{ selected_os|urlencode }}&type={{ selected_type|urlencode }}&coverage={{ selected_coverage|urlencode }}&enabled={{ selected_enabled|urlencode }}&gap_page={{ gap_page.number }}&conflict_page={{ unmatched_siem_page.previous_page_number }}">Anterior</a>
-                    {% endif %}
-                    {% if unmatched_siem_page.has_next %}
-                        <a class="btn" href="?os={{ selected_os|urlencode }}&type={{ selected_type|urlencode }}&coverage={{ selected_coverage|urlencode }}&enabled={{ selected_enabled|urlencode }}&gap_page={{ gap_page.number }}&conflict_page={{ unmatched_siem_page.next_page_number }}">Siguiente</a>
-                    {% endif %}
-                </div>
-            </nav>
-        {% endif %}
-    </section>
-    {% endif %}
 </section></main>
+<script>
+(() => {
+    const filters = document.getElementById("inventory-live-filters");
+    const results = document.getElementById("inventory-results");
+    const status = document.getElementById("inventory-live-status");
+    const heatmap = document.getElementById("coverage-heatmap");
+    if (!filters || !results) return;
+
+    const endpoint = "{% url 'server_heatmap_inventory_results' %}";
+    let debounceTimer;
+    let requestController;
+
+    function announce(message) {
+        if (status) status.textContent = message;
+    }
+
+    async function refreshInventory(page) {
+        if (requestController) requestController.abort();
+        const currentController = new AbortController();
+        requestController = currentController;
+        const params = new URLSearchParams(new FormData(filters));
+        if (page) params.set("inventory_page", page);
+        results.classList.add("is-loading");
+        announce("Buscando…");
+        try {
+            const response = await fetch(`${endpoint}?${params.toString()}`, {
+                headers: {"X-Requested-With": "XMLHttpRequest"},
+                signal: currentController.signal,
+            });
+            if (!response.ok) throw new Error(`HTTP ${response.status}`);
+            results.innerHTML = await response.text();
+            announce("Resultados actualizados");
+        } catch (error) {
+            if (error.name !== "AbortError") announce("No se pudo actualizar el inventario");
+        } finally {
+            if (requestController === currentController) results.classList.remove("is-loading");
+        }
+    }
+
+    function scheduleRefresh() {
+        clearTimeout(debounceTimer);
+        debounceTimer = setTimeout(() => refreshInventory(), 250);
+    }
+
+    function clearHeatmapSelection() {
+        heatmap?.querySelectorAll(".heat-cell.is-selected").forEach(cell => {
+            cell.classList.remove("is-selected");
+        });
+        heatmap?.querySelectorAll("[data-heatmap-filter][aria-pressed='true']").forEach(link => {
+            link.setAttribute("aria-pressed", "false");
+        });
+    }
+
+    function selectHeatmapCell(link) {
+        clearHeatmapSelection();
+        link.closest(".heat-cell")?.classList.add("is-selected");
+        link.setAttribute("aria-pressed", "true");
+    }
+
+    function resetHeatmapFilters() {
+        filters.elements.namedItem("os").value = "";
+        filters.elements.namedItem("type").value = "";
+        filters.elements.namedItem("coverage").value = "";
+        filters.elements.namedItem("inventory_status").value = "all";
+        filters.elements.namedItem("inventory_q").value = "";
+    }
+
+    function clearSelectionAndRefresh() {
+        clearHeatmapSelection();
+        scheduleRefresh();
+    }
+
+    filters.addEventListener("input", clearSelectionAndRefresh);
+    filters.addEventListener("change", clearSelectionAndRefresh);
+    filters.addEventListener("submit", event => {
+        event.preventDefault();
+        refreshInventory();
+    });
+    heatmap?.addEventListener("click", event => {
+        const link = event.target.closest("[data-heatmap-filter]");
+        if (!link || event.ctrlKey || event.metaKey || event.shiftKey || event.altKey) return;
+        event.preventDefault();
+        const isSelected = link.getAttribute("aria-pressed") === "true";
+        if (isSelected) {
+            clearHeatmapSelection();
+            resetHeatmapFilters();
+        } else {
+            selectHeatmapCell(link);
+            filters.elements.namedItem("os").value = link.dataset.os;
+            filters.elements.namedItem("type").value = link.dataset.type;
+            filters.elements.namedItem("coverage").value = "";
+            filters.elements.namedItem("inventory_status").value = "pending";
+            filters.elements.namedItem("inventory_q").value = "";
+        }
+        refreshInventory();
+        results.scrollIntoView({behavior: "smooth", block: "start"});
+    });
+
+    const selectedHeatmapLink = [...(heatmap?.querySelectorAll("[data-heatmap-filter]") || [])].find(link => (
+        link.dataset.os === filters.elements.namedItem("os").value
+        && link.dataset.type === filters.elements.namedItem("type").value
+        && filters.elements.namedItem("inventory_status").value === "pending"
+    ));
+    if (selectedHeatmapLink) selectHeatmapCell(selectedHeatmapLink);
+
+    results.addEventListener("click", event => {
+        const link = event.target.closest("[data-inventory-page]");
+        if (!link) return;
+        event.preventDefault();
+        refreshInventory(link.dataset.inventoryPage);
+    });
+})();
+</script>
 {% endblock %}

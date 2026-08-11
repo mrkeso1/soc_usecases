@@ -32,7 +32,7 @@ class UseCaseForm(MitreAttackM2MBridgeMixin, forms.ModelForm):
         required=False,
         help_text="Fuentes relacionadas al caso desde el catalogo de fuentes de eventos.",
         widget=forms.SelectMultiple(attrs={
-            "class": "form-control",
+            "class": "form-select",
             "data-multi-select": "true",
             "data-placeholder": "Buscar fuente...",
         }),
@@ -83,31 +83,31 @@ class UseCaseForm(MitreAttackM2MBridgeMixin, forms.ModelForm):
             }),
             "case_type": forms.TextInput(attrs={"class": "form-control"}),
             "objective": forms.Textarea(attrs={"class": "form-control", "rows": 4}),
-            "blocking_type": forms.Select(attrs={"class": "form-control"}),
+            "blocking_type": forms.Select(attrs={"class": "form-select"}),
             "case_code": forms.TextInput(attrs={"class": "form-control"}),
             "name": forms.TextInput(attrs={"class": "form-control"}),
             "owner_name": forms.TextInput(attrs={"class": "form-control"}),
             "monitoring": forms.TextInput(attrs={"class": "form-control"}),
-            "status": forms.Select(attrs={"class": "form-control"}),
+            "status": forms.Select(attrs={"class": "form-select"}),
             "created_or_adjusted_at": forms.DateInput(
                 attrs={"class": "form-control", "type": "date"}, format="%Y-%m-%d"
             ),
             "production_date": forms.DateInput(
                 attrs={"class": "form-control", "type": "date"}, format="%Y-%m-%d"
             ),
-            "mitre_attacks": forms.SelectMultiple(attrs={"class": "form-control", "style": "display:none;"}),
+            "mitre_attacks": forms.SelectMultiple(attrs={"class": "form-select", "style": "display:none;"}),
             "d3fend_exclusions": forms.SelectMultiple(attrs={
-                "class": "form-control",
+                "class": "form-select",
                 "style": "display:none;",
             }),
-            "severity": forms.Select(attrs={"class": "form-control"}),
-            "escalation": forms.Select(attrs={"class": "form-control"}),
-            "sent_to_ho": forms.Select(attrs={"class": "form-control"}),
+            "severity": forms.Select(attrs={"class": "form-select"}),
+            "escalation": forms.Select(attrs={"class": "form-select"}),
+            "sent_to_ho": forms.Select(attrs={"class": "form-select"}),
             "last_validation_date": forms.DateInput(
                 attrs={"class": "form-control", "type": "date"}, format="%Y-%m-%d"
             ),
-            "validation_status": forms.Select(attrs={"class": "form-control"}),
-            "validation_result": forms.Select(attrs={"class": "form-control"}),
+            "validation_status": forms.Select(attrs={"class": "form-select"}),
+            "validation_result": forms.Select(attrs={"class": "form-select"}),
             "is_enabled": forms.CheckboxInput(attrs={"class": "form-check-input"}),
             "disabled_reason": forms.Textarea(attrs={"class": "form-control", "rows": 3}),
             "comments": forms.Textarea(attrs={"class": "form-control", "rows": 4}),
@@ -211,9 +211,9 @@ class UseCaseRuleConditionForm(forms.ModelForm):
         fields = ["position", "condition_type", "field_name", "operator", "value"]
         widgets = {
             "position": forms.NumberInput(attrs={"class": "form-control condition-position", "min": 1}),
-            "condition_type": forms.Select(attrs={"class": "form-control condition-type"}),
+            "condition_type": forms.Select(attrs={"class": "form-select condition-type"}),
             "field_name": forms.TextInput(attrs={"class": "form-control", "placeholder": "source, environment, user, action..."}),
-            "operator": forms.Select(attrs={"class": "form-control"}),
+            "operator": forms.Select(attrs={"class": "form-select"}),
             "value": forms.TextInput(attrs={"class": "form-control", "placeholder": "Valor esperado"}),
         }
         labels = {

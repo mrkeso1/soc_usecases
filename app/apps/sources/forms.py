@@ -4,6 +4,20 @@ from django.utils.text import slugify
 from .models import EventSource, SourceCategory, SourceDeliveryMethod, SourceType, UseCaseSource
 
 
+def _apply_bootstrap_widget_classes(form):
+    for field in form.fields.values():
+        widget = field.widget
+        if isinstance(widget, (forms.CheckboxInput, forms.CheckboxSelectMultiple)):
+            bootstrap_class = "form-check-input"
+        elif isinstance(widget, forms.Select):
+            bootstrap_class = "form-select"
+        else:
+            bootstrap_class = "form-control"
+        existing_classes = widget.attrs.get("class", "").split()
+        if bootstrap_class not in existing_classes:
+            widget.attrs["class"] = " ".join([*existing_classes, bootstrap_class])
+
+
 class EventSourceForm(forms.ModelForm):
     source_type = forms.ChoiceField(label="Tipo")
 
@@ -34,6 +48,7 @@ class EventSourceForm(forms.ModelForm):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
+        _apply_bootstrap_widget_classes(self)
         type_choices = list(
             SourceType.objects.filter(is_active=True)
             .order_by("name")
@@ -79,6 +94,10 @@ class SourceCategoryForm(forms.ModelForm):
             "description": forms.Textarea(attrs={"rows": 3}),
         }
 
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        _apply_bootstrap_widget_classes(self)
+
     def save(self, commit=True):
         self.instance.parent = None
         return super().save(commit=commit)
@@ -94,6 +113,7 @@ class SourceSubcategoryForm(forms.ModelForm):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
+        _apply_bootstrap_widget_classes(self)
         qs = SourceCategory.objects.filter(parent__isnull=True, is_active=True).order_by("name")
         if self.instance and self.instance.pk:
             qs = qs.exclude(pk=self.instance.pk)
@@ -113,6 +133,10 @@ class SourceTypeForm(forms.ModelForm):
             "description": forms.Textarea(attrs={"rows": 3}),
         }
 
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        _apply_bootstrap_widget_classes(self)
+
     def clean_code(self):
         code = slugify(self.cleaned_data["code"]).replace("-", "_")
         if not code:
@@ -130,6 +154,10 @@ class SourceDeliveryMethodForm(forms.ModelForm):
             "description": forms.Textarea(attrs={"rows": 3}),
         }
 
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        _apply_bootstrap_widget_classes(self)
+
     def clean_code(self):
         code = slugify(self.cleaned_data["code"]).replace("-", "_")
         if not code:
@@ -144,3 +172,7 @@ class UseCaseSourceForm(forms.ModelForm):
         widgets = {
             "notes": forms.Textarea(attrs={"rows": 3}),
         }
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        _apply_bootstrap_widget_classes(self)

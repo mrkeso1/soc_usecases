@@ -1,21 +1,23 @@
-{% extends "base.html" %}
+{% extends "base_bootstrap.html" %}
 
 {% block title %}Acción temporalmente limitada - SOC Control Manager{% endblock %}
 
 {% block content %}
-<main class="container">
-    <section class="page-shell" style="max-width:760px;margin-top:28px">
+<main class="container-xxl py-4">
+    <section class="page-shell" style="max-width:760px">
         <div class="page-eyebrow">// PROTECCIÓN OPERATIVA</div>
         <h1 class="page-title">Esperá unos segundos</h1>
         <p class="page-subtitle">
             Recibimos varias solicitudes iguales en poco tiempo. No se inició
             otra ejecución y los datos existentes no fueron modificados.
         </p>
-        <div class="detail-card" style="margin-top:18px">
+        <div class="card mt-3">
+            <div class="card-body">
             <p>Podés volver a intentarlo dentro de aproximadamente <strong>{{ retry_after }} segundos</strong>.</p>
-            <div class="header-actions" style="margin-top:16px">
-                <a class="btn-primary" href="{% url 'server_heatmap_administration' %}">Volver al panel</a>
-                <a class="btn" href="{% url 'server_heatmap' %}">Ir al mapa</a>
+            <div class="d-flex flex-wrap gap-2 mt-3">
+                <a class="btn btn-primary" href="{% url 'server_heatmap_administration' %}">Volver al panel</a>
+                <a class="btn btn-outline-secondary" href="{% url 'server_heatmap' %}">Ir al mapa</a>
+            </div>
             </div>
         </div>
     </section>

@@ -205,6 +205,22 @@ class UseCasePermissionTests(TestCase):
 
         self.assertEqual(response.status_code, 403)
 
+    def test_inventory_list_uses_compact_ajax_layout(self):
+        self.client.login(username="analyst", password="pass")
+
+        response = self.client.get(reverse("usecase_list"))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'id="usecase-inventory-filters"', count=1)
+        self.assertContains(response, 'data-live-search="off"', count=1)
+        self.assertContains(response, 'id="inventory-list-results"', count=1)
+        self.assertContains(response, 'class="inventory-col-name"', count=1)
+        self.assertNotContains(response, 'href="?quick=critical"')
+        self.assertNotContains(response, 'href="?quick=overdue"')
+        self.assertNotContains(response, '<th scope="col">Lifecycle</th>', html=True)
+        self.assertNotContains(response, '>Filtrar<')
+        self.assertNotContains(response, '>Limpiar<')
+
     def test_legacy_usecase_routes_redirect_by_default(self):
         response = self.client.get("/usecases/attack-matrix/")
 

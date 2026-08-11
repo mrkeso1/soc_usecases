@@ -1,168 +1,104 @@
-{% extends "base.html" %}
+{% extends "base_bootstrap.html" %}
 
 {% block title %}Plantillas PDF - SOC Control Manager{% endblock %}
 
 {% block extra_css %}
 <style>
-    .template-form-grid {
-        display: grid;
-        grid-template-columns: minmax(0, 1fr) minmax(280px, 360px);
-        gap: 16px;
-        align-items: start;
-    }
-    .field-grid {
-        display: grid;
-        grid-template-columns: repeat(2, minmax(0, 1fr));
-        gap: 12px;
-    }
-    .field.full { grid-column: 1 / -1; }
-    .template-form-grid input[type="checkbox"] {
-        width: auto;
-        min-height: auto;
-    }
-    .section-options ul {
-        list-style: none;
-        display: grid;
-        gap: 8px;
-        padding: 0;
-        margin: 0;
-    }
-    .section-options li label,
-    .flag-options label {
-        display: flex;
-        align-items: center;
-        gap: 8px;
-        margin: 0;
-        color: var(--text);
-        font-size: .86rem;
-        text-transform: none;
-        letter-spacing: 0;
-        font-family: 'Syne', sans-serif;
-        font-weight: 700;
-    }
-    .flag-options {
-        display: grid;
-        gap: 8px;
-    }
-    .current-logo {
-        max-width: 180px;
-        max-height: 80px;
-        object-fit: contain;
-        padding: 10px;
-        border: 1px solid var(--border);
-        border-radius: 10px;
-        background: var(--surface-2);
-    }
-    @media (max-width: 980px) {
-        .template-form-grid,
-        .field-grid { grid-template-columns: 1fr; }
-    }
+    .current-logo { max-width: 180px; max-height: 80px; object-fit: contain; padding: 10px; border: 1px solid var(--border); border-radius: var(--bs-border-radius-lg); background: var(--surface-2); }
 </style>
 {% endblock %}
 
 {% block content %}
-<main class="container">
-    <section class="page-shell wide">
-        <header class="page-header">
-            <div>
-                <div class="page-eyebrow">// REPORTES / PLANTILLAS</div>
-                <h1 class="page-title">Plantillas PDF configurables</h1>
-                <p class="page-subtitle">Configura identidad visual, secciones y metadatos por tipo de reporte.</p>
-            </div>
-            <div class="header-actions">
-                <a class="btn-secondary" href="{% url 'report_preview' report_type %}">Preview</a>
-                <a class="btn-secondary" href="{% url 'report_index' %}">Reportes</a>
-            </div>
-        </header>
+<main class="container-xxl py-4 px-3 px-lg-4">
+    <header class="row g-3 align-items-start mb-4">
+        <div class="col-12 col-lg">
+            <div class="page-eyebrow">// REPORTES / PLANTILLAS</div>
+            <h1 class="page-title">Plantillas PDF configurables</h1>
+            <p class="page-subtitle mb-0">Configura identidad visual, secciones y metadatos por tipo de reporte.</p>
+        </div>
+        <div class="col-12 col-lg-auto d-flex flex-column flex-sm-row gap-2">
+            <a class="btn btn-outline-secondary" href="{% url 'report_preview' report_type %}">Preview</a>
+            <a class="btn btn-outline-secondary" href="{% url 'report_index' %}">Reportes</a>
+        </div>
+    </header>
 
-        <section class="panel" style="margin-bottom:16px;">
-            <form method="get" class="review-filters" style="margin:0;">
-                <select name="report_type" onchange="this.form.submit()">
-                    {% for value, label in report_types %}
-                        <option value="{{ value }}" {% if value == report_type %}selected{% endif %}>{{ label }}</option>
-                    {% endfor %}
-                </select>
-                <button class="btn" type="submit">Cambiar tipo</button>
+    <section class="card shadow-sm mb-4">
+        <div class="card-body">
+            <form method="get" class="row g-3 align-items-end">
+                <div class="field col-12 col-md">
+                    <label class="form-label" for="report-type">Tipo de reporte</label>
+                    <select class="form-select" id="report-type" name="report_type" onchange="this.form.submit()">
+                        {% for value, label in report_types %}<option value="{{ value }}" {% if value == report_type %}selected{% endif %}>{{ label }}</option>{% endfor %}
+                    </select>
+                </div>
+                <div class="col-12 col-md-auto d-grid"><button class="btn btn-outline-secondary" type="submit">Cambiar tipo</button></div>
             </form>
-        </section>
+        </div>
+    </section>
 
-        <form method="post" enctype="multipart/form-data" class="template-form-grid">
-            {% csrf_token %}
-            <input type="hidden" name="report_type" value="{{ report_type }}">
-            <section class="panel">
-                {{ form.non_field_errors }}
-                <div class="field-grid">
-                    <div class="field">
-                        <label class="field-label" for="{{ form.organization_name.id_for_label }}">{{ form.organization_name.label }}</label>
-                        {{ form.organization_name }}
-                        {{ form.organization_name.errors }}
-                    </div>
-                    <div class="field">
-                        <label class="field-label" for="{{ form.document_label.id_for_label }}">{{ form.document_label.label }}</label>
-                        {{ form.document_label }}
-                        {{ form.document_label.errors }}
-                    </div>
-                    <div class="field full">
-                        <label class="field-label" for="{{ form.report_title.id_for_label }}">{{ form.report_title.label }}</label>
-                        {{ form.report_title }}
-                        {{ form.report_title.errors }}
-                    </div>
-                    <div class="field full">
-                        <label class="field-label" for="{{ form.introduction_text.id_for_label }}">{{ form.introduction_text.label }}</label>
-                        {{ form.introduction_text }}
-                        {{ form.introduction_text.errors }}
-                    </div>
-                    <div class="field">
-                        <label class="field-label" for="{{ form.primary_color.id_for_label }}">{{ form.primary_color.label }}</label>
-                        {{ form.primary_color }}
-                        {{ form.primary_color.errors }}
-                    </div>
-                    <div class="field">
-                        <label class="field-label" for="{{ form.accent_color.id_for_label }}">{{ form.accent_color.label }}</label>
-                        {{ form.accent_color }}
-                        {{ form.accent_color.errors }}
-                    </div>
-                    <div class="field">
-                        <label class="field-label" for="{{ form.footer_text.id_for_label }}">{{ form.footer_text.label }}</label>
-                        {{ form.footer_text }}
-                        {{ form.footer_text.errors }}
-                    </div>
-                    <div class="field">
-                        <label class="field-label" for="{{ form.confidentiality_label.id_for_label }}">{{ form.confidentiality_label.label }}</label>
-                        {{ form.confidentiality_label }}
-                        {{ form.confidentiality_label.errors }}
-                    </div>
-                    <div class="field full">
-                        <label class="field-label" for="{{ form.logo.id_for_label }}">{{ form.logo.label }}</label>
-                        {{ form.logo }}
-                        {{ form.logo.errors }}
+    <form method="post" enctype="multipart/form-data">
+        {% csrf_token %}
+        <input type="hidden" name="report_type" value="{{ report_type }}">
+        <div class="row g-3 align-items-start">
+            <section class="col-12 col-xl-8">
+                <div class="card shadow-sm">
+                    <div class="card-header p-3"><h2 class="h5 mb-0">Identidad y metadatos</h2></div>
+                    <div class="card-body p-3 p-lg-4">
+                        {% if form.non_field_errors %}<div class="alert alert-danger" role="alert">{{ form.non_field_errors }}</div>{% endif %}
+                        <div class="row g-3">
+                            <div class="field col-12 col-lg-6"><label class="form-label" for="{{ form.organization_name.id_for_label }}">{{ form.organization_name.label }}</label>{{ form.organization_name }}{% if form.organization_name.errors %}<div class="text-danger small mt-1">{{ form.organization_name.errors }}</div>{% endif %}</div>
+                            <div class="field col-12 col-lg-6"><label class="form-label" for="{{ form.document_label.id_for_label }}">{{ form.document_label.label }}</label>{{ form.document_label }}{% if form.document_label.errors %}<div class="text-danger small mt-1">{{ form.document_label.errors }}</div>{% endif %}</div>
+                            <div class="field col-12"><label class="form-label" for="{{ form.report_title.id_for_label }}">{{ form.report_title.label }}</label>{{ form.report_title }}{% if form.report_title.errors %}<div class="text-danger small mt-1">{{ form.report_title.errors }}</div>{% endif %}</div>
+                            <div class="field col-12"><label class="form-label" for="{{ form.introduction_text.id_for_label }}">{{ form.introduction_text.label }}</label>{{ form.introduction_text }}{% if form.introduction_text.errors %}<div class="text-danger small mt-1">{{ form.introduction_text.errors }}</div>{% endif %}</div>
+                            <div class="field col-12 col-md-6"><label class="form-label" for="{{ form.primary_color.id_for_label }}">{{ form.primary_color.label }}</label>{{ form.primary_color }}{% if form.primary_color.errors %}<div class="text-danger small mt-1">{{ form.primary_color.errors }}</div>{% endif %}</div>
+                            <div class="field col-12 col-md-6"><label class="form-label" for="{{ form.accent_color.id_for_label }}">{{ form.accent_color.label }}</label>{{ form.accent_color }}{% if form.accent_color.errors %}<div class="text-danger small mt-1">{{ form.accent_color.errors }}</div>{% endif %}</div>
+                            <div class="field col-12 col-lg-6"><label class="form-label" for="{{ form.footer_text.id_for_label }}">{{ form.footer_text.label }}</label>{{ form.footer_text }}{% if form.footer_text.errors %}<div class="text-danger small mt-1">{{ form.footer_text.errors }}</div>{% endif %}</div>
+                            <div class="field col-12 col-lg-6"><label class="form-label" for="{{ form.confidentiality_label.id_for_label }}">{{ form.confidentiality_label.label }}</label>{{ form.confidentiality_label }}{% if form.confidentiality_label.errors %}<div class="text-danger small mt-1">{{ form.confidentiality_label.errors }}</div>{% endif %}</div>
+                            <div class="field col-12"><label class="form-label" for="{{ form.logo.id_for_label }}">{{ form.logo.label }}</label>{{ form.logo }}{% if form.logo.errors %}<div class="text-danger small mt-1">{{ form.logo.errors }}</div>{% endif %}</div>
+                        </div>
                     </div>
                 </div>
             </section>
 
-            <aside class="panel">
-                <div class="section-options">
-                    <label class="field-label">{{ form.sections.label }}</label>
-                    {{ form.sections }}
-                    {{ form.sections.errors }}
-                </div>
+            <aside class="col-12 col-xl-4">
+                <div class="card shadow-sm">
+                    <div class="card-header p-3"><h2 class="h5 mb-0">Secciones y opciones</h2></div>
+                    <div class="card-body p-3 p-lg-4">
+                        <fieldset>
+                            <legend class="field-label mb-3">{{ form.sections.label }}</legend>
+                            <div class="d-grid gap-2">
+                                {% for checkbox in form.sections %}
+                                    <div class="form-check">
+                                        {{ checkbox.tag }}
+                                        <label class="form-check-label" for="{{ checkbox.id_for_label }}">{{ checkbox.choice_label }}</label>
+                                    </div>
+                                {% empty %}
+                                    <p class="muted mb-0">No hay secciones configurables para este reporte.</p>
+                                {% endfor %}
+                            </div>
+                            {% if form.sections.errors %}<div class="text-danger small mt-1">{{ form.sections.errors }}</div>{% endif %}
+                        </fieldset>
 
-                <div class="flag-options" style="margin-top:16px;">
-                    <label>{{ form.show_header }} Mostrar encabezado</label>
-                    <label>{{ form.show_footer }} Mostrar footer</label>
-                    <label>{{ form.show_generation_date }} Mostrar fecha</label>
-                    <label>{{ form.show_page_numbers }} Mostrar pagina</label>
-                    {% if config.logo %}
-                        <img class="current-logo" src="{{ config.logo.url }}" alt="Logo actual">
-                        <label>{{ form.remove_logo }} Quitar logo actual</label>
-                    {% endif %}
-                </div>
+                        <hr>
+                        <div class="d-grid gap-2">
+                            <div class="form-check">{{ form.show_header }}<label class="form-check-label" for="{{ form.show_header.id_for_label }}">Mostrar encabezado</label></div>
+                            <div class="form-check">{{ form.show_footer }}<label class="form-check-label" for="{{ form.show_footer.id_for_label }}">Mostrar footer</label></div>
+                            <div class="form-check">{{ form.show_generation_date }}<label class="form-check-label" for="{{ form.show_generation_date.id_for_label }}">Mostrar fecha</label></div>
+                            <div class="form-check">{{ form.show_page_numbers }}<label class="form-check-label" for="{{ form.show_page_numbers.id_for_label }}">Mostrar página</label></div>
+                        </div>
 
-                <div class="header-actions" style="justify-content:flex-end; margin-top:18px;">
-                    <button class="btn-primary" type="submit">Guardar plantilla</button>
+                        {% if config.logo %}
+                            <hr>
+                            <img class="current-logo d-block mb-3" src="{{ config.logo.url }}" alt="Logo actual">
+                            <div class="form-check">{{ form.remove_logo }}<label class="form-check-label" for="{{ form.remove_logo.id_for_label }}">Quitar logo actual</label></div>
+                        {% endif %}
+                    </div>
+                    <div class="card-footer bg-transparent p-3 d-grid d-sm-flex justify-content-sm-end">
+                        <button class="btn btn-primary" type="submit">Guardar plantilla</button>
+                    </div>
                 </div>
             </aside>
-        </form>
-    </section>
+        </div>
+    </form>
 </main>
 {% endblock %}

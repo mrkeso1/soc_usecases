@@ -1,12 +1,10 @@
-{% extends "base.html" %}
+{% extends "base_bootstrap.html" %}
 
 {% block title %}Administración de servidores - SOC Control Manager{% endblock %}
 
 {% block extra_css %}
 <style>
-    .admin-grid { display:grid; grid-template-columns:minmax(300px,.8fr) minmax(0,1.7fr); gap:14px; }
     .admin-card { border:1px solid var(--border); border-radius:15px; background:var(--surface); padding:17px; min-width:0; }
-    .admin-card.full { grid-column:1/-1; }
     .admin-card h2 { margin:0 0 5px; color:var(--text-strong); font-size:1.05rem; }
     .admin-card > p { margin-bottom:14px; color:var(--text-muted); font-size:.84rem; }
     .field label { display:block; margin-bottom:5px; color:var(--text-muted); font-size:.76rem; font-weight:700; }
@@ -22,10 +20,10 @@
     .status-pill { display:inline-block; padding:3px 7px; border-radius:999px; background:var(--accent-dim); }
     .status-pill.on { color:var(--good); }
     .status-pill.off { color:var(--bad); }
-    .asset-filters { display:grid; grid-template-columns:minmax(220px,1fr) 180px 220px; gap:8px; margin:12px 0; }
-    .pagination { display:flex; justify-content:center; gap:8px; margin-top:13px; }
+    .asset-filters { margin:12px 0; }
     .live-status { min-height:18px; color:var(--text-muted); font-size:.75rem; }
     #asset-results.is-loading { opacity:.55; pointer-events:none; }
+    [data-admin-list].is-loading { opacity:.55; pointer-events:none; }
     .page-header .header-actions form { margin:0; display:flex; }
     .disable-dialog { position:fixed; inset:0; margin:auto; width:min(560px,calc(100vw - 30px)); max-height:min(620px,calc(100vh - 30px)); overflow:auto; border:1px solid var(--border); border-radius:14px; padding:0; background:var(--surface); color:var(--text); box-shadow:0 24px 70px rgba(0,0,0,.5); }
     .disable-dialog::backdrop { background:rgba(3,8,16,.72); backdrop-filter:blur(3px); }
@@ -33,12 +31,11 @@
     .disable-dialog h2 { margin:0 0 7px; color:var(--text-strong); }
     .disable-dialog p { margin:0 0 16px; color:var(--text-muted); font-size:.85rem; line-height:1.45; }
     .disable-dialog textarea { width:100%; min-height:120px; resize:vertical; }
-    @media(max-width:900px){.admin-grid{grid-template-columns:1fr}.asset-filters{grid-template-columns:1fr}.admin-card.full{grid-column:auto}}
 </style>
 {% endblock %}
 
 {% block content %}
-<main class="container"><section class="page-shell wide">
+<main class="container-fluid px-3 px-lg-4"><section class="page-shell wide">
     <header class="page-header">
         <div>
             <div class="page-eyebrow">// SERVIDORES</div>
@@ -46,86 +43,62 @@
             <p class="page-subtitle">Configuración, equipos, conflictos y ejecuciones.</p>
         </div>
         <div class="header-actions">
-            <form method="post" action="{% url 'server_heatmap_sync' %}" data-submit-once>{% csrf_token %}<button class="btn-primary" type="submit" data-busy-text="Encolando…">Actualizar AD + SIEM</button></form>
-            <form method="post" action="{% url 'server_heatmap_reprocess' %}" data-submit-once>{% csrf_token %}<button class="btn" type="submit" data-busy-text="Encolando…">Cruzar y aplicar reglas</button></form>
-            <a class="btn" href="{% url 'server_heatmap' %}">Volver al mapa</a>
+            <form method="post" action="{% url 'server_heatmap_sync' %}" data-submit-once>{% csrf_token %}<button class="btn btn-primary" type="submit" data-busy-text="Encolando…">Actualizar AD + SIEM</button></form>
+            <form method="post" action="{% url 'server_heatmap_reprocess' %}" data-submit-once>{% csrf_token %}<button class="btn btn-outline-secondary" type="submit" data-busy-text="Encolando…">Cruzar y aplicar reglas</button></form>
+            <a class="btn btn-outline-secondary" href="{% url 'server_heatmap' %}">Volver al mapa</a>
         </div>
     </header>
 
-    <div class="admin-grid">
-        <article class="admin-card">
+    <div class="admin-grid row g-3">
+        <div class="col-12 col-xl-4"><article class="admin-card card h-100">
             <h2>Configuración del inventario</h2>
             <p>Controla qué equipos consulta AD y cuándo se eliminan los registros obsoletos.</p>
             <form method="post" data-submit-once>
                 {% csrf_token %}<input type="hidden" name="action" value="save_configuration">
                 {% for field in configuration_form %}
-                    <div class="field" style="margin-bottom:12px">{{ field.label_tag }}{{ field }}{{ field.errors }}{% if field.help_text %}<span class="helptext">{{ field.help_text }}</span>{% endif %}</div>
+                    <div class="field mb-3">{{ field.label_tag }}{{ field }}{{ field.errors }}{% if field.help_text %}<span class="helptext">{{ field.help_text }}</span>{% endif %}</div>
                 {% endfor %}
-                <button class="btn-primary" type="submit">Guardar configuración</button>
+                <button class="btn btn-primary" type="submit">Guardar configuración</button>
             </form>
-        </article>
+        </article></div>
 
-        <article class="admin-card">
+        <div class="col-12 col-xl-8"><article class="admin-card card h-100">
             <h2>Organización y clasificación</h2>
             <p>Administrá las secciones del mapa y una única colección de reglas para habilitar, deshabilitar o clasificar equipos.</p>
             <div class="admin-actions">
-                <a class="btn" href="{% url 'server_heatmap_sections' %}">Secciones funcionales</a>
-                <a class="btn" href="{% url 'server_heatmap_filter_list' %}">Reglas de inventario</a>
+                <a class="btn btn-outline-secondary" href="{% url 'server_heatmap_sections' %}">Secciones funcionales</a>
+                <a class="btn btn-outline-secondary" href="{% url 'server_heatmap_filter_list' %}">Reglas de inventario</a>
             </div>
-        </article>
+        </article></div>
 
-        <article class="admin-card full">
+        <div class="col-12"><article class="admin-card card">
             <h2>Administrar equipos</h2>
             <p>Los resultados se actualizan mientras escribís, sin recargar la pantalla.</p>
-            <form method="get" class="asset-filters" id="asset-live-filters">
-                <input type="search" name="q" value="{{ query }}" placeholder="Hostname, IP, aplicación u OU" autocomplete="off">
-                <select name="enabled"><option value="all">Todos los estados</option><option value="yes" {% if selected_enabled == 'yes' %}selected{% endif %}>Habilitados</option><option value="no" {% if selected_enabled == 'no' %}selected{% endif %}>Deshabilitados</option></select>
-                <select name="type"><option value="">Todas las secciones</option>{% for category in type_choices %}<option value="{{ category.id }}" {% if selected_type == category.id|stringformat:"s" %}selected{% endif %}>{{ category.name }}</option>{% endfor %}</select>
+            <form method="get" class="asset-filters row g-2 align-items-end" id="asset-live-filters">
+                <div class="col-12 col-lg-6"><label class="form-label visually-hidden" for="asset-search">Buscar equipo</label><input class="form-control" id="asset-search" type="search" name="q" value="{{ query }}" placeholder="Hostname, IP, aplicación u OU" autocomplete="off"></div>
+                <div class="col-12 col-md-6 col-lg-3"><label class="form-label visually-hidden" for="asset-enabled">Estado</label><select class="form-select" id="asset-enabled" name="enabled"><option value="all">Todos los estados</option><option value="yes" {% if selected_enabled == 'yes' %}selected{% endif %}>Habilitados</option><option value="no" {% if selected_enabled == 'no' %}selected{% endif %}>Deshabilitados</option></select></div>
+                <div class="col-12 col-md-6 col-lg-3"><label class="form-label visually-hidden" for="asset-type">Sección</label><select class="form-select" id="asset-type" name="type"><option value="">Todas las secciones</option>{% for category in type_choices %}<option value="{{ category.id }}" {% if selected_type == category.id|stringformat:"s" %}selected{% endif %}>{{ category.name }}</option>{% endfor %}</select></div>
             </form>
             <div class="live-status" id="asset-live-status" aria-live="polite"></div>
             <div id="asset-results">{% include "server_heatmap/_asset_results.html" %}</div>
-        </article>
+        </article></div>
 
-        <article class="admin-card full">
+        <div class="col-12"><article class="admin-card card">
             <h2>Conflictos de conciliación pendientes</h2>
             <p>Seleccioná registros para intentar obtener el hostname mediante DNS y volver a cruzarlos con Active Directory.</p>
-            <form method="post">{% csrf_token %}
-                <div class="admin-actions">
-                    <button class="btn-primary" name="action" value="resolve_issue_names" type="submit">Intentar resolver nombre</button>
-                    <button class="btn" name="action" value="resolve_issues" type="submit">Marcar como resueltos</button>
-                </div>
-                <div class="admin-table-shell" style="margin-top:10px"><table class="admin-table">
-                    <thead><tr><th><input type="checkbox" data-check-all-issues></th><th>Fecha</th><th>Tipo</th><th>Identificador</th><th>Nombre / IP</th><th>Origen</th><th>Detalle</th></tr></thead>
-                    <tbody>{% for issue in unresolved_issues %}<tr><td><input type="checkbox" name="issue_ids" value="{{ issue.id }}"></td><td>{{ issue.created_at|date:"d/m/Y H:i" }}</td><td>{{ issue.get_issue_type_display }}</td><td><strong>{{ issue.identifier|default:"-" }}</strong></td><td>{% if issue.observation %}{{ issue.observation.hostname|default:"-" }}<br><code>{{ issue.observation.ip_address|default:"-" }}</code>{% else %}-{% endif %}</td><td>{{ issue.sync_run.get_source_display }}</td><td>{{ issue.details }}</td></tr>{% empty %}<tr><td colspan="7">No hay conflictos pendientes.</td></tr>{% endfor %}</tbody>
-                </table></div>
-            </form>
-        </article>
+            <div data-admin-list="issues">{% include "server_heatmap/_administration_issues.html" %}</div>
+        </article></div>
 
-        <article class="admin-card full">
+        <div class="col-12"><article class="admin-card card">
             <h2>Trabajos de inventario</h2>
             <p>Las operaciones pesadas se ejecutan en segundo plano. Un trabajo interrumpido se recupera automáticamente.</p>
-            <div class="admin-table-shell"><table class="admin-table">
-                <thead><tr><th>Creado</th><th>Tipo</th><th>Estado</th><th>Etapa</th><th>Intentos</th><th>Solicitante</th><th>Heartbeat</th><th>Detalle</th></tr></thead>
-                <tbody>{% for job in jobs %}<tr>
-                    <td>{{ job.created_at|date:"d/m/Y H:i:s" }}</td>
-                    <td><strong>#{{ job.id }} · {{ job.get_job_type_display }}</strong></td>
-                    <td><span class="status-pill {% if job.status == 'completed' %}on{% elif job.status == 'failed' %}off{% endif %}">{{ job.get_status_display }}</span></td>
-                    <td>{{ job.progress.stage|default:"-" }}</td>
-                    <td>{{ job.attempts }}/{{ job.max_attempts }}{% if job.rerun_requested %} · repetición pendiente{% endif %}</td>
-                    <td>{{ job.requested_by|default:"Sistema" }}</td>
-                    <td>{{ job.heartbeat_at|date:"d/m/Y H:i:s"|default:"-" }}</td>
-                    <td>{% if job.last_error %}<span title="{{ job.last_error }}">Error</span>{% elif job.finished_at %}{{ job.finished_at|date:"d/m/Y H:i:s" }}{% else %}-{% endif %}</td>
-                </tr>{% empty %}<tr><td colspan="8">Todavía no hay trabajos encolados.</td></tr>{% endfor %}</tbody>
-            </table></div>
-        </article>
+            <div data-admin-list="jobs">{% include "server_heatmap/_administration_jobs.html" %}</div>
+        </article></div>
 
-        <article class="admin-card full">
+        <div class="col-12"><article class="admin-card card">
             <h2>Últimas ejecuciones</h2>
-            <div class="admin-table-shell"><table class="admin-table">
-                <thead><tr><th>Inicio</th><th>Origen</th><th>Estado</th><th>Leídos</th><th>Nuevos</th><th>Asociados</th><th>Conflictos</th><th>Depurados</th></tr></thead>
-                <tbody>{% for run in runs %}<tr><td>{{ run.started_at|date:"d/m/Y H:i" }}</td><td>{{ run.get_source_display }}</td><td>{{ run.get_status_display }}</td><td>{{ run.records_read }}</td><td>{{ run.assets_created }}</td><td>{{ run.assets_updated }}</td><td>{{ run.issues_count }}</td><td>{{ run.metadata.deleted_stale_assets|default:0 }}</td></tr>{% empty %}<tr><td colspan="8">Sin ejecuciones.</td></tr>{% endfor %}</tbody>
-            </table></div>
-        </article>
+            <div data-admin-list="runs">{% include "server_heatmap/_administration_runs.html" %}</div>
+        </article></div>
     </div>
 </section></main>
 
@@ -135,11 +108,11 @@
         <p id="disable-assets-summary">Indicá el motivo. La justificación, el usuario, la fecha y los equipos seleccionados quedarán registrados.</p>
         <div class="field">
             <label for="disable-assets-justification">Justificación obligatoria</label>
-            <textarea id="disable-assets-justification" maxlength="2000" required placeholder="Ejemplo: equipo dado de baja en Active Directory, reemplazado por…"></textarea>
+            <textarea class="form-control" id="disable-assets-justification" maxlength="2000" required placeholder="Ejemplo: equipo dado de baja en Active Directory, reemplazado por…"></textarea>
         </div>
         <div class="admin-actions">
-            <button class="btn" type="button" id="cancel-disable-assets">Cancelar</button>
-            <button class="btn-danger" type="button" id="confirm-disable-assets">Confirmar deshabilitación</button>
+            <button class="btn btn-outline-secondary" type="button" id="cancel-disable-assets">Cancelar</button>
+            <button class="btn btn-danger" type="button" id="confirm-disable-assets">Confirmar deshabilitación</button>
         </div>
     </div>
 </dialog>
@@ -150,6 +123,7 @@
     const results = document.getElementById("asset-results");
     const status = document.getElementById("asset-live-status");
     const endpoint = "{% url 'server_heatmap_asset_results' %}";
+    const listEndpoint = "{% url 'server_heatmap_administration_list_results' %}";
     const disableDialog = document.getElementById("disable-assets-dialog");
     const disableReason = document.getElementById("disable-assets-justification");
     const disableSummary = document.getElementById("disable-assets-summary");
@@ -238,8 +212,27 @@
         pendingDisableForm.requestSubmit();
     });
     disableReason.addEventListener("input", () => disableReason.setCustomValidity(""));
-    document.querySelector("[data-check-all-issues]")?.addEventListener("change", event => {
-        document.querySelectorAll("[name=issue_ids]").forEach(item => item.checked = event.target.checked);
+    document.addEventListener("click", async event => {
+        const link = event.target.closest("[data-admin-page]");
+        if (!link) return;
+        event.preventDefault();
+        const container = link.closest("[data-admin-list]");
+        const listName = container.dataset.adminList;
+        container.classList.add("is-loading");
+        try {
+            const params = new URLSearchParams({list: listName, page: link.dataset.adminPage});
+            const response = await fetch(`${listEndpoint}?${params}`, {
+                headers: {"X-Requested-With": "XMLHttpRequest"}
+            });
+            if (!response.ok) throw new Error(`HTTP ${response.status}`);
+            container.innerHTML = await response.text();
+        } finally {
+            container.classList.remove("is-loading");
+        }
+    });
+    document.addEventListener("change", event => {
+        if (!event.target.matches("[data-check-all-issues]")) return;
+        event.target.closest("form").querySelectorAll("[name=issue_ids]").forEach(item => item.checked = event.target.checked);
     });
 })();
 </script>

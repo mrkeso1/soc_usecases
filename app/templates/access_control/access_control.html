@@ -1,28 +1,28 @@
-{% extends "base.html" %}
+{% extends "base_bootstrap.html" %}
 
 {% block title %}Accesos - SOC Control Manager{% endblock %}
 
 {% block content %}
-<main class="container">
-    <section class="page-shell wide">
-        <header class="page-header">
-            <div>
-                <div class="page-eyebrow">// ADMINISTRACION / ACCESOS</div>
-                <h1 class="page-title">Roles y permisos</h1>
-                <p class="page-subtitle">Administracion profesional de perfiles usando grupos y permisos Django sobre la misma base de usuarios.</p>
-            </div>
-            <div class="header-actions">
-                <a class="btn" href="{% url 'admin_console' %}">Panel admin</a>
-                <a class="btn-primary" href="{% url 'access_role_create' %}">Nuevo rol</a>
-                <a class="btn" href="/admin/">Django Admin</a>
-            </div>
-        </header>
+<main class="container-xxl py-4 px-3 px-lg-4">
+    <header class="row g-3 align-items-start mb-4">
+        <div class="col-12 col-lg">
+            <div class="page-eyebrow">// ADMINISTRACIÓN / ACCESOS</div>
+            <h1 class="page-title">Roles y permisos</h1>
+            <p class="page-subtitle mb-0">Administración profesional de perfiles usando grupos y permisos Django sobre la misma base de usuarios.</p>
+        </div>
+        <div class="col-12 col-lg-auto d-flex flex-column flex-sm-row flex-wrap gap-2">
+            <a class="btn btn-outline-secondary" href="{% url 'admin_console' %}">Panel admin</a>
+            <a class="btn btn-primary" href="{% url 'access_role_create' %}">Nuevo rol</a>
+            <a class="btn btn-outline-secondary" href="/admin/">Django Admin</a>
+        </div>
+    </header>
 
-        <section class="split-layout">
-            <div class="panel">
-                <h2 class="page-title" style="font-size:1.08rem;">Roles configurados</h2>
-                <div class="table-panel" style="margin-top:12px;">
-                    <table class="data-table">
+    <section class="row g-3 align-items-start">
+        <div class="col-12 col-xl-8">
+            <article class="card shadow-sm overflow-hidden">
+                <div class="card-header p-3"><h2 class="h5 mb-0">Roles configurados</h2></div>
+                <div class="table-responsive">
+                    <table class="table data-table table-hover align-middle mb-0">
                         <thead><tr><th>Rol</th><th>Usuarios</th><th>Permisos</th><th>Acciones</th></tr></thead>
                         <tbody>
                             {% for group in groups %}
@@ -30,43 +30,57 @@
                                     <td><strong class="detail-value">{{ group.name }}</strong></td>
                                     <td>{{ group.user_set.count }}</td>
                                     <td>
-                                        {% for permission in group.permissions.all|slice:":8" %}
-                                            <span class="badge">{{ permission.content_type.app_label }}.{{ permission.codename }}</span>
-                                        {% empty %}
-                                            <span class="muted">Sin permisos</span>
-                                        {% endfor %}
+                                        <div class="d-flex flex-wrap gap-1">
+                                            {% for permission in group.permissions.all|slice:":8" %}
+                                                <span class="badge text-bg-secondary">{{ permission.content_type.app_label }}.{{ permission.codename }}</span>
+                                            {% empty %}
+                                                <span class="muted">Sin permisos</span>
+                                            {% endfor %}
+                                        </div>
                                     </td>
-                                    <td><a class="btn" href="{% url 'access_role_edit' group.pk %}">Editar</a></td>
+                                    <td><a class="btn btn-sm btn-outline-primary" href="{% url 'access_role_edit' group.pk %}">Editar</a></td>
                                 </tr>
                             {% empty %}
-                                <tr><td colspan="4" class="muted">No hay roles configurados.</td></tr>
+                                <tr><td colspan="4" class="muted text-center py-4">No hay roles configurados.</td></tr>
                             {% endfor %}
                         </tbody>
                     </table>
                 </div>
-            </div>
+            </article>
+        </div>
 
-            <aside class="panel">
-                <h2 class="page-title" style="font-size:1.08rem;">Asignar roles</h2>
-                <form method="post" style="margin-top:12px;">
+        <aside class="col-12 col-xl-4">
+            <form method="post" class="card shadow-sm">
+                <div class="card-header p-3"><h2 class="h5 mb-0">Asignar roles</h2></div>
+                <div class="card-body p-3 p-lg-4">
                     {% csrf_token %}
                     <input type="hidden" name="form_kind" value="assignment">
-                    <div class="form-grid" style="grid-template-columns:1fr;">
-                        <div class="field">
-                            <label class="field-label" for="{{ assignment_form.user.id_for_label }}">Usuario</label>
-                            {{ assignment_form.user }}
-                        </div>
-                        <div class="field">
-                            <label class="field-label">Roles</label>
-                            {{ assignment_form.groups }}
-                        </div>
+                    {% if assignment_form.non_field_errors %}<div class="alert alert-danger" role="alert">{{ assignment_form.non_field_errors }}</div>{% endif %}
+                    <div class="field mb-3">
+                        <label class="form-label" for="{{ assignment_form.user.id_for_label }}">Usuario</label>
+                        {{ assignment_form.user }}
+                        {% if assignment_form.user.errors %}<div class="text-danger small mt-1">{{ assignment_form.user.errors }}</div>{% endif %}
                     </div>
-                    <div class="form-actions" style="margin-top:14px;">
-                        <button class="btn-primary" type="submit">Actualizar</button>
-                    </div>
-                </form>
-            </aside>
-        </section>
+                    <fieldset>
+                        <legend class="field-label mb-2">Roles</legend>
+                        <div class="d-grid gap-2">
+                            {% for checkbox in assignment_form.groups %}
+                                <div class="form-check">
+                                    {{ checkbox.tag }}
+                                    <label class="form-check-label" for="{{ checkbox.id_for_label }}">{{ checkbox.choice_label }}</label>
+                                </div>
+                            {% empty %}
+                                <p class="muted mb-0">No hay roles disponibles.</p>
+                            {% endfor %}
+                        </div>
+                        {% if assignment_form.groups.errors %}<div class="text-danger small mt-1">{{ assignment_form.groups.errors }}</div>{% endif %}
+                    </fieldset>
+                </div>
+                <div class="card-footer bg-transparent p-3 d-grid d-sm-flex justify-content-sm-end">
+                    <button class="btn btn-primary" type="submit">Actualizar</button>
+                </div>
+            </form>
+        </aside>
     </section>
 </main>
 {% endblock %}

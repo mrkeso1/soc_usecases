@@ -97,8 +97,15 @@ def build_server_heatmap_context(params):
     type_filter = (params.get("type") or "").strip()
     coverage_filter = (params.get("coverage") or "").strip()
     enabled_filter = (params.get("enabled") or "yes").strip()
+    environment_filter = (params.get("environment") or "PROD").strip()
+    inventory_status = (params.get("inventory_status") or "all").strip()
+    inventory_query = (params.get("inventory_q") or "").strip()
 
     qs = ServerAsset.objects.all()
+    if environment_filter.lower() == "all":
+        environment_filter = "all"
+    else:
+        qs = qs.filter(environment__iexact=environment_filter)
     if enabled_filter == "yes":
         qs = qs.filter(is_enabled=True, is_excluded_by_rule=False)
     elif enabled_filter == "no":
@@ -106,7 +113,11 @@ def build_server_heatmap_context(params):
     elif enabled_filter != "all":
         enabled_filter = "yes"
         qs = qs.filter(is_enabled=True, is_excluded_by_rule=False)
-    if os_filter:
+    if os_filter == "linux_group":
+        qs = qs.filter(os_family__in=[ServerAsset.OS_LINUX, ServerAsset.OS_UNIX])
+    elif os_filter == "unknown_group":
+        qs = qs.filter(os_family__in=[ServerAsset.OS_OTHER, ServerAsset.OS_UNKNOWN])
+    elif os_filter:
         qs = qs.filter(os_family=os_filter)
     if type_filter:
         qs = qs.filter(category_id=type_filter)
@@ -118,6 +129,22 @@ def build_server_heatmap_context(params):
         qs = qs.filter(in_active_directory=False, in_siem=True)
     elif coverage_filter:
         coverage_filter = ""
+
+    if inventory_status == "ingested":
+        qs = qs.filter(in_active_directory=True, in_siem=True)
+    elif inventory_status == "pending":
+        qs = qs.filter(in_active_directory=True, in_siem=False)
+    elif inventory_status != "all":
+        inventory_status = "all"
+    if inventory_query:
+        qs = qs.filter(
+            Q(hostname__icontains=inventory_query)
+            | Q(ip_address__icontains=inventory_query)
+            | Q(resolved_ip_address__icontains=inventory_query)
+            | Q(application_name__icontains=inventory_query)
+            | Q(organizational_unit__icontains=inventory_query)
+            | Q(os_name__icontains=inventory_query)
+        )
 
     os_labels = dict(ServerAsset.OS_CHOICES)
     os_groups = [
@@ -131,15 +158,21 @@ def build_server_heatmap_context(params):
             "label": "Linux",
             "members": (ServerAsset.OS_LINUX, ServerAsset.OS_UNIX),
         },
-        {
-            "key": ServerAsset.OS_UNKNOWN,
-            "label": "Desconocido",
-            "members": (ServerAsset.OS_OTHER, ServerAsset.OS_UNKNOWN),
-        },
     ]
     categories = list(
         ServerCategory.objects.filter(is_active=True).order_by("order", "name")
     )
+    environment_choices = []
+    seen_environments = set()
+    for value in (
+        ServerAsset.objects.exclude(environment="")
+        .values_list("environment", flat=True)
+        .order_by("environment")
+    ):
+        normalized = value.strip().upper()
+        if normalized and normalized not in seen_environments:
+            seen_environments.add(normalized)
+            environment_choices.append(normalized)
     cells_data = {
         (item["os_family"], item["category_id"]): item
         for item in qs.values("os_family", "category_id").annotate(
@@ -154,7 +187,9 @@ def build_server_heatmap_context(params):
     }
     os_totals = {
         item["os_family"]: item["total"]
-        for item in qs.values("os_family").annotate(total=Count("id"))
+        for item in qs.filter(in_active_directory=True)
+        .values("os_family")
+        .annotate(total=Count("id"))
     }
 
     matrix_rows = []
@@ -185,6 +220,10 @@ def build_server_heatmap_context(params):
             })
         matrix_rows.append({
             "key": os_key,
+            "filter_value": (
+                "linux_group" if os_key == ServerAsset.OS_LINUX
+                else os_key
+            ),
             "label": os_group["label"],
             "total": sum(os_totals.get(member, 0) for member in os_group["members"]),
             "cells": cells,
@@ -242,6 +281,26 @@ def build_server_heatmap_context(params):
         gaps_qs.select_related("category").order_by("hostname"),
         HEATMAP_TABLE_PAGE_SIZE,
     ).get_page(params.get("gap_page"))
+    inventory_qs = qs.filter(in_active_directory=True)
+    if inventory_status == "ingested":
+        inventory_qs = inventory_qs.filter(in_siem=True)
+    elif inventory_status == "pending":
+        inventory_qs = inventory_qs.filter(in_siem=False)
+    elif inventory_status != "all":
+        inventory_status = "all"
+    if inventory_query:
+        inventory_qs = inventory_qs.filter(
+            Q(hostname__icontains=inventory_query)
+            | Q(ip_address__icontains=inventory_query)
+            | Q(resolved_ip_address__icontains=inventory_query)
+            | Q(application_name__icontains=inventory_query)
+            | Q(organizational_unit__icontains=inventory_query)
+            | Q(os_name__icontains=inventory_query)
+        )
+    inventory_page = Paginator(
+        inventory_qs.select_related("category").order_by("hostname"),
+        HEATMAP_TABLE_PAGE_SIZE,
+    ).get_page(params.get("inventory_page"))
     latest_siem_run = InventorySyncRun.objects.filter(
         source=InventorySyncRun.SOURCE_SIEM,
         status=InventorySyncRun.STATUS_SUCCESS,
@@ -322,6 +381,9 @@ def build_server_heatmap_context(params):
         ],
         "gaps": gap_page,
         "gap_page": gap_page,
+        "inventory_page": inventory_page,
+        "selected_inventory_status": inventory_status,
+        "inventory_query": inventory_query,
         "gap_total": gap_summary["total"],
         "dns_resolved_count": gap_summary["dns_resolved"],
         "reachable_count": gap_summary["reachable"],
@@ -339,12 +401,71 @@ def build_server_heatmap_context(params):
         "ad_only_count": summary["ad_only_count"],
         "siem_only_count": summary["siem_only_count"],
         "siem_coverage_percent": _percent(summary["both_count"], summary["ad_count"]),
-        "os_choices": ServerAsset.OS_CHOICES,
+        "os_choices": [
+            (ServerAsset.OS_WINDOWS, "Windows"),
+            ("linux_group", "Linux / Unix / AIX"),
+        ],
         "type_choices": ServerCategory.objects.filter(is_active=True),
         "selected_os": os_filter,
         "selected_type": type_filter,
         "selected_coverage": coverage_filter,
         "selected_enabled": enabled_filter,
+        "environment_choices": environment_choices,
+        "selected_environment": environment_filter,
+    }
+
+
+def build_server_inventory_results_context(params):
+    """Build only the paginated inventory fragment used by live filtering."""
+    qs = ServerAsset.objects.filter(in_active_directory=True)
+    environment_filter = (params.get("environment") or "PROD").strip()
+    enabled_filter = (params.get("enabled") or "yes").strip()
+    os_filter = (params.get("os") or "").strip()
+    type_filter = (params.get("type") or "").strip()
+    coverage_filter = (params.get("coverage") or "").strip()
+    inventory_status = (params.get("inventory_status") or "all").strip()
+    inventory_query = (params.get("inventory_q") or "").strip()
+
+    if environment_filter.lower() != "all":
+        qs = qs.filter(environment__iexact=environment_filter)
+    if enabled_filter == "yes":
+        qs = qs.filter(is_enabled=True, is_excluded_by_rule=False)
+    elif enabled_filter == "no":
+        qs = qs.filter(Q(is_enabled=False) | Q(is_excluded_by_rule=True))
+    if os_filter == "linux_group":
+        qs = qs.filter(os_family__in=[ServerAsset.OS_LINUX, ServerAsset.OS_UNIX])
+    elif os_filter == "unknown_group":
+        qs = qs.filter(os_family__in=[ServerAsset.OS_OTHER, ServerAsset.OS_UNKNOWN])
+    elif os_filter:
+        qs = qs.filter(os_family=os_filter)
+    if type_filter:
+        qs = qs.filter(category_id=type_filter)
+    if coverage_filter == "both":
+        qs = qs.filter(in_siem=True)
+    elif coverage_filter == "ad_only":
+        qs = qs.filter(in_siem=False)
+    elif coverage_filter == "siem_only":
+        qs = qs.none()
+
+    if inventory_status == "ingested":
+        qs = qs.filter(in_siem=True)
+    elif inventory_status == "pending":
+        qs = qs.filter(in_siem=False)
+    if inventory_query:
+        qs = qs.filter(
+            Q(hostname__icontains=inventory_query)
+            | Q(ip_address__icontains=inventory_query)
+            | Q(resolved_ip_address__icontains=inventory_query)
+            | Q(application_name__icontains=inventory_query)
+            | Q(organizational_unit__icontains=inventory_query)
+            | Q(os_name__icontains=inventory_query)
+        )
+
+    return {
+        "inventory_page": Paginator(
+            qs.select_related("category").order_by("hostname"),
+            HEATMAP_TABLE_PAGE_SIZE,
+        ).get_page(params.get("inventory_page")),
     }
 
 
@@ -355,6 +476,14 @@ def server_heatmap_view(request):
     context = build_server_heatmap_context(request.GET)
     context["can_manage_inventory"] = can_manage_server_heatmap(request.user)
     return render(request, "server_heatmap/dashboard.html", context)
+
+
+@login_required
+def server_inventory_results(request):
+    if not can_access_server_heatmap(request.user):
+        return HttpResponseForbidden("No tenés permisos para acceder al inventario de equipos.")
+    context = build_server_inventory_results_context(request.GET)
+    return render(request, "server_heatmap/_inventory_results.html", context)
 
 
 @login_required
@@ -654,7 +783,7 @@ def server_administration(request):
         )
     if server_type:
         assets = assets.filter(category_id=server_type)
-    page = Paginator(assets.order_by("hostname"), 100).get_page(request.GET.get("page"))
+    page = Paginator(assets.order_by("hostname"), 20).get_page(request.GET.get("page"))
 
     return render(
         request,
@@ -664,11 +793,9 @@ def server_administration(request):
             "category_form": category_form,
             "categories": ServerCategory.objects.all(),
             "asset_page": page,
-            "runs": InventorySyncRun.objects.all()[:10],
-            "jobs": InventoryJob.objects.select_related("requested_by").all()[:15],
-            "unresolved_issues": ReconciliationIssue.objects.filter(
-                is_resolved=False,
-            ).select_related("sync_run", "observation").order_by("-created_at")[:100],
+            **_administration_list_context("issues", request.GET.get("issues_page")),
+            **_administration_list_context("jobs", request.GET.get("jobs_page")),
+            **_administration_list_context("runs", request.GET.get("runs_page")),
             "query": query,
             "selected_enabled": enabled,
             "selected_type": server_type,
@@ -700,7 +827,7 @@ def _filtered_assets(params):
         )
     if server_type:
         assets = assets.filter(category_id=server_type)
-    page = Paginator(assets.order_by("hostname"), 100).get_page(params.get("page"))
+    page = Paginator(assets.order_by("hostname"), 20).get_page(params.get("page"))
     return {
         "asset_page": page,
         "query": query,
@@ -717,6 +844,42 @@ def server_asset_results(request):
         request,
         "server_heatmap/_asset_results.html",
         _filtered_assets(request.GET),
+    )
+
+
+ADMINISTRATION_LIST_TEMPLATES = {
+    "issues": "server_heatmap/_administration_issues.html",
+    "jobs": "server_heatmap/_administration_jobs.html",
+    "runs": "server_heatmap/_administration_runs.html",
+}
+
+
+def _administration_list_context(list_name, page_number=None):
+    if list_name == "issues":
+        queryset = ReconciliationIssue.objects.filter(is_resolved=False).select_related(
+            "sync_run", "observation",
+        ).order_by("-created_at")
+        return {"issues_page": Paginator(queryset, 15).get_page(page_number)}
+    if list_name == "jobs":
+        queryset = InventoryJob.objects.select_related("requested_by").all()
+        return {"jobs_page": Paginator(queryset, 10).get_page(page_number)}
+    if list_name == "runs":
+        return {"runs_page": Paginator(InventorySyncRun.objects.all(), 10).get_page(page_number)}
+    raise ValueError("Lista de administración desconocida.")
+
+
+@login_required
+def server_administration_list_results(request):
+    if not can_manage_server_heatmap(request.user):
+        return HttpResponseForbidden("No tenés permisos para administrar el inventario.")
+    list_name = (request.GET.get("list") or "").strip()
+    template = ADMINISTRATION_LIST_TEMPLATES.get(list_name)
+    if not template:
+        return HttpResponse("Lista desconocida.", status=400)
+    return render(
+        request,
+        template,
+        _administration_list_context(list_name, request.GET.get("page")),
     )
 
 

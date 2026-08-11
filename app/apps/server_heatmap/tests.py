@@ -14,7 +14,7 @@ from django.urls import resolve, reverse
 from django.utils import timezone as django_timezone
 
 from .classification import apply_automatic_classification
-from .connectors.ad import _active_computer_filter, _ldap_server_address
+from .connectors.ad import _active_computer_filter, _environment, _ldap_server_address
 from .connectors.base import InventoryRecord
 from .connectors.siem import SiemCsvConnector
 from .forms import InventoryFilterRuleForm
@@ -447,6 +447,13 @@ class ServerHeatmapTests(TestCase):
 
     def test_inventory_sync_does_not_reenable_manually_disabled_asset(self):
         asset = ServerAsset.objects.create(hostname="disabled01", is_enabled=False)
+        ServerAssetDisableEvent.objects.create(
+            asset=asset,
+            hostname=asset.hostname,
+            justification="Baja manual aprobada",
+            previous_enabled=True,
+            new_enabled=False,
+        )
 
         class Connector:
             def collect(self):
@@ -463,6 +470,28 @@ class ServerHeatmapTests(TestCase):
         asset.refresh_from_db()
         self.assertFalse(asset.is_enabled)
         self.assertTrue(asset.in_active_directory)
+
+    def test_inventory_sync_reenables_legacy_disabled_asset_seen_in_ad(self):
+        asset = ServerAsset.objects.create(hostname="legacy-disabled", is_enabled=False)
+
+        class Connector:
+            def collect(self):
+                return [
+                    InventoryRecord(
+                        external_id="legacy-disabled.example.local",
+                        hostname="legacy-disabled",
+                        organizational_unit="Servidores > Desarrollo",
+                        environment="LAB",
+                        observed_at=datetime.now(timezone.utc),
+                    ),
+                ]
+
+        synchronize_inventory(InventorySyncRun.SOURCE_AD, Connector())
+
+        asset.refresh_from_db()
+        self.assertTrue(asset.is_enabled)
+        self.assertTrue(asset.in_active_directory)
+        self.assertEqual(asset.environment, "LAB")
 
     def test_inventory_sync_failure_creates_operational_alert(self):
         class FailingConnector:
@@ -864,6 +893,18 @@ class ServerHeatmapTests(TestCase):
         self.assertIn("(!(userAccountControl:1.2.840.113556.1.4.803:=2))", search_filter)
         self.assertIn("(lastLogonTimestamp>=", search_filter)
 
+    def test_ad_environment_matches_original_prod_or_lab_model(self):
+        self.assertEqual(_environment("Servers > Production"), "PROD")
+        self.assertEqual(_environment("Servidores > Producción"), "PROD")
+        self.assertEqual(_environment("Domain Controllers"), "PROD")
+        self.assertEqual(_environment("Servers > Desarrollo"), "LAB")
+        self.assertEqual(_environment("Servers > DEV"), "LAB")
+        self.assertEqual(_environment("Servers > QA"), "LAB")
+        self.assertEqual(_environment("Servers > Testing"), "LAB")
+        self.assertEqual(_environment("Servers > UAT"), "LAB")
+        self.assertEqual(_environment("Servers > Laboratorio"), "LAB")
+        self.assertEqual(_environment("Servers > Otro"), "LAB")
+
     def test_ldap_uri_is_split_into_host_port_and_ssl(self):
         self.assertEqual(
             _ldap_server_address("ldap://ARPADS014.ardp.local:389", True),
@@ -935,7 +976,7 @@ class ServerHeatmapTests(TestCase):
         )
         ServerAsset.objects.create(hostname="DISABLED", in_active_directory=True, is_enabled=False)
 
-        context = build_server_heatmap_context({})
+        context = build_server_heatmap_context({"environment": "all"})
         windows_row = next(
             row for row in context["matrix_rows"]
             if row["key"] == ServerAsset.OS_WINDOWS
@@ -951,6 +992,110 @@ class ServerHeatmapTests(TestCase):
         self.assertEqual(cell["coverage_percent"], 50.0)
         self.assertEqual(cell["gap_count"], 1)
 
+    def test_heatmap_environment_defaults_to_prod_and_supports_all(self):
+        ServerAsset.objects.create(
+            hostname="prod-server",
+            environment="prod",
+            in_active_directory=True,
+            in_siem=True,
+        )
+        ServerAsset.objects.create(
+            hostname="desa-server",
+            environment="DESA",
+            in_active_directory=True,
+            in_siem=False,
+        )
+
+        default_context = build_server_heatmap_context({})
+        desa_context = build_server_heatmap_context({"environment": "desa"})
+        all_context = build_server_heatmap_context({"environment": "all"})
+
+        self.assertEqual(default_context["selected_environment"], "PROD")
+        self.assertEqual(default_context["total_assets"], 1)
+        self.assertEqual(desa_context["total_assets"], 1)
+        self.assertEqual(desa_context["ad_only_count"], 1)
+        self.assertEqual(all_context["total_assets"], 2)
+        self.assertEqual(all_context["environment_choices"], ["DESA", "PROD"])
+
+    def test_inventory_filters_ingested_pending_and_searches_in_real_time_context(self):
+        ServerAsset.objects.create(
+            hostname="prod-ingested",
+            environment="PROD",
+            ip_address="10.10.10.1",
+            in_active_directory=True,
+            in_siem=True,
+        )
+        ServerAsset.objects.create(
+            hostname="prod-pending",
+            environment="PROD",
+            application_name="Payments",
+            in_active_directory=True,
+            in_siem=False,
+        )
+        ServerAsset.objects.create(
+            hostname="lab-pending",
+            environment="LAB",
+            in_active_directory=True,
+            in_siem=False,
+        )
+        ServerAsset.objects.create(
+            hostname="siem-only",
+            environment="PROD",
+            in_active_directory=False,
+            in_siem=True,
+        )
+
+        ingested = build_server_heatmap_context({"inventory_status": "ingested"})
+        pending = build_server_heatmap_context({"inventory_status": "pending"})
+        searched = build_server_heatmap_context({
+            "inventory_status": "all",
+            "inventory_q": "payments",
+        })
+
+        self.assertEqual(
+            [asset.hostname for asset in ingested["inventory_page"]],
+            ["prod-ingested"],
+        )
+        self.assertEqual(
+            [asset.hostname for asset in pending["inventory_page"]],
+            ["prod-pending"],
+        )
+        self.assertEqual(
+            [asset.hostname for asset in searched["inventory_page"]],
+            ["prod-pending"],
+        )
+        self.assertEqual(ingested["total_assets"], 1)
+        self.assertEqual(pending["total_assets"], 1)
+        self.assertEqual(searched["total_assets"], 1)
+
+    def test_grouped_os_filter_includes_linux_and_unix(self):
+        ServerAsset.objects.create(
+            hostname="linux-server",
+            environment="PROD",
+            os_family=ServerAsset.OS_LINUX,
+            in_active_directory=True,
+        )
+        ServerAsset.objects.create(
+            hostname="aix-server",
+            environment="PROD",
+            os_family=ServerAsset.OS_UNIX,
+            in_active_directory=True,
+        )
+        ServerAsset.objects.create(
+            hostname="windows-server",
+            environment="PROD",
+            os_family=ServerAsset.OS_WINDOWS,
+            in_active_directory=True,
+        )
+
+        context = build_server_heatmap_context({"os": "linux_group"})
+
+        self.assertEqual(context["total_assets"], 2)
+        self.assertEqual(
+            list(context["inventory_page"].object_list.values_list("hostname", flat=True)),
+            ["aix-server", "linux-server"],
+        )
+
     def test_siem_only_cell_has_neutral_no_baseline_state(self):
         category = ServerCategory.objects.get(code="exchange")
         ServerAsset.objects.create(
@@ -961,7 +1106,7 @@ class ServerHeatmapTests(TestCase):
             in_siem=True,
         )
 
-        context = build_server_heatmap_context({})
+        context = build_server_heatmap_context({"environment": "all"})
         windows_row = next(
             row for row in context["matrix_rows"]
             if row["key"] == ServerAsset.OS_WINDOWS
@@ -975,15 +1120,14 @@ class ServerHeatmapTests(TestCase):
         self.assertEqual(cell["level"], "no_baseline")
         self.assertEqual(cell["siem_count"], 1)
 
-    def test_heatmap_groups_os_into_windows_linux_and_unknown(self):
-        context = build_server_heatmap_context({})
+    def test_heatmap_groups_os_into_windows_and_linux(self):
+        context = build_server_heatmap_context({"environment": "all"})
 
         self.assertEqual(
             [row["key"] for row in context["matrix_rows"]],
             [
                 ServerAsset.OS_WINDOWS,
                 ServerAsset.OS_LINUX,
-                ServerAsset.OS_UNKNOWN,
             ],
         )
         self.assertEqual(
@@ -1005,7 +1149,7 @@ class ServerHeatmapTests(TestCase):
             )
 
         windows = next(
-            row for row in build_server_heatmap_context({})["os_rows"]
+            row for row in build_server_heatmap_context({"environment": "all"})["os_rows"]
             if row["key"] == ServerAsset.OS_WINDOWS
         )
 
@@ -1013,6 +1157,11 @@ class ServerHeatmapTests(TestCase):
         self.assertEqual(windows["covered_count"], 80)
         self.assertEqual(windows["gap_count"], 20)
         self.assertEqual(windows["percent"], 80.0)
+        windows_matrix = next(
+            row for row in build_server_heatmap_context({"environment": "all"})["matrix_rows"]
+            if row["key"] == ServerAsset.OS_WINDOWS
+        )
+        self.assertEqual(windows_matrix["total"], windows["ad_count"])
 
     def test_functional_section_coverage_uses_each_ad_section_as_100_percent(self):
         category = ServerCategory.objects.get(code="database")
@@ -1030,7 +1179,7 @@ class ServerHeatmapTests(TestCase):
         )
 
         database = next(
-            row for row in build_server_heatmap_context({})["type_rows"]
+            row for row in build_server_heatmap_context({"environment": "all"})["type_rows"]
             if row["key"] == category.id
         )
 
@@ -1059,7 +1208,7 @@ class ServerHeatmapTests(TestCase):
             in_siem=True,
         )
 
-        rows = build_server_heatmap_context({})["os_rows"]
+        rows = build_server_heatmap_context({"environment": "all"})["os_rows"]
 
         self.assertEqual([row["key"] for row in rows], ["windows", "linux"])
         linux = rows[1]
@@ -1068,11 +1217,12 @@ class ServerHeatmapTests(TestCase):
         self.assertEqual(linux["gap_count"], 1)
         self.assertEqual(linux["percent"], 50.0)
 
-    def test_gap_and_conflict_tables_paginate_independently(self):
+    def test_inventory_and_administration_issues_paginate_independently(self):
         ServerAsset.objects.bulk_create(
             [
                 ServerAsset(
                     hostname=f"gap-{number:03}",
+                    environment="PROD",
                     in_active_directory=True,
                     in_siem=False,
                 )
@@ -1110,21 +1260,36 @@ class ServerHeatmapTests(TestCase):
         user.groups.add(group)
         self.client.login(username="pagination-admin", password="pass")
 
-        response = self.client.get(
+        inventory_response = self.client.get(
             reverse("server_heatmap"),
-            {"gap_page": 2, "conflict_page": 2},
+            {"inventory_page": 2},
+        )
+        issues_response = self.client.get(
+            reverse("server_heatmap_administration_list_results"),
+            {"list": "issues", "page": 2},
         )
 
-        self.assertEqual(response.status_code, 200)
-        self.assertEqual(response.context["gap_page"].number, 2)
-        self.assertEqual(response.context["unmatched_siem_page"].number, 2)
-        self.assertEqual(len(response.context["gap_page"]), 5)
-        self.assertEqual(len(response.context["unmatched_siem_page"]), 5)
-        self.assertContains(response, 'aria-label="Paginación de equipos pendientes"')
-        self.assertContains(response, 'aria-label="Paginación de conflictos SIEM"')
-        self.assertContains(response, "Página 2 de 2", count=2)
+        self.assertEqual(inventory_response.status_code, 200)
+        self.assertEqual(inventory_response.context["inventory_page"].number, 2)
+        self.assertEqual(inventory_response.context["inventory_page"].paginator.num_pages, 2)
+        self.assertEqual(len(inventory_response.context["inventory_page"]), 5)
+        self.assertContains(inventory_response, 'aria-label="Paginación del inventario"')
+        self.assertContains(inventory_response, "Página 2")
+        self.assertEqual(issues_response.status_code, 200)
+        self.assertEqual(issues_response.context["issues_page"].number, 2)
+        self.assertEqual(len(issues_response.context["issues_page"]), 15)
+        self.assertContains(issues_response, "Página 2 de 4")
 
     def test_admin_role_can_open_server_heatmap(self):
+        category = ServerCategory.objects.get(code="application")
+        ServerAsset.objects.create(
+            hostname="pending-application",
+            environment="PROD",
+            os_family=ServerAsset.OS_WINDOWS,
+            category=category,
+            in_active_directory=True,
+            in_siem=False,
+        )
         user = get_user_model().objects.create_user("heatmap-admin", password="pass")
         group, _ = Group.objects.get_or_create(name="Admin")
         user.groups.add(group)
@@ -1142,8 +1307,15 @@ class ServerHeatmapTests(TestCase):
         self.assertNotContains(response, "brechas ·")
         self.assertContains(response, 'class="os-coverage-card', count=2)
         self.assertContains(response, "Total AD = 100%")
-        self.assertContains(response, 'class="inventory-strip"', count=1)
-        self.assertContains(response, 'class="server-kpi"', count=4)
+        self.assertContains(response, 'class="inventory-strip row g-3 my-1"', count=1)
+        self.assertContains(response, 'class="server-kpi server-card card h-100"', count=4)
+        self.assertContains(response, 'data-live-search="off"', count=1)
+        self.assertNotContains(response, "Aplicar filtros")
+        self.assertContains(response, "Limpiar filtros")
+        self.assertContains(response, 'data-heatmap-filter')
+        self.assertContains(response, 'aria-pressed="false"', count=1)
+        self.assertContains(response, 'name="type" type="hidden"', count=1)
+        self.assertNotContains(response, 'class="heat-pending-link"')
         self.assertNotContains(response, "Equipos visibles")
         self.assertNotContains(response, "<span>En SIEM</span>", html=True)
 
@@ -1525,18 +1697,21 @@ class ServerHeatmapTests(TestCase):
     def test_percentage_bar_uses_css_decimal_point(self):
         ServerAsset.objects.create(
             hostname="win01",
+            environment="PROD",
             os_family=ServerAsset.OS_WINDOWS,
             in_active_directory=True,
             in_siem=True,
         )
         ServerAsset.objects.create(
             hostname="win02",
+            environment="PROD",
             os_family=ServerAsset.OS_WINDOWS,
             in_active_directory=True,
             in_siem=True,
         )
         ServerAsset.objects.create(
             hostname="win03",
+            environment="PROD",
             os_family=ServerAsset.OS_WINDOWS,
             in_active_directory=True,
             in_siem=False,

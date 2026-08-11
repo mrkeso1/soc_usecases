@@ -1,13 +1,9 @@
-﻿<!DOCTYPE html>
-<html lang="es">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>{{ title|default:"Caso de uso" }}</title>
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;600;700&family=Syne:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-    <style>
+{% extends "base_bootstrap.html" %}
+
+{% block title %}{{ title|default:"Caso de uso" }}{% endblock %}
+
+{% block extra_css %}
+<style>
         :root {
             --bg: #060b14;
             --surface: #0c1524;
@@ -725,7 +721,6 @@
     .form-actions { padding: 13px 18px !important; border-radius: 0 0 14px 14px !important; }
 
 </style>
-    {% include "includes/topbar_styles.html" %}
 <style>
     .page-shell {
         max-width: 1280px !important;
@@ -990,34 +985,41 @@
         .form-actions { flex-direction: column; }
         .btn { width: 100%; }
     }
-</style>
-    {% include "includes/usecase_compact_overrides.html" %}
-</head>
-<body>
-    {% include "includes/topbar.html" %}
 
-    <main class="page-shell">
-        <div class="page-header">
-            <div>
-                <div class="eyebrow">// INVENTARIO - EDICION</div>
-                <h1 class="page-title">{{ title|default:"Editar caso de uso" }}</h1>
-                <div class="case-name-box">
+    .grid.row {
+        display: flex;
+        grid-template-columns: none;
+        gap: 0;
+    }
+</style>
+{% include "includes/usecase_compact_overrides.html" %}
+{% endblock %}
+
+{% block content %}
+    <main class="container-xxl py-4 px-3 px-lg-4">
+        <section class="card border shadow-sm mb-4">
+            <div class="card-body p-3 p-lg-4"><header class="row g-3 align-items-start">
+            <div class="col-12 col-xl">
+                <div class="page-eyebrow">// INVENTARIO / EDICIÓN</div>
+                <h1 class="page-title mb-2">{{ title|default:"Editar caso de uso" }}</h1>
+                <div class="case-name-box mb-0">
                     {% if usecase %}{{ usecase.display_code }}{% else %}Nuevo caso de uso{% endif %}
                 </div>
             </div>
-            <div class="header-actions">
-                <a class="btn btn-secondary" href="{% if usecase %}{% url 'usecase_detail' usecase.pk %}{% else %}{% url 'usecase_list' %}{% endif %}">Cancelar</a>
-                <button type="submit" form="usecase-edit-form" class="btn btn-primary">Guardar cambios</button>
-            </div>
-        </div>
+            <div class="col-12 col-xl-auto"><div class="d-flex flex-wrap gap-2 justify-content-xl-end">
+                <a class="btn btn-outline-secondary btn-sm" href="{% if usecase %}{% url 'usecase_detail' usecase.pk %}{% else %}{% url 'usecase_list' %}{% endif %}">Cancelar</a>
+                <button type="submit" form="usecase-edit-form" class="btn btn-primary btn-sm">Guardar cambios</button>
+            </div></div>
+            </header></div>
+        </section>
 
         {% if form.errors %}
-            <div class="errors">
+            <div class="alert alert-danger" role="alert">
                 {{ form.errors }}
             </div>
         {% endif %}
         {% if condition_formset.errors or condition_formset.non_form_errors %}
-            <div class="errors">
+            <div class="alert alert-danger" role="alert">
                 {{ condition_formset.non_form_errors }}
                 {{ condition_formset.errors }}
             </div>
@@ -1025,54 +1027,54 @@
 
         <form id="usecase-edit-form" method="post">
             {% csrf_token %}
-            <div class="layout">
-                <section class="panel">
-                    <nav class="tabs" aria-label="Secciones del formulario">
-                        <button type="button" class="tab-button active" data-tab="general">General</button>
-                        <button type="button" class="tab-button" data-tab="regla">Regla</button>
-                        <button type="button" class="tab-button" data-tab="clasificacion">Clasificacion</button>
-                        <button type="button" class="tab-button" data-tab="mitre">MITRE / D3FEND</button>
-                        <button type="button" class="tab-button" data-tab="lifecycle">Lifecycle</button>
-                        <button type="button" class="tab-button" data-tab="notas">Habilitacion / notas</button>
+            <div class="row g-3 align-items-start">
+                <section class="col-12 col-xl-9"><div class="card border shadow-sm overflow-hidden">
+                    <nav class="nav nav-pills gap-2 p-3 border-bottom flex-nowrap overflow-x-auto" aria-label="Secciones del formulario">
+                        <button type="button" class="nav-link tab-button active" data-tab="general">General</button>
+                        <button type="button" class="nav-link tab-button" data-tab="regla">Regla</button>
+                        <button type="button" class="nav-link tab-button" data-tab="clasificacion">Clasificación</button>
+                        <button type="button" class="nav-link tab-button" data-tab="mitre">MITRE / D3FEND</button>
+                        <button type="button" class="nav-link tab-button" data-tab="lifecycle">Lifecycle</button>
+                        <button type="button" class="nav-link tab-button" data-tab="notas">Habilitación / notas</button>
                     </nav>
 
                     <div class="tab-panel active" id="tab-general">
                         <h2 class="section-title">Datos principales</h2>
                         <p class="section-help">Informacion base del caso. El nombre debe ser legible y mantener la referencia real de NetWitness.</p>
-                        <div class="grid">
-                            <div class="field full">
+                        <div class="grid row g-3">
+                            <div class="field col-12">
                                 <label>Identificador</label>
                                 {{ form.case_code }}
                                 <div class="hint">Es el valor visible en el inventario. Si lo dejas vacio, se completa con el nombre.</div>
                             </div>
-                            <div class="field full">
+                            <div class="field col-12">
                                 <label>Nombre NetWitness</label>
                                 {{ form.name }}
                             </div>
-                            <div class="field">
+                            <div class="field col-12 col-md-6">
                                 <label>Grupo</label>
                                 {{ form.group_name }}
                                 <div class="hint">Podes cargar varios grupos: Enter, coma o punto y coma agrega cada valor.</div>
                             </div>
-                            <div class="field">
+                            <div class="field col-12 col-md-6">
                                 <label>Dispositivo</label>
                                 {{ form.device }}
                                 <div class="hint">Podes cargar varios dispositivos. Dato legacy: no reemplaza a las fuentes de eventos vinculadas.</div>
                             </div>
-                            <div class="field full">
+                            <div class="field col-12">
                                 <label>Fuentes de eventos</label>
                                 {{ form.event_sources }}
                                 <div class="hint">Selecciona una o varias fuentes cargadas en Fuentes de eventos.</div>
                             </div>
-                            <div class="field">
+                            <div class="field col-12 col-md-6">
                                 <label>Tipo</label>
                                 {{ form.case_type }}
                             </div>
-                            <div class="field">
+                            <div class="field col-12 col-md-6">
                                 <label>Tipo de bloqueo</label>
                                 {{ form.blocking_type }}
                             </div>
-                            <div class="field full">
+                            <div class="field col-12">
                                 <label>Objetivo</label>
                                 {{ form.objective }}
                             </div>
@@ -1085,7 +1087,7 @@
                                 <h2 class="section-title">Condiciones de la regla</h2>
                                 <p class="section-help">Criterios de inclusion y exclusion que forman la logica del caso.</p>
                             </div>
-                            <button type="button" class="btn btn-secondary" id="add-condition">Agregar condicion</button>
+                            <button type="button" class="btn btn-outline-secondary" id="add-condition">Agregar condición</button>
                         </div>
 
                         <div id="condition-formset" class="rule-builder">
@@ -1171,13 +1173,13 @@
                             </div>
                         </template>
 
-                        <div class="grid">
-                            <div class="field full">
+                        <div class="grid row g-3">
+                            <div class="field col-12">
                                 <label>Regla completa</label>
                                 {{ form.full_rule_text }}
                                 <div class="hint">Pega aca la regla completa del SIEM/EPL/Sigma/consulta original.</div>
                             </div>
-                            <div class="field full">
+                            <div class="field col-12">
                                 <label>Descripcion funcional</label>
                                 {{ form.functional_description }}
                             </div>
@@ -1187,36 +1189,36 @@
                     <div class="tab-panel" id="tab-clasificacion">
                         <h2 class="section-title">Operacion y criticidad</h2>
                         <p class="section-help">Campos operativos para inventario, priorizacion y seguimiento diario.</p>
-                        <div class="grid">
-                            <div class="field">
+                        <div class="grid row g-3">
+                            <div class="field col-12 col-md-6">
                                 <label>Responsable desarrollo</label>
                                 {{ form.owner_name }}
                             </div>
-                            <div class="field">
+                            <div class="field col-12 col-md-6">
                                 <label>Monitoreo</label>
                                 {{ form.monitoring }}
                             </div>
-                            <div class="field">
+                            <div class="field col-12 col-md-6">
                                 <label>Estado</label>
                                 {{ form.status }}
                             </div>
-                            <div class="field">
+                            <div class="field col-12 col-md-6">
                                 <label>Severidad</label>
                                 {{ form.severity }}
                             </div>
-                            <div class="field">
+                            <div class="field col-12 col-md-6">
                                 <label>Fecha alta/ajuste</label>
                                 {{ form.created_or_adjusted_at }}
                             </div>
-                            <div class="field">
+                            <div class="field col-12 col-md-6">
                                 <label>Fecha puesta en produccion</label>
                                 {{ form.production_date }}
                             </div>
-                            <div class="field">
+                            <div class="field col-12 col-md-6">
                                 <label>Escalamiento</label>
                                 {{ form.escalation }}
                             </div>
-                            <div class="field">
+                            <div class="field col-12 col-md-6">
                                 <label>EnvA­o HO</label>
                                 {{ form.sent_to_ho }}
                             </div>
@@ -1226,18 +1228,18 @@
                     <div class="tab-panel" id="tab-mitre">
                         <h2 class="section-title">MITRE ATT&amp;CK y D3FEND</h2>
                         <p class="section-help">Carga las tecnicas ATT&amp;CK. D3FEND se infiere automaticamente y podes excluir defensas que no aplican al contexto del caso.</p>
-                        <div class="grid">
-                            <div class="field full">
+                        <div class="grid row g-3">
+                            <div class="field col-12">
                                 <label>MITRE ATT&amp;CK relacionado</label>
                                 <div class="autocomplete-box">
-                                    <input type="text" id="mitre-search" placeholder="Buscar por ID, nombre o tactica..." autocomplete="off">
+                                    <input class="form-control" type="text" id="mitre-search" placeholder="Buscar por ID, nombre o táctica..." autocomplete="off">
                                     <div id="mitre-results" class="autocomplete-results"></div>
                                 </div>
                                 {{ form.mitre_attacks }}
                                 <div id="mitre-chips" class="chips"></div>
                                 <div class="hint">Ejemplo: T1059, PowerShell, Credential Access. Podes asociar varias tecnicas.</div>
                             </div>
-                            <div class="field full">
+                            <div class="field col-12">
                                 <div class="d3fend-readonly">
                                     <div class="readonly-label">D3FEND inferido automaticamente</div>
                                     <div id="d3fend-inferred-chips" class="chips" data-inference-url="{% url 'infer_d3fends_for_attacks' %}">
@@ -1257,7 +1259,7 @@
                                     <div class="hint">Esta seccion se sincroniza al guardar el caso y ya descuenta las exclusiones manuales.</div>
                                 </div>
                             </div>
-                            <div class="field full">
+                            <div class="field col-12">
                                 <label>D3FEND excluido para este caso</label>
                                 {{ form.d3fend_exclusions }}
                                 <div id="d3fend-exclusion-chips" class="chips"></div>
@@ -1269,20 +1271,20 @@
                     <div class="tab-panel" id="tab-lifecycle">
                         <h2 class="section-title">Validacion y ciclo de vida</h2>
                         <p class="section-help">La Ultima validacion actualiza automaticamente la proxima revision. Las fechas propias de lifecycle quedan protegidas.</p>
-                        <div class="grid">
-                            <div class="field">
+                        <div class="grid row g-3">
+                            <div class="field col-12 col-md-6">
                                 <label>Ultima validacion</label>
                                 {{ form.last_validation_date }}
                             </div>
-                            <div class="field">
+                            <div class="field col-12 col-md-6">
                                 <label>Estado ciclo de vida</label>
                                 {{ form.validation_status }}
                             </div>
-                            <div class="field">
+                            <div class="field col-12 col-md-6">
                                 <label>Resultado</label>
                                 {{ form.validation_result }}
                             </div>
-                            <div class="field full">
+                            <div class="field col-12">
                                 <div class="readonly-grid">
                                     <div class="readonly-box">
                                         <div class="readonly-label">Ultima revision</div>
@@ -1304,33 +1306,33 @@
                     <div class="tab-panel" id="tab-notas">
                         <h2 class="section-title">Habilitacion y comentarios</h2>
                         <p class="section-help">Si el caso queda deshabilitado, carga el motivo para que el inventario sea auditable.</p>
-                        <div class="grid">
-                            <div class="field full">
+                        <div class="grid row g-3">
+                            <div class="field col-12">
                                 <label>Habilitado</label>
-                                <div class="switch-row">
+                                <div class="switch-row form-check form-switch">
                                     {{ form.is_enabled }}
                                     <span>El caso esta activo para operacion y cobertura.</span>
                                 </div>
                             </div>
-                            <div class="field full">
+                            <div class="field col-12">
                                 <label>Motivo de deshabilitacion</label>
                                 {{ form.disabled_reason }}
                                 <div class="hint">Obligatorio si el caso queda deshabilitado.</div>
                             </div>
-                            <div class="field full">
+                            <div class="field col-12">
                                 <label>Comentarios</label>
                                 {{ form.comments }}
                             </div>
                         </div>
                     </div>
 
-                    <div class="form-actions">
-                        <a class="btn btn-secondary" href="{% if usecase %}{% url 'usecase_detail' usecase.pk %}{% else %}{% url 'usecase_list' %}{% endif %}">Cancelar</a>
+                    <div class="card-footer d-flex flex-wrap justify-content-end gap-2 p-3">
+                        <a class="btn btn-outline-secondary" href="{% if usecase %}{% url 'usecase_detail' usecase.pk %}{% else %}{% url 'usecase_list' %}{% endif %}">Cancelar</a>
                         <button type="submit" class="btn btn-primary">Guardar cambios</button>
                     </div>
-                </section>
+                </div></section>
 
-                <aside class="summary-card">
+                <aside class="col-12 col-xl-3"><div class="card border shadow-sm summary-card">
                     <h2 class="summary-title">Resumen</h2>
                     <div class="summary-list">
                         <div class="summary-item">
@@ -1364,11 +1366,13 @@
                             <span class="value">ATT&amp;CK manual - D3FEND automatico</span>
                         </div>
                     </div>
-                </aside>
+                </div></aside>
             </div>
         </form>
     </main>
+{% endblock %}
 
+{% block extra_js %}
     <script>
         document.querySelectorAll('.tab-button').forEach(button => {
             button.addEventListener('click', () => {
@@ -2016,6 +2020,5 @@
         setupD3FendInlineExclusions();
         setupRuleConditions();
     </script>
-</body>
-</html>
+{% endblock %}
 
