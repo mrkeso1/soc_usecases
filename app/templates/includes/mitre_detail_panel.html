@@ -1,0 +1,95 @@
+<div class="panel-head">
+    <span class="panel-title">{{ detail.title }}</span>
+    {% if detail.sortable %}
+        <div class="detail-sort" role="group" aria-label="Ordenar por porcentaje">
+            <span aria-hidden="true">%</span>
+            <button
+                type="button"
+                class="{% if detail.sort == 'asc' %}active{% endif %}"
+                data-detail-sort="asc"
+                aria-label="Ordenar porcentaje de menor a mayor"
+                title="Menor a mayor"
+            >↑</button>
+            <button
+                type="button"
+                class="{% if detail.sort == 'desc' %}active{% endif %}"
+                data-detail-sort="desc"
+                aria-label="Ordenar porcentaje de mayor a menor"
+                title="Mayor a menor"
+            >↓</button>
+        </div>
+    {% endif %}
+</div>
+
+<div class="panel-body">
+    {% if detail.page_obj %}
+        {% for row in detail.page_obj %}
+            {% if detail.name == "tactic_coverage" %}
+                {% if row.production_cases > 0 %}
+                    <a class="list-item" href="{% url 'usecase_list' %}?mitre_tactic={{ row.name|urlencode }}">
+                        <div>
+                            <div class="list-item-main">{{ row.name }}</div>
+                            <div class="list-item-sub">{{ row.covered }} / {{ row.total }} tecnicas - {{ row.production_cases }} caso(s) productivo(s)</div>
+                        </div>
+                        <span class="count-badge">{{ row.percent_label }}%</span>
+                    </a>
+                {% else %}
+                    <div class="list-item">
+                        <div>
+                            <div class="list-item-main">{{ row.name }}</div>
+                            <div class="list-item-sub">{{ row.covered }} / {{ row.total }} tecnicas - sin casos productivos</div>
+                        </div>
+                        <span class="count-badge">{{ row.percent_label }}%</span>
+                    </div>
+                {% endif %}
+            {% elif detail.name == "d3fend_coverage" %}
+                {% if row.production_cases > 0 %}
+                    <a class="list-item" href="{% url 'usecase_list' %}?d3fend_id={{ row.id }}">
+                        <div>
+                            <div class="list-item-main">{{ row.code }} - {{ row.name }}</div>
+                            <div class="list-item-sub">{{ row.covered }} / {{ row.total }} ATT&amp;CK relacionadas - {{ row.production_cases }} caso(s) productivo(s)</div>
+                        </div>
+                        <span class="count-badge">{{ row.percent_label }}%</span>
+                    </a>
+                {% else %}
+                    <div class="list-item">
+                        <div>
+                            <div class="list-item-main">{{ row.code }} - {{ row.name }}</div>
+                            <div class="list-item-sub">{{ row.covered }} / {{ row.total }} ATT&amp;CK relacionadas - sin casos productivos</div>
+                        </div>
+                        <span class="count-badge">{{ row.percent_label }}%</span>
+                    </div>
+                {% endif %}
+            {% elif detail.name == "uncovered_attacks" %}
+                <div class="list-item list-item-static">
+                    <div>
+                        <div class="list-item-main">{{ row.external_id }} - {{ row.name }}</div>
+                        {% if row.tactic %}<div class="list-item-sub">{{ row.tactic }}</div>{% endif %}
+                    </div>
+                </div>
+            {% elif detail.name == "uncovered_d3fends" %}
+                <div class="list-item list-item-static">
+                    <div>
+                        <div class="list-item-main">{{ row.code }} - {{ row.name }}</div>
+                        <div class="list-item-sub">{{ row.covered_related_attacks|default:0 }} / {{ row.total_related_attacks|default:0 }} ATT&amp;CK relacionadas cubiertas{% if row.category %} - {{ row.category }}{% endif %}</div>
+                    </div>
+                </div>
+            {% endif %}
+        {% endfor %}
+    {% else %}
+        <div class="empty-note">// Sin resultados</div>
+    {% endif %}
+</div>
+
+<footer class="detail-footer">
+    <span>{{ detail.page_obj.paginator.count }} resultado(s)</span>
+    {% if detail.page_obj.paginator.num_pages > 1 %}
+        <nav class="detail-pagination" aria-label="Paginacion de {{ detail.title }}">
+            <button type="button" data-detail-page="1" {% if not detail.page_obj.has_previous %}disabled{% endif %} aria-label="Primera pagina">«</button>
+            <button type="button" data-detail-page="{% if detail.page_obj.has_previous %}{{ detail.page_obj.previous_page_number }}{% else %}1{% endif %}" {% if not detail.page_obj.has_previous %}disabled{% endif %} aria-label="Pagina anterior">‹</button>
+            <span>Pagina {{ detail.page_obj.number }} de {{ detail.page_obj.paginator.num_pages }}</span>
+            <button type="button" data-detail-page="{% if detail.page_obj.has_next %}{{ detail.page_obj.next_page_number }}{% else %}{{ detail.page_obj.paginator.num_pages }}{% endif %}" {% if not detail.page_obj.has_next %}disabled{% endif %} aria-label="Pagina siguiente">›</button>
+            <button type="button" data-detail-page="{{ detail.page_obj.paginator.num_pages }}" {% if not detail.page_obj.has_next %}disabled{% endif %} aria-label="Ultima pagina">»</button>
+        </nav>
+    {% endif %}
+</footer>

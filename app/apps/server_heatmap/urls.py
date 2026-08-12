@@ -17,6 +17,7 @@ from .views import (
     queue_full_inventory_sync,
     server_heatmap_view,
     server_inventory_results,
+    server_inventory_configuration,
     server_administration,
     server_administration_list_results,
     server_asset_results,
@@ -39,6 +40,11 @@ urlpatterns = [
         name="server_heatmap_sync",
     ),
     path("administration/", server_administration, name="server_heatmap_administration"),
+    path(
+        "administration/configuration/",
+        server_inventory_configuration,
+        name="server_heatmap_inventory_configuration",
+    ),
     path(
         "administration/lists/results/",
         server_administration_list_results,

@@ -55,22 +55,11 @@
     </header>
 
     <div class="admin-grid row g-3">
-        <div class="col-12 col-xl-4"><article class="admin-card card h-100">
-            <h2>Configuración del inventario</h2>
-            <p>Controla qué equipos consulta AD y cuándo se eliminan los registros obsoletos.</p>
-            <form method="post" data-submit-once>
-                {% csrf_token %}<input type="hidden" name="action" value="save_configuration">
-                {% for field in configuration_form %}
-                    <div class="field mb-3">{{ field.label_tag }}{{ field }}{{ field.errors }}{% if field.help_text %}<span class="helptext">{{ field.help_text }}</span>{% endif %}</div>
-                {% endfor %}
-                <button class="btn btn-primary" type="submit">Guardar configuración</button>
-            </form>
-        </article></div>
-
-        <div class="col-12 col-xl-8"><article class="admin-card card h-100">
-            <h2>Organización y clasificación</h2>
-            <p>Administrá las secciones del mapa y una única colección de reglas para habilitar, deshabilitar o clasificar equipos.</p>
+        <div class="col-12"><article class="admin-card card">
+            <h2>Administración</h2>
+            <p>Configurá la actualización del inventario, las secciones del mapa y las reglas que habilitan, deshabilitan o clasifican equipos.</p>
             <div class="admin-actions">
+                <a class="btn btn-primary" href="{% url 'server_heatmap_inventory_configuration' %}">Configuración del inventario</a>
                 <a class="btn btn-outline-secondary" href="{% url 'server_heatmap_sections' %}">Secciones funcionales</a>
                 <a class="btn btn-outline-secondary" href="{% url 'server_heatmap_filter_list' %}">Reglas de inventario</a>
             </div>
@@ -78,12 +67,13 @@
 
         <div class="col-12"><article class="admin-card card">
             <h2>Administrar equipos</h2>
-            <p>Los resultados se actualizan mientras escribís, sin recargar la pantalla.</p>
+            <p>Los resultados se actualizan mientras escribís, sin recargar la pantalla. El ambiente parte de la OU informada por AD y puede ajustarse mediante las reglas de inventario.</p>
             <form method="get" class="asset-filters row g-2 align-items-end" id="asset-live-filters">
-                <div class="col-12 col-lg-6"><label class="form-label visually-hidden" for="asset-search">Buscar equipo</label><input class="form-control" id="asset-search" type="search" name="q" value="{{ query }}" placeholder="Hostname, IP, aplicación u OU" autocomplete="off"></div>
+                <div class="col-12 col-lg-4"><label class="form-label visually-hidden" for="asset-search">Buscar equipo</label><input class="form-control" id="asset-search" type="search" name="q" value="{{ query }}" placeholder="Hostname, IP, aplicación u OU" autocomplete="off"></div>
                 <div class="col-12 col-md-6 col-lg-2"><label class="form-label visually-hidden" for="asset-enabled">Estado</label><select class="form-select" id="asset-enabled" name="enabled"><option value="all">Todos los estados</option><option value="yes" {% if selected_enabled == 'yes' %}selected{% endif %}>Habilitados</option><option value="no" {% if selected_enabled == 'no' %}selected{% endif %}>Deshabilitados</option></select></div>
                 <div class="col-12 col-md-6 col-lg-2"><label class="form-label visually-hidden" for="asset-type">Sección</label><select class="form-select" id="asset-type" name="type"><option value="">Todas las secciones</option>{% for category in type_choices %}<option value="{{ category.id }}" {% if selected_type == category.id|stringformat:"s" %}selected{% endif %}>{{ category.name }}</option>{% endfor %}</select></div>
                 <div class="col-12 col-md-6 col-lg-2"><label class="form-label visually-hidden" for="asset-ping">Ping</label><select class="form-select" id="asset-ping" name="ping"><option value="all">Todos los resultados de ping</option><option value="reachable" {% if selected_ping == 'reachable' %}selected{% endif %}>Responde</option><option value="unreachable" {% if selected_ping == 'unreachable' %}selected{% endif %}>No responde</option><option value="unchecked" {% if selected_ping == 'unchecked' %}selected{% endif %}>Sin verificar</option><option value="error" {% if selected_ping == 'error' %}selected{% endif %}>Ping no disponible</option></select></div>
+                <div class="col-12 col-md-6 col-lg-2"><label class="form-label visually-hidden" for="asset-environment">Ambiente</label><select class="form-select" id="asset-environment" name="asset_environment"><option value="all">Todos los ambientes</option>{% for environment in asset_environment_choices %}<option value="{{ environment }}" {% if selected_asset_environment|upper == environment %}selected{% endif %}>{{ environment }}</option>{% endfor %}</select></div>
             </form>
             <div class="live-status" id="asset-live-status" aria-live="polite"></div>
             <div id="asset-results">{% include "server_heatmap/_asset_results.html" %}</div>

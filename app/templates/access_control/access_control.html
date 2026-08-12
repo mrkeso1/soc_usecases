@@ -2,6 +2,19 @@
 
 {% block title %}Accesos - SOC Control Manager{% endblock %}
 
+{% block extra_css %}
+<style>
+    .access-role-table { min-width:760px; table-layout:fixed; }
+    .access-role-table col.role-column { width:145px; }
+    .access-role-table col.users-column { width:90px; }
+    .access-role-table col.actions-column { width:100px; }
+    .access-role-table th,.access-role-table td { overflow-wrap:normal!important; word-break:normal!important; }
+    .access-role-table .permission-badges { min-width:0; }
+    .access-role-table .permission-badge { max-width:100%; white-space:normal; overflow-wrap:anywhere; text-align:left; line-height:1.25; }
+    .access-role-table .role-name { overflow-wrap:anywhere; }
+</style>
+{% endblock %}
+
 {% block content %}
 <main class="container-xxl py-4 px-3 px-lg-4">
     <header class="row g-3 align-items-start mb-4">
@@ -22,17 +35,18 @@
             <article class="card shadow-sm overflow-hidden">
                 <div class="card-header p-3"><h2 class="h5 mb-0">Roles configurados</h2></div>
                 <div class="table-responsive">
-                    <table class="table data-table table-hover align-middle mb-0">
+                    <table class="table data-table access-role-table table-hover align-middle mb-0">
+                        <colgroup><col class="role-column"><col class="users-column"><col><col class="actions-column"></colgroup>
                         <thead><tr><th>Rol</th><th>Usuarios</th><th>Permisos</th><th>Acciones</th></tr></thead>
                         <tbody>
                             {% for group in groups %}
                                 <tr>
-                                    <td><strong class="detail-value">{{ group.name }}</strong></td>
+                                    <td><strong class="detail-value role-name">{{ group.name }}</strong></td>
                                     <td>{{ group.user_set.count }}</td>
                                     <td>
-                                        <div class="d-flex flex-wrap gap-1">
+                                        <div class="permission-badges d-flex flex-wrap gap-1">
                                             {% for permission in group.permissions.all|slice:":8" %}
-                                                <span class="badge text-bg-secondary">{{ permission.content_type.app_label }}.{{ permission.codename }}</span>
+                                                <span class="badge text-bg-secondary permission-badge" title="{{ permission.content_type.app_label }}.{{ permission.codename }}">{{ permission.name }}</span>
                                             {% empty %}
                                                 <span class="muted">Sin permisos</span>
                                             {% endfor %}
@@ -83,4 +97,19 @@
         </aside>
     </section>
 </main>
+{{ user_role_map|json_script:"user-role-map" }}
+<script>
+(() => {
+    const userSelect = document.getElementById("{{ assignment_form.user.id_for_label }}");
+    const roleMapElement = document.getElementById("user-role-map");
+    if (!userSelect || !roleMapElement) return;
+    const roleMap = JSON.parse(roleMapElement.textContent);
+    userSelect.addEventListener("change", () => {
+        const selectedRoles = new Set((roleMap[userSelect.value] || []).map(String));
+        document.querySelectorAll('input[name="groups"]').forEach(checkbox => {
+            checkbox.checked = selectedRoles.has(checkbox.value);
+        });
+    });
+})();
+</script>
 {% endblock %}

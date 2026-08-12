@@ -2,6 +2,9 @@ import os
 import time
 
 from django.core.management import BaseCommand, call_command
+from django.utils import timezone
+
+from apps.dashboard.models import MitreCoverageSnapshot
 
 
 class Command(BaseCommand):
@@ -32,6 +35,8 @@ class Command(BaseCommand):
 
         while True:
             call_command("sync_security_frameworks_scheduled", stdout=self.stdout)
+            if not MitreCoverageSnapshot.objects.filter(snapshot_date=timezone.localdate()).exists():
+                call_command("capture_mitre_coverage_snapshot", stdout=self.stdout)
             if options["once"]:
                 return
             time.sleep(poll_seconds)

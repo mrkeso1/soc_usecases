@@ -162,6 +162,7 @@ def diagnose_ingestion_gaps(
                 Q(network_checked_at__isnull=True)
                 | Q(is_enabled=False)
                 | Q(is_excluded_by_rule=True)
+                | Q(reachability_status=ServerAsset.REACHABILITY_ERROR)
             )
     else:
         queryset = queryset.filter(is_enabled=True, is_excluded_by_rule=False)

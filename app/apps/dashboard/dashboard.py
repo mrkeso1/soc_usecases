@@ -783,94 +783,71 @@ def build_mitre_coverage_timeline(days=90):
     }
 
 
-def _risk_level(score):
-    if score >= 80:
-        return "Alto"
-    if score >= 45:
-        return "Medio"
-    return "Bajo"
+def build_d3fend_daily_chart(context=None, days=90):
+    from datetime import timedelta
 
+    day_count = int(days or 90)
+    today = date.today()
+    start_date = today - timedelta(days=day_count - 1)
+    snapshots = list(
+        MitreCoverageSnapshot.objects
+        .filter(snapshot_date__gte=start_date, snapshot_date__lte=today)
+        .order_by("snapshot_date")
+    )
+    current_percent = None
+    if context:
+        current_percent = context.get("global_d3fend_coverage_percent")
+    if current_percent is not None and (not snapshots or snapshots[-1].snapshot_date != today):
+        snapshots.append(None)
 
-def _risk_level_class(score):
-    if score >= 80:
-        return "good"
-    if score >= 45:
-        return "medium"
-    return "bad"
-
-
-def build_mitre_risk_overview(context, days=90):
-    timeline = build_mitre_coverage_timeline(days=days)
-    score = mitre_snapshot_payload_from_context(context)["coverage_score"]
-    attack_score = context["attack_radials"][0]["percent"]
-    tactics_score = context["attack_radials"][1]["percent"]
-    d3fend_score = context["d3fend_radials"][0]["percent"]
-    d3fend_full_score = context["d3fend_radials"][1]["percent"]
-    category_rows = []
-    for name, row_score, color in (
-        ("ATT&CK técnicas", attack_score, "#2d7aff"),
-        ("ATT&CK tácticas 100%", tactics_score, "#00e5a0"),
-        ("D3FEND Detect", d3fend_score, "#ff7ab6"),
-        ("D3FEND 100%", d3fend_full_score, "#f5a623"),
-    ):
-        category_rows.append({
-            "name": name,
-            "score": row_score,
-            "score_label": _format_number(row_score),
-            "score_width": _css_percent(row_score),
-            "level": _risk_level(row_score),
-            "class": _risk_level_class(row_score),
-            "color": color,
+    rows = []
+    previous_month = None
+    for index, snapshot in enumerate(snapshots):
+        snapshot_date = snapshot.snapshot_date if snapshot else today
+        value = float(snapshot.d3fend_detect_percent) if snapshot else float(current_percent)
+        if day_count <= 30:
+            show_axis_label = index % 3 == 0 or index == len(snapshots) - 1
+        elif day_count <= 90:
+            show_axis_label = index % 7 == 0 or index == len(snapshots) - 1
+        else:
+            show_axis_label = snapshot_date.month != previous_month or index == len(snapshots) - 1
+        rows.append({
+            "label": snapshot_date.strftime("%d/%m"),
+            "axis_label": snapshot_date.strftime("%d/%m") if show_axis_label else "",
+            "title": snapshot_date.strftime("%d/%m/%Y"),
+            "value": value,
+            "value_label": _format_number(value),
+            "height": _css_percent(value),
         })
+        previous_month = snapshot_date.month
 
-    monthly_map = {}
-    for row in timeline["rows"]:
-        key = row["date"].strftime("%b")
-        bucket = monthly_map.setdefault(key, {"label": key, "attack": [], "d3fend": [], "score": []})
-        bucket["attack"].append(row["attack"])
-        bucket["d3fend"].append(row["d3fend"])
-        bucket["score"].append(row["score"])
-    monthly_rows = []
-    for bucket in monthly_map.values():
-        attack_avg = round(sum(bucket["attack"]) / len(bucket["attack"]), 1)
-        d3fend_avg = round(sum(bucket["d3fend"]) / len(bucket["d3fend"]), 1)
-        score_avg = round(sum(bucket["score"]) / len(bucket["score"]), 1)
-        monthly_rows.append({
-            "label": bucket["label"],
-            "attack": _format_number(attack_avg),
-            "attack_height": _css_percent(attack_avg),
-            "d3fend": _format_number(d3fend_avg),
-            "d3fend_height": _css_percent(d3fend_avg),
-            "score": _format_number(score_avg),
-            "score_height": _css_percent(score_avg),
-        })
+    if len(rows) == 1:
+        rows[0]["left"] = "98"
+        rows[0]["top"] = _css_percent(100 - rows[0]["value"])
+        line_points = f"2,{rows[0]['top']} 98,{rows[0]['top']}"
+    else:
+        points = []
+        for index, row in enumerate(rows):
+            left = 2 + (index / max(len(rows) - 1, 1)) * 96
+            top = max(0.0, min(100.0, 100 - row["value"]))
+            row["left"] = f"{left:.2f}"
+            row["top"] = f"{top:.2f}"
+            points.append(f"{left:.2f},{top:.2f}")
+        line_points = " ".join(points)
 
-    if not monthly_rows:
-        monthly_rows = [{
-            "label": date.today().strftime("%b"),
-            "attack": _format_number(attack_score),
-            "attack_height": _css_percent(attack_score),
-            "d3fend": _format_number(d3fend_score),
-            "d3fend_height": _css_percent(d3fend_score),
-            "score": _format_number(score),
-            "score_height": _css_percent(score),
-        }]
+    axis_labels = [
+        {"left": row["left"], "label": row["axis_label"]}
+        for row in rows
+        if row["axis_label"]
+    ]
 
     return {
-        "score": score,
-        "score_label": _format_number(score),
-        "score_width": _css_percent(score),
-        "level": _risk_level(score),
-        "level_class": _risk_level_class(score),
-        "delta": timeline["delta"],
-        "points": timeline["points"],
-        "chart_points": timeline["chart_points"],
-        "x_axis_labels": timeline["x_axis_labels"],
-        "range_label": timeline["range_label"],
-        "count": timeline["count"],
-        "has_history": timeline["count"] > 1,
-        "categories": category_rows,
-        "monthly_rows": monthly_rows[-6:],
+        "rows": rows,
+        "has_data": bool(rows),
+        "latest": rows[-1] if rows else None,
+        "day_count": day_count,
+        "line_points": line_points,
+        "axis_labels": axis_labels,
     }
 
 
@@ -1175,7 +1152,7 @@ def build_dashboard_context(request):
     for row in sorted(
         d3fend_detect_rows_by_id.values(),
         key=lambda item: (-item["coverage_ratio"], item["code"], item["name"]),
-    )[:30]:
+    ):
         production_cases = len(production_case_ids_by_d3fend.get(row["id"], set()))
         d3fend_detect_coverage_rows.append({
             "id": row["id"],
@@ -1193,11 +1170,11 @@ def build_dashboard_context(request):
     uncovered_attacks = [
         attack for attack in all_attacks
         if attack.id in all_attack_ids and attack.id not in covered_attack_ids
-    ][:30]
+    ]
     uncovered_attack_techniques = all_attack_techniques - covered_attack_techniques
 
     if d3fend_mapping_ready:
-        uncovered_d3fends = [d3fend for coverage, d3fend in d3fend_coverage_rows if coverage < 1][:50]
+        uncovered_d3fends = [d3fend for coverage, d3fend in d3fend_coverage_rows if coverage < 1]
     else:
         uncovered_d3fends = []
         for d3fend in D3Fend.objects.all().order_by("code", "name"):
@@ -1210,8 +1187,6 @@ def build_dashboard_context(request):
             )
             if status.is_enabled and not status.is_fulfilled and d3fend.id not in covered_from_cases:
                 uncovered_d3fends.append(d3fend)
-            if len(uncovered_d3fends) >= 30:
-                break
 
     top_attack_techniques = [
         {"id": aid, "external_id": eid, "name": name, "count": count}
@@ -1344,5 +1319,5 @@ def build_dashboard_context(request):
         "top_attack_techniques": top_attack_techniques,
         "top_d3fend_controls": top_d3fend_controls,
     }
-    context["mitre_risk_overview"] = build_mitre_risk_overview(context, days=timeline_days)
+    context["d3fend_daily_chart"] = build_d3fend_daily_chart(context, days=timeline_days)
     return context

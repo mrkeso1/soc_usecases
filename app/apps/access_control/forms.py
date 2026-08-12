@@ -102,6 +102,21 @@ class AccessRoleForm(forms.ModelForm):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
+        catalog = set(catalog_permission_codenames())
+        self._preserved_permissions = []
+        if self.instance.pk:
+            self._preserved_permissions = list(
+                self.instance.permissions.exclude(
+                    content_type__app_label__in={item.split(".", 1)[0] for item in catalog},
+                )
+            )
+            catalog_pairs = {tuple(item.split(".", 1)) for item in catalog}
+            self._preserved_permissions.extend(
+                permission
+                for permission in self.instance.permissions.select_related("content_type")
+                if (permission.content_type.app_label, permission.codename) not in catalog_pairs
+                and permission not in self._preserved_permissions
+            )
         _apply_bootstrap_widget_classes(self)
         pairs = [item.split(".", 1) for item in catalog_permission_codenames()]
         query = Permission.objects.none()
@@ -111,6 +126,12 @@ class AccessRoleForm(forms.ModelForm):
             "content_type__app_label",
             "codename",
         )
+
+    def save(self, commit=True):
+        role = super().save(commit=commit)
+        if commit and self._preserved_permissions:
+            role.permissions.add(*self._preserved_permissions)
+        return role
 
 
 class UserRoleAssignmentForm(forms.Form):

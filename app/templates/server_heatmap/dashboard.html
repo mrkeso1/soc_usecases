@@ -10,6 +10,10 @@
     .server-kpi span { display:block; color:var(--text-muted); font:700 10px 'JetBrains Mono',monospace; text-transform:uppercase; letter-spacing:.08em; }
     .server-kpi strong { display:block; margin-top:6px; color:var(--text-strong); font:800 1.08rem 'JetBrains Mono',monospace; line-height:1.1; }
     .server-kpi small { display:block; margin-top:3px; color:var(--text-muted); font-size:.76rem; }
+    .server-kpi-link { display:block; height:100%; color:inherit; text-decoration:none; }
+    .server-kpi-link .server-kpi { transition:border-color .15s ease,transform .15s ease,box-shadow .15s ease; }
+    .server-kpi-link:hover .server-kpi,.server-kpi-link:focus-visible .server-kpi { border-color:var(--accent); transform:translateY(-1px); box-shadow:0 8px 22px var(--accent-dim); }
+    .server-kpi-link:focus-visible { outline:2px solid var(--accent); outline-offset:3px; border-radius:12px; }
     .inventory-update,.inventory-run { min-width:0; padding:12px 14px; }
     .inventory-update { border-right:1px solid var(--border); }
     .inventory-update h2 { margin:0; color:var(--text-strong); font-size:.96rem; }
@@ -165,7 +169,7 @@
         <div class="col-12 col-md-6 col-xl-3"><article class="server-kpi server-card card h-100"><span>En AD</span><strong>{{ ad_count }}</strong><small>inventario esperado</small></article></div>
         <div class="col-12 col-md-6 col-xl-3"><article class="server-kpi server-card card h-100"><span>Cubiertos</span><strong>{{ both_count }}</strong><small>{{ siem_coverage_percent }}% del inventario AD</small></article></div>
         <div class="col-12 col-md-6 col-xl-3"><article class="server-kpi server-card card h-100"><span>Pendientes</span><strong>{{ ad_only_count }}</strong><small>equipos AD sin SIEM</small></article></div>
-        <div class="col-12 col-md-6 col-xl-3"><article class="server-kpi server-card card h-100"><span>Solo SIEM</span><strong>{{ siem_only_count }}</strong><small>no encontrados en AD</small></article></div>
+        <div class="col-12 col-md-6 col-xl-3"><a class="server-kpi-link" href="?environment={{ selected_environment|urlencode }}&amp;os={{ selected_os|urlencode }}&amp;type={{ selected_type|urlencode }}&amp;coverage=&amp;enabled={{ selected_enabled|urlencode }}&amp;inventory_status=new&amp;inventory_q=#inventory-results"><article class="server-kpi server-card card h-100"><span>Servidores nuevos · últimos 7 días</span><strong>{{ new_server_count }}</strong></article></a></div>
     </section>
 
     <section class="filter-panel server-card card mt-3">
@@ -281,6 +285,12 @@
                         {% if selected_inventory_status == 'pending' %}selected{% endif %}
                     >
                         Pendientes de ingesta
+                    </option>
+                    <option
+                        value="new"
+                        {% if selected_inventory_status == 'new' %}selected{% endif %}
+                    >
+                        Nuevos en los últimos 7 días
                     </option>
                 </select>
             </div>

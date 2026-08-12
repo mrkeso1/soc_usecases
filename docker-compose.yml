@@ -1,10 +1,12 @@
 services:
-  # docker-compose.yml es solo para desarrollo local.
-  # En entornos compartidos usa docker-compose.prod.yml y un reverse proxy.
   db:
     image: postgres:16
     container_name: soc_db
     restart: unless-stopped
+    mem_limit: 768m
+    mem_reservation: 384m
+    cpus: "1.0"
+    pids_limit: 200
     env_file:
       - .env
     environment:
@@ -15,10 +17,13 @@ services:
       - "5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
+    networks:
+      - internal
 
   db_backup:
     image: postgres:16
-    profiles: ["tools"]
+    profiles:
+      - tools
     user: "${BACKUP_UID:-1000}:${BACKUP_GID:-1000}"
     env_file:
       - .env
@@ -31,11 +36,16 @@ services:
       - ./docker/postgres:/scripts:ro
     depends_on:
       - db
-    entrypoint: ["/bin/sh", "/scripts/backup.sh"]
+    networks:
+      - internal
+    entrypoint:
+      - /bin/sh
+      - /scripts/backup.sh
 
   db_restore:
     image: postgres:16
-    profiles: ["tools"]
+    profiles:
+      - tools
     user: "${BACKUP_UID:-1000}:${BACKUP_GID:-1000}"
     env_file:
       - .env
@@ -51,7 +61,11 @@ services:
       - ./docker/postgres:/scripts:ro
     depends_on:
       - db
-    entrypoint: ["/bin/sh", "/scripts/restore.sh"]
+    networks:
+      - internal
+    entrypoint:
+      - /bin/sh
+      - /scripts/restore.sh
 
   web:
     build:
@@ -59,6 +73,10 @@ services:
       dockerfile: docker/django/Dockerfile
     container_name: soc_web
     restart: unless-stopped
+    mem_limit: 1g
+    mem_reservation: 512m
+    cpus: "1.5"
+    pids_limit: 250
     env_file:
       - .env
     volumes:
@@ -66,10 +84,19 @@ services:
       - ./logs:/logs
     environment:
       LOG_DIR: ${LOG_DIR:-/logs}
-    ports:
-      - "8000:8000"
+      HTTP_PROXY: ${HTTP_PROXY:-}
+      HTTPS_PROXY: ${HTTPS_PROXY:-}
+      FTP_PROXY: ${FTP_PROXY:-}
+      NO_PROXY: ${NO_PROXY:-}
+      http_proxy: ${http_proxy:-}
+      https_proxy: ${https_proxy:-}
+      ftp_proxy: ${ftp_proxy:-}
+      no_proxy: ${no_proxy:-}
     depends_on:
       - db
+    networks:
+      - internal
+      - web
     command: python manage.py runserver 0.0.0.0:8000
 
   mitre_scheduler:
@@ -78,6 +105,10 @@ services:
       dockerfile: docker/django/Dockerfile
     container_name: soc_mitre_scheduler
     restart: unless-stopped
+    mem_limit: 512m
+    mem_reservation: 256m
+    cpus: "0.75"
+    pids_limit: 150
     env_file:
       - .env
     volumes:
@@ -86,10 +117,20 @@ services:
     environment:
       LOG_DIR: ${LOG_DIR:-/logs}
       MITRE_SYNC_POLL_SECONDS: ${MITRE_SYNC_POLL_SECONDS:-3600}
+      HTTP_PROXY: ${HTTP_PROXY:-}
+      HTTPS_PROXY: ${HTTPS_PROXY:-}
+      FTP_PROXY: ${FTP_PROXY:-}
+      NO_PROXY: ${NO_PROXY:-}
+      http_proxy: ${http_proxy:-}
+      https_proxy: ${https_proxy:-}
+      ftp_proxy: ${ftp_proxy:-}
+      no_proxy: ${no_proxy:-}
     depends_on:
       - db
     healthcheck:
       disable: true
+    networks:
+      - internal
     command: python manage.py run_mitre_scheduler
 
   server_inventory_worker:
@@ -98,6 +139,10 @@ services:
       dockerfile: docker/django/Dockerfile
     container_name: soc_server_inventory_worker
     restart: unless-stopped
+    mem_limit: 768m
+    mem_reservation: 256m
+    cpus: "1.0"
+    pids_limit: 200
     env_file:
       - .env
     volumes:
@@ -105,11 +150,28 @@ services:
       - ./logs:/logs
     environment:
       LOG_DIR: ${LOG_DIR:-/logs}
+      HTTP_PROXY: ${HTTP_PROXY:-}
+      HTTPS_PROXY: ${HTTPS_PROXY:-}
+      FTP_PROXY: ${FTP_PROXY:-}
+      NO_PROXY: ${NO_PROXY:-}
+      http_proxy: ${http_proxy:-}
+      https_proxy: ${https_proxy:-}
+      ftp_proxy: ${ftp_proxy:-}
+      no_proxy: ${no_proxy:-}
     depends_on:
       - db
     healthcheck:
       disable: true
+    networks:
+      - internal
     command: python manage.py run_server_inventory_worker
+
+networks:
+  internal:
+    driver: bridge
+
+  web:
+    external: true
 
 volumes:
   postgres_data:

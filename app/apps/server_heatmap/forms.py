@@ -32,11 +32,23 @@ class InventoryConfigurationForm(BootstrapFormMixin, forms.ModelForm):
     class Meta:
         model = ServerInventoryConfiguration
         fields = (
+            "siem_sync_enabled",
+            "siem_sync_interval_days",
+            "siem_sync_time",
             "ad_active_days",
             "retention_days",
             "inventory_history_days",
             "job_history_days",
         )
+        widgets = {
+            "siem_sync_time": forms.TimeInput(format="%H:%M", attrs={"type": "time"}),
+        }
+
+    def clean_siem_sync_interval_days(self):
+        value = self.cleaned_data["siem_sync_interval_days"]
+        if value < 1:
+            raise forms.ValidationError("La periodicidad debe ser de al menos un día.")
+        return value
 
 
 class ServerAssetForm(BootstrapFormMixin, forms.ModelForm):

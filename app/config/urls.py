@@ -6,7 +6,12 @@ from django.shortcuts import redirect
 from django.urls import include, path, re_path
 from django.views.static import serve
 
-from apps.dashboard.views import dashboard_mitre_view, dashboard_pdf_export, dashboard_view
+from apps.dashboard.views import (
+    dashboard_mitre_details_view,
+    dashboard_mitre_view,
+    dashboard_pdf_export,
+    dashboard_view,
+)
 
 
 def root_redirect(request):
@@ -23,6 +28,7 @@ urlpatterns = [
     path("logout/", auth_views.LogoutView.as_view(next_page="login"), name="logout"),
     path("dashboard/", dashboard_view, name="dashboard"),
     path("dashboard/mitre/", dashboard_mitre_view, name="dashboard_mitre"),
+    path("dashboard/mitre/details/", dashboard_mitre_details_view, name="dashboard_mitre_details"),
     path("dashboard/export/pdf/", dashboard_pdf_export, name="dashboard_pdf_export"),
     path("lifecycle/", include("apps.lifecycle.urls")),
     path("mitre/", include("apps.mitre.urls")),

@@ -17,8 +17,9 @@ from .inventory_operations import (
     run_full_inventory_sync,
     run_network_diagnostics,
     run_reprocess_inventory,
+    run_siem_inventory_sync,
 )
-from .models import InventoryJob
+from .models import InventoryJob, ServerInventoryConfiguration
 
 
 logger = logging.getLogger("soc.inventory")
@@ -70,6 +71,33 @@ def enqueue_inventory_job(
         if existing:
             return existing, False
         return InventoryJob.objects.get(idempotency_key=idempotency_key), False
+
+
+def enqueue_due_siem_sync(*, now=None):
+    now = now or timezone.now()
+    ServerInventoryConfiguration.load()
+    with transaction.atomic():
+        configuration = ServerInventoryConfiguration.objects.select_for_update().get(pk=1)
+        if not configuration.siem_sync_enabled:
+            return None, False
+        local_now = timezone.localtime(now)
+        if local_now.time().replace(tzinfo=None) < configuration.siem_sync_time:
+            return None, False
+        if configuration.siem_sync_last_enqueued_at:
+            last_date = timezone.localtime(
+                configuration.siem_sync_last_enqueued_at,
+            ).date()
+            elapsed_days = (local_now.date() - last_date).days
+            if elapsed_days < max(1, configuration.siem_sync_interval_days):
+                return None, False
+        job, created = enqueue_inventory_job(
+            InventoryJob.TYPE_SIEM_SYNC,
+            payload={"scheduled": True},
+            idempotency_key=f"scheduled-siem:{local_now.date().isoformat()}",
+        )
+        configuration.siem_sync_last_enqueued_at = now
+        configuration.save(update_fields=["siem_sync_last_enqueued_at", "updated_at"])
+        return job, created
 
 
 def recover_zombie_jobs():
@@ -211,6 +239,12 @@ def _execute(job, worker_id):
         return run_apply_filters(progress_callback=callback)
     if job.job_type == InventoryJob.TYPE_NETWORK_DIAGNOSTIC:
         return run_network_diagnostics(progress_callback=callback)
+    if job.job_type == InventoryJob.TYPE_SIEM_SYNC:
+        return run_siem_inventory_sync(
+            siem_file=(job.payload or {}).get("siem_file"),
+            scheduled=(job.payload or {}).get("scheduled", False),
+            progress_callback=callback,
+        )
     raise ValueError(f"Tipo de trabajo no soportado: {job.job_type}")
 
 

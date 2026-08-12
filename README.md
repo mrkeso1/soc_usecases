@@ -143,7 +143,7 @@ docker compose exec web python manage.py import_usecases /app/ruta/archivo.xlsx 
 # Sync completo ATT&CK + D3FEND + mappings + casos
 docker compose exec web python manage.py sync_security_frameworks_scheduled --force
 
-# Snapshot diario dashboard MITRE
+# Snapshot manual opcional; mitre_scheduler lo captura automaticamente una vez por dia
 docker compose exec web python manage.py capture_mitre_coverage_snapshot
 ```
 

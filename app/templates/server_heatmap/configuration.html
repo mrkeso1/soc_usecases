@@ -1,0 +1,49 @@
+{% extends "base_bootstrap.html" %}
+
+{% block title %}Configuración del inventario - SOC Control Manager{% endblock %}
+
+{% block extra_css %}
+<style>
+    .configuration-card { border:1px solid var(--border); border-radius:15px; background:var(--surface); padding:clamp(18px,3vw,28px); }
+    .configuration-grid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:18px; }
+    .configuration-grid .field:first-child { grid-column:1/-1; }
+    .configuration-grid label { display:block; margin-bottom:6px; color:var(--text-strong); font-size:.82rem; font-weight:700; }
+    .configuration-grid input,.configuration-grid select { width:100%; }
+    .configuration-grid .helptext { display:block; margin-top:5px; color:var(--text-muted); font-size:.73rem; line-height:1.4; }
+    .configuration-grid .errorlist { margin:6px 0 0; color:var(--bad); font-size:.76rem; }
+    @media(max-width:760px){.configuration-grid{grid-template-columns:1fr}.configuration-grid .field:first-child{grid-column:auto}}
+</style>
+{% endblock %}
+
+{% block content %}
+<main class="container-xxl px-3 px-lg-4 py-4"><section class="page-shell wide">
+    <header class="page-header">
+        <div>
+            <div class="page-eyebrow">// SERVIDORES · ADMINISTRACIÓN</div>
+            <h1 class="page-title">Configuración del inventario</h1>
+            <p class="page-subtitle">Programación SIEM, alcance de Active Directory y conservación del historial.</p>
+        </div>
+        <div class="header-actions">
+            <a class="btn btn-outline-secondary" href="{% url 'server_heatmap_administration' %}">Volver a administración</a>
+        </div>
+    </header>
+
+    <section class="configuration-card card">
+        <form method="post" data-submit-once>
+            {% csrf_token %}
+            <div class="configuration-grid">
+                {% for field in configuration_form %}
+                    <div class="field">
+                        {{ field.label_tag }}{{ field }}{{ field.errors }}
+                        {% if field.help_text %}<span class="helptext">{{ field.help_text }}</span>{% endif %}
+                    </div>
+                {% endfor %}
+            </div>
+            <p class="helptext mt-3 mb-0">Última programación SIEM: {{ configuration_form.instance.siem_sync_last_enqueued_at|date:"d/m/Y H:i:s"|default:"Todavía no ejecutada" }}</p>
+            <div class="d-flex justify-content-end mt-4">
+                <button class="btn btn-primary" type="submit">Guardar configuración</button>
+            </div>
+        </form>
+    </section>
+</section></main>
+{% endblock %}

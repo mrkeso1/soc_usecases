@@ -1,4 +1,5 @@
 from django.contrib import messages
+from django.contrib.auth import get_user_model
 from django.contrib.auth.decorators import login_required
 from django.contrib.auth.models import Group
 from django.http import HttpResponseForbidden
@@ -104,6 +105,10 @@ def access_control_home(request):
         "groups": groups,
         "permission_catalog": PERMISSION_CATALOG,
         "assignment_form": assignment_form,
+        "user_role_map": {
+            str(user.id): list(user.groups.values_list("id", flat=True))
+            for user in get_user_model().objects.prefetch_related("groups").order_by("username")
+        },
     })
 
 

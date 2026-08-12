@@ -9,6 +9,7 @@ from django.test import RequestFactory, TestCase
 from django.urls import reverse
 from django.utils import timezone
 
+from apps.dashboard.models import MitreCoverageSnapshot
 from apps.mitre.framework_sync import run_scheduled_security_frameworks_sync
 from apps.mitre.d3fend_matrix import build_d3fend_matrix_context
 from apps.mitre.attack_ids import attack_family_query
@@ -33,6 +34,26 @@ from apps.mitre.translation_catalog import export_translation_catalog, import_tr
 
 
 class MitreAttackSyncTests(TestCase):
+    @patch("apps.mitre.management.commands.run_mitre_scheduler.call_command")
+    def test_scheduler_captures_daily_coverage_when_today_is_missing(self, scheduled_call):
+        call_command("run_mitre_scheduler", once=True, stdout=StringIO())
+
+        self.assertEqual(
+            [call.args[0] for call in scheduled_call.call_args_list],
+            ["sync_security_frameworks_scheduled", "capture_mitre_coverage_snapshot"],
+        )
+
+    @patch("apps.mitre.management.commands.run_mitre_scheduler.call_command")
+    def test_scheduler_does_not_repeat_daily_coverage_capture(self, scheduled_call):
+        MitreCoverageSnapshot.objects.create(snapshot_date=timezone.localdate())
+
+        call_command("run_mitre_scheduler", once=True, stdout=StringIO())
+
+        self.assertEqual(
+            [call.args[0] for call in scheduled_call.call_args_list],
+            ["sync_security_frameworks_scheduled"],
+        )
+
     def test_translation_catalog_updates_only_spanish_description(self):
         attack = MitreAttack.objects.create(
             external_id="T1114.001",

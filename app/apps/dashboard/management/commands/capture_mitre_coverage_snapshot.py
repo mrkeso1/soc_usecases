@@ -1,7 +1,6 @@
-from datetime import date
-
 from django.core.management.base import BaseCommand, CommandError
 from django.test import RequestFactory
+from django.utils import timezone
 from django.utils.dateparse import parse_date
 
 from apps.dashboard.dashboard import build_dashboard_context, save_mitre_coverage_snapshot
@@ -18,7 +17,7 @@ class Command(BaseCommand):
         )
 
     def handle(self, *args, **options):
-        snapshot_date = date.today()
+        snapshot_date = timezone.localdate()
         if options.get("snapshot_date"):
             parsed = parse_date(options["snapshot_date"])
             if not parsed:

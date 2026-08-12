@@ -1,4 +1,5 @@
 import re
+from datetime import time
 
 from django.conf import settings
 from django.core.exceptions import ValidationError
@@ -251,11 +252,13 @@ class InventoryJob(models.Model):
     TYPE_REPROCESS = "reprocess"
     TYPE_APPLY_FILTERS = "apply_filters"
     TYPE_NETWORK_DIAGNOSTIC = "network_diagnostic"
+    TYPE_SIEM_SYNC = "siem_sync"
     TYPE_CHOICES = [
         (TYPE_FULL_SYNC, "Actualizar AD y SIEM"),
         (TYPE_REPROCESS, "Cruzar inventario almacenado"),
         (TYPE_APPLY_FILTERS, "Aplicar filtros"),
         (TYPE_NETWORK_DIAGNOSTIC, "Diagnosticar conectividad"),
+        (TYPE_SIEM_SYNC, "Actualizar archivo SIEM"),
     ]
     STATUS_PENDING = "pending"
     STATUS_RUNNING = "running"
@@ -508,6 +511,27 @@ class ServerCategory(models.Model):
 
 
 class ServerInventoryConfiguration(models.Model):
+    siem_sync_enabled = models.BooleanField(
+        "Sincronización SIEM automática",
+        default=False,
+        help_text="Descarga y procesa automáticamente el archivo configurado en SERVER_INVENTORY_SIEM_URL.",
+    )
+    siem_sync_interval_days = models.PositiveSmallIntegerField(
+        "Periodicidad SIEM (días)",
+        default=1,
+        help_text="1 = todos los días; 2 = día por medio; 7 = semanal.",
+    )
+    siem_sync_time = models.TimeField(
+        "Horario de sincronización SIEM",
+        default=time(2, 0),
+        help_text="Se interpreta en la zona horaria configurada por el sistema.",
+    )
+    siem_sync_last_enqueued_at = models.DateTimeField(
+        "Última sincronización SIEM programada",
+        null=True,
+        blank=True,
+        editable=False,
+    )
     ad_active_days = models.PositiveSmallIntegerField(
         "Actividad máxima en AD (días)",
         default=60,

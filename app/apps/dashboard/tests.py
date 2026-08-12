@@ -1,6 +1,7 @@
-from datetime import date
+from datetime import date, timedelta
 from io import BytesIO
 from types import SimpleNamespace
+from unittest.mock import patch
 
 from django.contrib.auth import get_user_model
 from django.test import TestCase
@@ -9,6 +10,7 @@ from django.urls import reverse
 
 from apps.dashboard.dashboard import (
     build_dashboard_context,
+    build_d3fend_daily_chart,
     build_executive_dashboard_context,
     build_mitre_coverage_timeline,
     save_mitre_coverage_snapshot,
@@ -318,7 +320,29 @@ class DashboardInventoryScopeTests(TestCase):
         self.assertEqual(timeline["count"], 1)
         self.assertEqual(timeline["latest"]["score"], 100)
 
-    def test_mitre_dashboard_view_captures_today_snapshot(self):
+    def test_d3fend_daily_chart_uses_each_snapshot_in_selected_period(self):
+        today = date.today()
+        MitreCoverageSnapshot.objects.create(
+            snapshot_date=today - timedelta(days=2),
+            d3fend_detect_percent=10,
+        )
+        MitreCoverageSnapshot.objects.create(
+            snapshot_date=today - timedelta(days=1),
+            d3fend_detect_percent=25,
+        )
+        MitreCoverageSnapshot.objects.create(
+            snapshot_date=today,
+            d3fend_detect_percent=40,
+        )
+
+        chart = build_d3fend_daily_chart(days=30)
+
+        self.assertEqual(chart["day_count"], 30)
+        self.assertEqual(len(chart["rows"]), 3)
+        self.assertEqual(chart["rows"][-2]["value"], 25)
+        self.assertEqual(chart["rows"][-1]["value"], 40)
+
+    def test_mitre_dashboard_view_does_not_overwrite_daily_snapshot(self):
         attack = MitreAttack.objects.create(external_id="T1001", name="Covered", tactic="Execution")
         d3fend = D3Fend.objects.create(code="D3-DAO", name="Decoy Object", category="Detect")
         d3fend.related_attacks.add(attack)
@@ -330,5 +354,35 @@ class DashboardInventoryScopeTests(TestCase):
         response = self.client.get(reverse("dashboard_mitre"))
 
         self.assertEqual(response.status_code, 200)
-        self.assertTrue(MitreCoverageSnapshot.objects.filter(snapshot_date=date.today()).exists())
-        self.assertGreaterEqual(response.context["mitre_risk_overview"]["count"], 1)
+        self.assertFalse(MitreCoverageSnapshot.objects.filter(snapshot_date=date.today()).exists())
+        self.assertTrue(response.context["d3fend_daily_chart"]["has_data"])
+        self.assertIsNotNone(response.context["d3fend_daily_chart"]["latest"])
+
+    @patch("apps.dashboard.views.build_dashboard_context")
+    def test_mitre_detail_endpoint_paginates_and_sorts_without_full_page(self, build_context):
+        build_context.return_value = {
+            "tactic_coverage_rows": [
+                {
+                    "name": f"Tactica {index}",
+                    "covered": index,
+                    "total": 10,
+                    "percent": index * 10,
+                    "percent_label": str(index * 10),
+                    "production_cases": 0,
+                }
+                for index in range(1, 8)
+            ]
+        }
+        self.client.login(username="dashboard-user", password="pass")
+
+        response = self.client.get(reverse("dashboard_mitre_details"), {
+            "panel": "tactic_coverage",
+            "page": 2,
+            "sort": "asc",
+        })
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Tactica 7")
+        self.assertNotContains(response, "Tactica 1")
+        self.assertContains(response, "Pagina 2 de 2")
+        self.assertNotContains(response, "Dashboard MITRE")

@@ -192,10 +192,11 @@ class InventoryFilterRuleAdmin(admin.ModelAdmin):
 @admin.register(ServerInventoryConfiguration)
 class ServerInventoryConfigurationAdmin(admin.ModelAdmin):
     list_display = (
-        "__str__", "ad_active_days", "retention_days",
+        "__str__", "siem_sync_enabled", "siem_sync_interval_days", "siem_sync_time",
+        "ad_active_days", "retention_days",
         "inventory_history_days", "job_history_days", "updated_at",
     )
-    readonly_fields = ("updated_at",)
+    readonly_fields = ("siem_sync_last_enqueued_at", "updated_at")
 
     def has_add_permission(self, request):
         return not ServerInventoryConfiguration.objects.exists()

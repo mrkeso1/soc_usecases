@@ -266,142 +266,41 @@
         line-height: 1.35;
     }
 
-    .risk-overview {
-        display: grid;
-        grid-template-columns: 310px minmax(0, 1fr);
-        gap: 0;
-        margin: 0 0 24px;
-        border: 1px solid var(--border);
-        border-radius: 18px;
-        background:
-            radial-gradient(circle at 8% 12%, color-mix(in srgb, var(--accent) 16%, transparent), transparent 30%),
-            linear-gradient(135deg, color-mix(in srgb, var(--surface-2) 78%, transparent), transparent 58%),
-            var(--surface);
-        overflow: hidden;
-        box-shadow: 0 18px 45px rgba(0, 0, 0, .22);
-    }
-
-    .risk-overview,
-    .risk-overview * {
+    .d3fend-history-card,
+    .d3fend-history-card * {
         font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif !important;
         font-synthesis: none;
         letter-spacing: 0 !important;
         text-rendering: geometricPrecision;
     }
 
-    .risk-index-panel {
-        display: flex;
-        flex-direction: column;
-        padding: 22px 22px 18px;
-        border-right: 1px solid var(--border);
+    .d3fend-history-card {
+        margin: 0 0 24px;
+        padding: 22px 24px 20px;
+        overflow: hidden;
     }
 
-    .risk-panel-title,
-    .risk-summary-title {
-        color: var(--text-strong);
-        font-size: .9rem;
-        font-weight: 760;
-        line-height: 1.2;
-    }
-
-    .risk-panel-title {
-        font-size: .76rem;
-        text-transform: uppercase;
-    }
-
-    .risk-index-value {
-        display: flex;
-        align-items: baseline;
-        gap: 7px;
-        margin: 18px 0 8px;
-        color: var(--medium);
-        font-size: 3.55rem;
-        font-weight: 850;
-        line-height: .95;
-    }
-
-    .risk-index-value small {
-        color: var(--text-muted);
-        font-size: .86rem;
-        font-weight: 700;
-    }
-
-    .risk-level {
-        display: inline-flex;
-        align-items: center;
-        min-height: 24px;
-        padding: 3px 9px;
-        border: 1px solid var(--border);
-        border-radius: 7px;
-        width: max-content;
-        max-width: 100%;
-        color: var(--medium);
-        background: color-mix(in srgb, var(--medium) 10%, transparent);
-        font-size: .76rem;
-        font-weight: 800;
-    }
-
-    .risk-level.good { color: var(--good); background: color-mix(in srgb, var(--good) 10%, transparent); }
-    .risk-level.bad { color: var(--bad); background: color-mix(in srgb, var(--bad) 10%, transparent); }
-
-    .risk-contrib-list {
-        display: grid;
-        gap: 11px;
-        margin-top: auto;
-        padding-top: 22px;
-        border-top: 1px dashed var(--border);
-    }
-
-    .risk-contrib-row {
-        display: grid;
-        grid-template-columns: 10px 1fr auto;
-        gap: 9px;
-        align-items: baseline;
-        color: var(--text-muted);
-        font-size: .78rem;
-        font-weight: 650;
-    }
-
-    .risk-dot {
-        width: 7px;
-        height: 7px;
-        border-radius: 99px;
-        background: var(--accent);
-    }
-
-    .risk-contrib-row strong {
-        color: var(--text-strong);
-        font-weight: 760;
-    }
-
-    .risk-chart-panel {
-        display: grid;
-        min-width: 0;
-    }
-
-    .risk-line-area {
-        padding: 22px 24px 18px;
-    }
-
-    .risk-line-head {
+    .d3fend-history-head {
         display: flex;
         justify-content: space-between;
         gap: 12px;
         align-items: flex-start;
-        margin-bottom: 10px;
+        margin-bottom: 18px;
     }
 
-    .risk-line-meta {
+    .d3fend-history-title {
+        color: var(--text-strong);
+        font-size: 1rem;
+        font-weight: 780;
+        line-height: 1.25;
+    }
+
+    .d3fend-history-subtitle {
+        display: block;
+        margin-top: 4px;
         color: var(--text-muted);
-        font-size: .76rem;
+        font-size: .78rem;
         font-weight: 650;
-    }
-
-    .risk-line-tools {
-        display: flex;
-        flex-direction: column;
-        align-items: flex-end;
-        gap: 8px;
     }
 
     .risk-range-form {
@@ -430,204 +329,93 @@
         background: var(--accent);
     }
 
-    .risk-current-grid {
+    .d3fend-line-shell {
         display: grid;
-        grid-template-columns: repeat(4, minmax(0, 1fr));
-        gap: 10px;
-        margin: 14px 0 16px;
-    }
-
-    .risk-current-card {
-        min-width: 0;
-        padding: 12px;
-        border: 1px solid var(--border);
-        border-radius: 12px;
-        background: color-mix(in srgb, var(--surface-2) 62%, transparent);
-    }
-
-    .risk-current-top {
-        display: flex;
-        justify-content: space-between;
-        gap: 10px;
-        align-items: center;
-        margin-bottom: 9px;
-        color: var(--text-muted);
-        font-size: .74rem;
-        font-weight: 760;
-    }
-
-    .risk-current-top span {
-        overflow: hidden;
-        min-width: 0;
-        text-overflow: ellipsis;
-        white-space: nowrap;
-    }
-
-    .risk-current-top strong {
-        color: var(--text-strong);
-        flex: 0 0 auto;
-    }
-
-    .risk-current-track {
-        height: 7px;
-        overflow: hidden;
-        border-radius: 999px;
-        background: var(--surface-3);
-    }
-
-    .risk-current-track span {
-        display: block;
-        height: 100%;
-        border-radius: inherit;
-        background: var(--accent);
-    }
-
-    .risk-trend-chart {
-        width: 100%;
-        height: 190px;
-        overflow: visible;
-    }
-
-    .risk-trend-shell {
-        display: grid;
-        grid-template-columns: 34px minmax(0, 1fr);
-        gap: 10px;
-        align-items: stretch;
-        min-height: 198px;
-        margin-top: 12px;
-    }
-
-    .risk-date-strip {
-        display: flex;
-        align-items: center;
-        justify-content: space-between;
+        grid-template-columns: 38px minmax(0, 1fr);
         gap: 12px;
-        margin: 12px 0 -2px 44px;
-        color: var(--text-muted);
-        font-size: .72rem;
-        font-weight: 700;
+        align-items: stretch;
+        min-height: 260px;
     }
 
-    .risk-date-strip strong {
-        color: var(--text-strong);
-        font-weight: 750;
-    }
-
-    .risk-axis {
-        display: grid;
-        grid-template-rows: repeat(4, 1fr);
-        padding: 6px 0 22px;
+    .d3fend-line-axis {
+        display: flex;
+        flex-direction: column;
+        justify-content: space-between;
+        padding-bottom: 31px;
         color: var(--text-muted);
         font-size: .68rem;
         font-weight: 700;
         text-align: right;
     }
 
-    .risk-plot {
+    .d3fend-line-column { min-width: 0; }
+
+    .d3fend-line-plot {
         position: relative;
         min-width: 0;
-        height: 190px;
+        height: 230px;
         border: 1px solid var(--border);
         border-radius: 14px;
         background:
-            linear-gradient(180deg,
-                color-mix(in srgb, var(--good) 10%, transparent) 0%,
-                color-mix(in srgb, var(--good) 6%, transparent) 28%,
-                color-mix(in srgb, var(--medium) 7%, transparent) 57%,
-                color-mix(in srgb, var(--bad) 8%, transparent) 100%),
+            repeating-linear-gradient(to bottom, transparent 0, transparent calc(25% - 1px), var(--border) 25%),
+            linear-gradient(180deg, color-mix(in srgb, var(--good) 7%, transparent), color-mix(in srgb, var(--bad) 5%, transparent)),
             color-mix(in srgb, var(--surface-2) 42%, transparent);
         overflow: visible;
     }
 
-    .risk-plot-column {
-        min-width: 0;
+    .d3fend-line-svg {
+        display: block;
+        width: 100%;
+        height: 100%;
     }
 
-    .risk-x-axis {
-        position: relative;
-        height: 22px;
-        margin-top: 7px;
-        color: var(--text-muted);
-        font-size: .68rem;
-        font-weight: 700;
-    }
-
-    .risk-x-axis span {
-        position: absolute;
-        top: 0;
-        transform: translateX(-50%);
-        white-space: nowrap;
-    }
-
-    .risk-grid-line {
-        stroke: var(--border);
-        stroke-width: .28;
-    }
-
-    .risk-trend-line {
+    .d3fend-line-path {
         fill: none;
-        stroke: var(--text-strong);
-        stroke-width: 1.15;
+        stroke: var(--good);
+        stroke-width: 1.1;
         stroke-linecap: round;
         stroke-linejoin: round;
+        vector-effect: non-scaling-stroke;
+        filter: drop-shadow(0 0 5px color-mix(in srgb, var(--good) 38%, transparent));
     }
 
-    .risk-day-dot {
+    .d3fend-line-dot {
         position: absolute;
         z-index: 2;
         width: 14px;
         height: 14px;
-        border: 0;
         border-radius: 999px;
-        background: transparent;
         transform: translate(-50%, -50%);
     }
 
-    .risk-day-dot::before {
+    .d3fend-line-dot::before {
         content: "";
         position: absolute;
         inset: 4px;
         border-radius: inherit;
-        background: var(--text-strong);
-        box-shadow:
-            0 0 0 2px color-mix(in srgb, var(--surface) 82%, transparent),
-            0 0 0 3px color-mix(in srgb, var(--text-strong) 22%, transparent);
-        transition: inset .16s ease, background .16s ease, box-shadow .16s ease;
-    }
-
-    .risk-day-dot:hover::before {
-        inset: 2px;
-        background: var(--accent);
-        box-shadow:
-            0 0 0 2px color-mix(in srgb, var(--surface) 82%, transparent),
-            0 0 0 5px color-mix(in srgb, var(--accent) 22%, transparent);
-    }
-
-    .risk-day-dot.latest {
-        width: 16px;
-        height: 16px;
-    }
-
-    .risk-day-dot.latest::before {
-        inset: 2px;
         background: var(--good);
-        box-shadow:
-            0 0 0 2px color-mix(in srgb, var(--surface) 82%, transparent),
-            0 0 0 5px color-mix(in srgb, var(--good) 22%, transparent);
+        box-shadow: 0 0 0 2px color-mix(in srgb, var(--surface) 84%, transparent);
+        transition: inset .14s ease, box-shadow .14s ease;
     }
 
-    .risk-dot-tooltip {
+    .d3fend-line-dot:hover::before,
+    .d3fend-line-dot.latest::before {
+        inset: 2px;
+        box-shadow: 0 0 0 2px color-mix(in srgb, var(--surface) 84%, transparent), 0 0 0 5px color-mix(in srgb, var(--good) 20%, transparent);
+    }
+
+    .d3fend-line-tooltip {
         position: absolute;
         left: 50%;
         bottom: 18px;
-        z-index: 5;
+        z-index: 4;
         min-width: max-content;
         padding: 6px 8px;
         border: 1px solid var(--border-bright);
         border-radius: 8px;
         color: var(--text-strong);
         background: color-mix(in srgb, var(--surface) 94%, black);
-        box-shadow: 0 12px 30px rgba(0, 0, 0, .26);
+        box-shadow: 0 10px 25px rgba(0, 0, 0, .24);
         font-size: .7rem;
         font-weight: 750;
         opacity: 0;
@@ -637,37 +425,55 @@
         white-space: nowrap;
     }
 
-    .risk-day-dot:hover .risk-dot-tooltip {
+    .d3fend-line-dot:hover .d3fend-line-tooltip,
+    .d3fend-line-dot.latest .d3fend-line-tooltip {
         opacity: 1;
         transform: translateX(-50%) translateY(0);
     }
 
-    .risk-trend-legend {
+    .d3fend-line-x-axis {
+        position: relative;
+        height: 24px;
+        margin-top: 7px;
+        color: var(--text-muted);
+        font-size: .72rem;
+        font-weight: 750;
+    }
+
+    .d3fend-line-x-axis span {
+        position: absolute;
+        top: 0;
+        transform: translateX(-50%);
+        white-space: nowrap;
+    }
+
+    .d3fend-history-legend {
         display: flex;
         flex-wrap: wrap;
-        gap: 12px;
-        margin: 10px 0 0 44px;
+        justify-content: space-between;
+        gap: 10px;
+        margin: 12px 0 0 50px;
         color: var(--text-muted);
         font-size: .74rem;
         font-weight: 650;
     }
 
-    .risk-trend-legend span {
+    .d3fend-history-legend span {
         display: inline-flex;
         align-items: center;
         gap: 6px;
     }
 
-    .risk-trend-legend i {
+    .d3fend-history-legend i {
         width: 8px;
         height: 8px;
         border-radius: 99px;
-        background: var(--text-strong);
+        background: var(--good);
     }
 
-    .risk-empty {
+    .d3fend-history-empty {
         display: grid;
-        min-height: 110px;
+        min-height: 180px;
         place-items: center;
         color: var(--text-muted);
         font-size: .82rem;
@@ -714,6 +520,89 @@
     .panel-body {
         display: grid;
         gap: 8px;
+    }
+
+    .mitre-detail-panel {
+        min-width: 0;
+        align-self: start;
+        transition: opacity .16s ease;
+    }
+
+    .mitre-detail-panel.is-loading {
+        opacity: .55;
+        pointer-events: none;
+    }
+
+    .detail-sort {
+        display: inline-flex;
+        align-items: center;
+        gap: 3px;
+        padding: 3px;
+        border: 1px solid var(--border);
+        border-radius: 9px;
+        background: color-mix(in srgb, var(--surface-2) 72%, transparent);
+    }
+
+    .detail-sort > span {
+        padding: 0 5px;
+        color: var(--text-muted);
+        font-family: 'JetBrains Mono', ui-monospace, monospace;
+        font-size: .68rem;
+        font-weight: 800;
+    }
+
+    .detail-sort button,
+    .detail-pagination button {
+        display: inline-grid;
+        place-items: center;
+        min-width: 28px;
+        min-height: 28px;
+        padding: 0 7px;
+        border: 0;
+        border-radius: 7px;
+        color: var(--text-muted);
+        background: transparent;
+        font-weight: 800;
+        cursor: pointer;
+    }
+
+    .detail-sort button:hover,
+    .detail-sort button:focus-visible,
+    .detail-sort button.active,
+    .detail-pagination button:hover:not(:disabled),
+    .detail-pagination button:focus-visible {
+        color: var(--text-strong);
+        background: var(--accent);
+    }
+
+    .detail-footer {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        justify-content: space-between;
+        gap: 10px;
+        margin-top: 10px;
+        padding-top: 10px;
+        border-top: 1px solid var(--border);
+        color: var(--text-muted);
+        font-size: .72rem;
+        font-weight: 650;
+    }
+
+    .detail-pagination {
+        display: inline-flex;
+        align-items: center;
+        gap: 3px;
+    }
+
+    .detail-pagination > span {
+        padding: 0 6px;
+        white-space: nowrap;
+    }
+
+    .detail-pagination button:disabled {
+        opacity: .35;
+        cursor: default;
     }
 
     .list-item {
@@ -800,29 +689,17 @@
         .radial-grid,
         .stats-grid,
         .mitre-summary-strip,
-        .risk-overview {
-            grid-template-columns: 1fr;
-        }
-
-        .risk-index-panel {
-            border-right: 0;
-            border-bottom: 1px solid var(--border);
-        }
-
-        .risk-current-grid {
-            grid-template-columns: repeat(2, minmax(0, 1fr));
-        }
     }
 
     @media (max-width: 680px) {
-        .risk-current-grid,
-        .risk-bars {
-            grid-template-columns: 1fr;
+        .d3fend-history-head {
+            flex-direction: column;
         }
 
-        .risk-bars-inner {
-            justify-content: flex-start;
+        .d3fend-history-card {
+            padding: 18px 14px;
         }
+
     }
 
 </style>
@@ -922,151 +799,56 @@
             {% endfor %}
         </section>
 
-        <section class="risk-overview" aria-label="Estado de cobertura MITRE y D3FEND">
-            <aside class="risk-index-panel">
-                <div class="risk-panel-title">Índice de cobertura MITRE</div>
-                <div class="risk-index-value">{{ mitre_risk_overview.score_label }}<small>/100</small></div>
-                <span class="risk-level {{ mitre_risk_overview.level_class }}">{{ mitre_risk_overview.level }}</span>
-                <div class="risk-contrib-list">
-                    {% for item in mitre_risk_overview.categories %}
-                        <div class="risk-contrib-row">
-                            <span class="risk-dot" style="background: {{ item.color }};"></span>
-                            <span>{{ item.name }}</span>
-                            <strong>{{ item.level }}</strong>
-                        </div>
+        <section class="d3fend-history-card card" aria-label="Cobertura diaria D3FEND">
+            <header class="d3fend-history-head">
+                <div>
+                    <div class="d3fend-history-title">Cobertura D3FEND diaria</div>
+                    <span class="d3fend-history-subtitle">Porcentaje de cobertura D3FEND Detect registrado en cada captura diaria.</span>
+                </div>
+                <form method="get" class="risk-range-form" aria-label="Filtrar periodo del grafico">
+                    <input type="hidden" name="device" value="{{ selected_device }}">
+                    <input type="hidden" name="source" value="{{ selected_source }}">
+                    <input type="hidden" name="severity" value="{{ selected_severity }}">
+                    <input type="hidden" name="enabled" value="{{ selected_enabled }}">
+                    {% for item in timeline_options %}
+                        <button type="submit" name="timeline" value="{{ item.value }}" class="{% if selected_timeline == item.value %}active{% endif %}">{{ item.label }}</button>
                     {% endfor %}
+                </form>
+            </header>
+            {% if d3fend_daily_chart.has_data %}
+                <div class="d3fend-line-shell">
+                    <div class="d3fend-line-axis" aria-hidden="true">
+                        <span>100</span>
+                        <span>75</span>
+                        <span>50</span>
+                        <span>25</span>
+                        <span>0</span>
+                    </div>
+                    <div class="d3fend-line-column">
+                        <div class="d3fend-line-plot">
+                            <svg class="d3fend-line-svg" viewBox="0 0 100 100" preserveAspectRatio="none" role="img" aria-label="Evolucion diaria de cobertura D3FEND">
+                                <polyline class="d3fend-line-path" points="{{ d3fend_daily_chart.line_points }}"></polyline>
+                            </svg>
+                            {% for day in d3fend_daily_chart.rows %}
+                                <span class="d3fend-line-dot{% if forloop.last %} latest{% endif %}" style="left: {{ day.left|unlocalize }}%; top: {{ day.top|unlocalize }}%;">
+                                    <span class="d3fend-line-tooltip">{{ day.title }} · {{ day.value_label }}%</span>
+                                </span>
+                            {% endfor %}
+                        </div>
+                        <div class="d3fend-line-x-axis" aria-hidden="true">
+                            {% for label in d3fend_daily_chart.axis_labels %}
+                                <span style="left: {{ label.left|unlocalize }}%;">{{ label.label }}</span>
+                            {% endfor %}
+                        </div>
+                    </div>
                 </div>
-            </aside>
-            <div class="risk-chart-panel">
-                <div class="risk-line-area">
-                    <div class="risk-line-head">
-                        <div>
-                            <span class="risk-summary-title">Evolución diaria de cobertura</span>
-                            <span class="timeline-subtitle">Score 1-100 con ATT&amp;CK y D3FEND Detect.</span>
-                        </div>
-                        <div class="risk-line-tools">
-                            <span class="risk-line-meta">
-                                {% if mitre_risk_overview.count > 1 %}
-                                    {% if mitre_risk_overview.delta > 0 %}+{% endif %}{{ mitre_risk_overview.delta }} vs inicio
-                                {% else %}
-                                    Primer snapshot
-                                {% endif %}
-                            </span>
-                            <form method="get" class="risk-range-form" aria-label="Filtrar periodo del grafico">
-                                <input type="hidden" name="device" value="{{ selected_device }}">
-                                <input type="hidden" name="source" value="{{ selected_source }}">
-                                <input type="hidden" name="severity" value="{{ selected_severity }}">
-                                <input type="hidden" name="enabled" value="{{ selected_enabled }}">
-                                {% for item in timeline_options %}
-                                    <button type="submit" name="timeline" value="{{ item.value }}" class="{% if selected_timeline == item.value %}active{% endif %}">{{ item.label }}</button>
-                                {% endfor %}
-                            </form>
-                        </div>
-                    </div>
-                    <div class="risk-current-grid">
-                        {% for item in mitre_risk_overview.categories %}
-                            <article class="risk-current-card">
-                                <div class="risk-current-top">
-                                    <span>{{ item.name }}</span>
-                                    <strong>{{ item.score_label }}%</strong>
-                                </div>
-                                <div class="risk-current-track">
-                                    <span style="width: {{ item.score_width|unlocalize }}%; background: {{ item.color }};"></span>
-                                </div>
-                            </article>
-                        {% endfor %}
-                    </div>
-                    {% if mitre_risk_overview.points %}
-                        <div class="risk-date-strip">
-                            <span>Periodo visible</span>
-                            <strong>{{ mitre_risk_overview.range_label }}</strong>
-                        </div>
-                        <div class="risk-trend-shell">
-                            <div class="risk-axis" aria-hidden="true">
-                                <span>100</span>
-                                <span>70</span>
-                                <span>30</span>
-                                <span>0</span>
-                            </div>
-                            <div class="risk-plot-column">
-                                <div class="risk-plot">
-                                    <svg class="risk-trend-chart" viewBox="0 0 104 50" preserveAspectRatio="none" role="img" aria-label="Linea historica de cobertura">
-                                        <line class="risk-grid-line" x1="8" y1="6" x2="100" y2="6"></line>
-                                        <line class="risk-grid-line" x1="8" y1="16.8" x2="100" y2="16.8"></line>
-                                        <line class="risk-grid-line" x1="8" y1="31.2" x2="100" y2="31.2"></line>
-                                        <line class="risk-grid-line" x1="8" y1="42" x2="100" y2="42"></line>
-                                        <polyline class="risk-trend-line" points="{{ mitre_risk_overview.points }}"></polyline>
-                                    </svg>
-                                    {% for point in mitre_risk_overview.chart_points %}
-                                        <span class="risk-day-dot{% if forloop.last %} latest{% endif %}" style="left: {{ point.left }}%; top: {{ point.top }}%;" title="{{ point.title }} - Score {{ point.score_label }}/100">
-                                            <span class="risk-dot-tooltip">{{ point.title }} - {{ point.score_label }}/100</span>
-                                        </span>
-                                    {% endfor %}
-                                </div>
-                                <div class="risk-x-axis" aria-hidden="true">
-                                    {% for tick in mitre_risk_overview.x_axis_labels %}
-                                        <span style="left: {{ tick.left }}%;">{{ tick.label }}</span>
-                                    {% endfor %}
-                                </div>
-                            </div>
-                        </div>
-                        <div class="risk-trend-legend">
-                            <span><i></i>Score diario MITRE</span>
-                            <span>{{ mitre_risk_overview.count }} snapshot{% if mitre_risk_overview.count != 1 %}s{% endif %}</span>
-                        </div>
-                    {% elif mitre_risk_overview.count == 1 %}
-                        <div class="risk-single-snapshot">
-                            <div class="risk-single-copy">
-                                <span>Primer snapshot capturado. La tendencia diaria se arma con las próximas capturas.</span>
-                                <strong>{{ mitre_risk_overview.score_label }}/100</strong>
-                            </div>
-                            <div class="risk-single-track">
-                                <span style="width: {{ mitre_risk_overview.score_width|unlocalize }}%;"></span>
-                            </div>
-                        </div>
-                    {% else %}
-                        <div class="risk-empty">Sin snapshots todavía. Ejecutá la captura diaria para empezar el histórico.</div>
-                    {% endif %}
+                <div class="d3fend-history-legend">
+                    <span><i></i>Cobertura D3FEND Detect</span>
+                    {% if d3fend_daily_chart.latest %}<span>Último registro: {{ d3fend_daily_chart.latest.title }} · {{ d3fend_daily_chart.latest.value_label }}%</span>{% endif %}
                 </div>
-            </div>
-        </section>
-
-        <div class="section-header">
-            <span class="section-tag">ATT&amp;CK</span>
-            <h2 class="section-title">Cobertura MITRE ATT&amp;CK</h2>
-            <span class="section-line"></span>
-        </div>
-        <section class="radial-grid">
-            {% for metric in attack_radials %}
-                <article class="radial-card card">
-                    <div class="radial-card-title">{{ metric.title }}</div>
-                    <div class="radial-wrap">
-                        <svg class="radial-svg" viewBox="0 0 190 190">
-                            <circle class="radial-track" cx="95" cy="95" r="80"/>
-                            <circle class="radial-fill {{ metric.color_class }}" cx="95" cy="95" r="80" stroke-dasharray="502.65" stroke-dashoffset="{{ metric.dashoffset }}" data-target="{{ metric.dashoffset }}" style="stroke-dashoffset: 502.65;"/>
-                        </svg>
-                        <div class="radial-center">
-                            <div class="radial-pct {{ metric.color_class }}">{{ metric.percent_label }}<span class="radial-pct-sym">%</span></div>
-                            <div class="radial-sub">COBERTURA</div>
-                        </div>
-                    </div>
-                    <div class="radial-meta">
-                        <div class="radial-meta-item">
-                            <div class="radial-meta-label">{{ metric.covered_label }}</div>
-                            <div class="radial-meta-value">{{ metric.covered }}</div>
-                        </div>
-                        <div class="radial-meta-item">
-                            <div class="radial-meta-label">Total</div>
-                            <div class="radial-meta-value">{{ metric.total }}</div>
-                        </div>
-                    </div>
-                    <div class="radial-legend">
-                        <div class="legend-row"><span class="legend-pip good"></span>Cubierto &gt; 80%</div>
-                        <div class="legend-row"><span class="legend-pip medium"></span>Parcial 40% - 80%</div>
-                        <div class="legend-row"><span class="legend-pip bad"></span>Baja cobertura &lt; 40%</div>
-                    </div>
-                </article>
-            {% endfor %}
+            {% else %}
+                <div class="d3fend-history-empty">Sin capturas de cobertura D3FEND para el período seleccionado.</div>
+            {% endif %}
         </section>
 
         <div class="section-header">
@@ -1108,125 +890,54 @@
         </section>
 
         <div class="section-header">
+            <span class="section-tag">ATT&amp;CK</span>
+            <h2 class="section-title">Cobertura MITRE ATT&amp;CK</h2>
+            <span class="section-line"></span>
+        </div>
+        <section class="radial-grid">
+            {% for metric in attack_radials %}
+                <article class="radial-card card">
+                    <div class="radial-card-title">{{ metric.title }}</div>
+                    <div class="radial-wrap">
+                        <svg class="radial-svg" viewBox="0 0 190 190">
+                            <circle class="radial-track" cx="95" cy="95" r="80"/>
+                            <circle class="radial-fill {{ metric.color_class }}" cx="95" cy="95" r="80" stroke-dasharray="502.65" stroke-dashoffset="{{ metric.dashoffset }}" data-target="{{ metric.dashoffset }}" style="stroke-dashoffset: 502.65;"/>
+                        </svg>
+                        <div class="radial-center">
+                            <div class="radial-pct {{ metric.color_class }}">{{ metric.percent_label }}<span class="radial-pct-sym">%</span></div>
+                            <div class="radial-sub">COBERTURA</div>
+                        </div>
+                    </div>
+                    <div class="radial-meta">
+                        <div class="radial-meta-item">
+                            <div class="radial-meta-label">{{ metric.covered_label }}</div>
+                            <div class="radial-meta-value">{{ metric.covered }}</div>
+                        </div>
+                        <div class="radial-meta-item">
+                            <div class="radial-meta-label">Total</div>
+                            <div class="radial-meta-value">{{ metric.total }}</div>
+                        </div>
+                    </div>
+                    <div class="radial-legend">
+                        <div class="legend-row"><span class="legend-pip good"></span>Cubierto &gt; 80%</div>
+                        <div class="legend-row"><span class="legend-pip medium"></span>Parcial 40% - 80%</div>
+                        <div class="legend-row"><span class="legend-pip bad"></span>Baja cobertura &lt; 40%</div>
+                    </div>
+                </article>
+            {% endfor %}
+        </section>
+
+        <div class="section-header">
             <span class="section-tag">ANALISIS</span>
             <h2 class="section-title">Desglose detallado</h2>
             <span class="section-line"></span>
         </div>
-        <section class="stats-grid">
-            <article class="panel card">
-                <div class="panel-head"><span class="panel-title">Cobertura por tactica ATT&amp;CK</span></div>
-                <div class="panel-body">
-                    {% if tactic_coverage_rows %}
-                        {% for row in tactic_coverage_rows %}
-                            {% if row.production_cases > 0 %}
-                                <a class="list-item" href="{% url 'usecase_list' %}?mitre_tactic={{ row.name|urlencode }}">
-                                    <div>
-                                        <div class="list-item-main">{{ row.name }}</div>
-                                        <div class="list-item-sub">{{ row.covered }} / {{ row.total }} tecnicas - {{ row.production_cases }} caso(s) productivo(s)</div>
-                                    </div>
-                                    <span class="count-badge">{{ row.percent_label }}%</span>
-                                </a>
-                            {% else %}
-                                <div class="list-item">
-                                    <div>
-                                        <div class="list-item-main">{{ row.name }}</div>
-                                        <div class="list-item-sub">{{ row.covered }} / {{ row.total }} tecnicas - sin casos productivos</div>
-                                    </div>
-                                    <span class="count-badge">{{ row.percent_label }}%</span>
-                                </div>
-                            {% endif %}
-                        {% endfor %}
-                    {% else %}
-                        <div class="empty-note">// Sin tacticas ATT&amp;CK cargadas</div>
-                    {% endif %}
-                </div>
-            </article>
-
-            <article class="panel card">
-                <div class="panel-head"><span class="panel-title">Cobertura D3FEND Detect</span></div>
-                <div class="panel-body">
-                    {% if d3fend_detect_coverage_rows %}
-                        {% for row in d3fend_detect_coverage_rows %}
-                            {% if row.production_cases > 0 %}
-                                <a class="list-item" href="{% url 'usecase_list' %}?d3fend_id={{ row.id }}">
-                                    <div>
-                                        <div class="list-item-main">{{ row.code }} - {{ row.name }}</div>
-                                        <div class="list-item-sub">{{ row.covered }} / {{ row.total }} ATT&amp;CK relacionadas - {{ row.production_cases }} caso(s) productivo(s)</div>
-                                    </div>
-                                    <span class="count-badge">{{ row.percent_label }}%</span>
-                                </a>
-                            {% else %}
-                                <div class="list-item">
-                                    <div>
-                                        <div class="list-item-main">{{ row.code }} - {{ row.name }}</div>
-                                        <div class="list-item-sub">{{ row.covered }} / {{ row.total }} ATT&amp;CK relacionadas - sin casos productivos</div>
-                                    </div>
-                                    <span class="count-badge">{{ row.percent_label }}%</span>
-                                </div>
-                            {% endif %}
-                        {% endfor %}
-                    {% else %}
-                        <div class="empty-note">// Sin tecnicas D3FEND Detect cargadas</div>
-                    {% endif %}
-                </div>
-            </article>
-
-            <article class="panel card">
-                <div class="panel-head"><span class="panel-title">Tacticas ATT&amp;CK sin cobertura productiva</span></div>
-                <div class="panel-body">
-                    {% if uncovered_tactics %}
-                        {% for tactic in uncovered_tactics %}
-                            <div class="list-item list-item-static">
-                                <div>
-                                    <div class="list-item-main">{{ tactic }}</div>
-                                    <div class="list-item-sub">No existe ningun caso en Produccion que cubra esta tactica</div>
-                                </div>
-                            </div>
-                        {% endfor %}
-                    {% else %}
-                        <div class="empty-note">// Sin tacticas pendientes</div>
-                    {% endif %}
-                </div>
-            </article>
-
-            <article class="panel card">
-                <div class="panel-head"><span class="panel-title">Tecnicas ATT&amp;CK sin cobertura productiva</span></div>
-                <div class="panel-body">
-                    {% if uncovered_attacks %}
-                        {% for item in uncovered_attacks %}
-                            <div class="list-item list-item-static">
-                                <div>
-                                    <div class="list-item-main">{{ item.external_id }} - {{ item.name }}</div>
-                                    {% if item.tactic %}<div class="list-item-sub">{{ item.tactic }}</div>{% endif %}
-                                </div>
-                            </div>
-                        {% endfor %}
-                        {% if uncovered_attack_techniques > 30 %}
-                            <div class="empty-note">// Mostrando 30 de {{ uncovered_attack_techniques }} tecnicas pendientes</div>
-                        {% endif %}
-                    {% else %}
-                        <div class="empty-note">// Sin tecnicas pendientes</div>
-                    {% endif %}
-                </div>
-            </article>
-
-            <article class="panel card">
-                <div class="panel-head"><span class="panel-title">Tecnicas D3FEND sin cobertura ATT&amp;CK productiva</span></div>
-                <div class="panel-body">
-                    {% if uncovered_d3fends %}
-                        {% for item in uncovered_d3fends %}
-                            <div class="list-item list-item-static">
-                                <div>
-                                    <div class="list-item-main">{{ item.code }} - {{ item.name }}</div>
-                                    <div class="list-item-sub">{{ item.covered_related_attacks|default:0 }} / {{ item.total_related_attacks|default:0 }} ATT&amp;CK relacionadas cubiertas{% if item.category %} - {{ item.category }}{% endif %}</div>
-                                </div>
-                            </div>
-                        {% endfor %}
-                    {% else %}
-                        <div class="empty-note">// Sin tecnicas pendientes</div>
-                    {% endif %}
-                </div>
-            </article>
+        <section class="stats-grid" data-mitre-detail-grid data-detail-endpoint="{% url 'dashboard_mitre_details' %}">
+            {% for detail in mitre_detail_panels %}
+                <article class="panel card mitre-detail-panel" data-mitre-detail-panel="{{ detail.name }}">
+                    {% include "includes/mitre_detail_panel.html" with detail=detail only %}
+                </article>
+            {% endfor %}
         </section>
     </section>
 </main>
@@ -1240,6 +951,45 @@ document.addEventListener('DOMContentLoaded', function () {
                 el.style.strokeDashoffset = target;
             }, 120);
         });
+    });
+
+    var detailGrid = document.querySelector('[data-mitre-detail-grid]');
+    if (!detailGrid) return;
+
+    detailGrid.addEventListener('click', function (event) {
+        var trigger = event.target.closest('[data-detail-page], [data-detail-sort]');
+        if (!trigger || trigger.disabled) return;
+
+        var panel = trigger.closest('[data-mitre-detail-panel]');
+        if (!panel) return;
+
+        var activeSort = panel.querySelector('[data-detail-sort].active');
+        var sort = trigger.dataset.detailSort || (activeSort ? activeSort.dataset.detailSort : 'desc');
+        var page = trigger.dataset.detailSort ? '1' : (trigger.dataset.detailPage || '1');
+        var params = new URLSearchParams(window.location.search);
+        params.set('panel', panel.dataset.mitreDetailPanel);
+        params.set('page', page);
+        params.set('sort', sort);
+
+        panel.classList.add('is-loading');
+        panel.setAttribute('aria-busy', 'true');
+        fetch(detailGrid.dataset.detailEndpoint + '?' + params.toString(), {
+            headers: {'X-Requested-With': 'XMLHttpRequest'}
+        })
+            .then(function (response) {
+                if (!response.ok) throw new Error('No se pudo cargar el detalle');
+                return response.text();
+            })
+            .then(function (html) {
+                panel.innerHTML = html;
+            })
+            .catch(function () {
+                window.alert('No se pudo actualizar el desglose. Intenta nuevamente.');
+            })
+            .finally(function () {
+                panel.classList.remove('is-loading');
+                panel.removeAttribute('aria-busy');
+            });
     });
 });
 </script>

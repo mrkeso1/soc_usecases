@@ -1,4 +1,5 @@
 import csv
+from datetime import timedelta
 
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
@@ -7,6 +8,7 @@ from django.db import transaction
 from django.db.models import Count, Q
 from django.http import HttpResponse, HttpResponseForbidden
 from django.shortcuts import get_object_or_404, redirect, render
+from django.utils import timezone
 from django.views.decorators.http import require_POST
 
 from apps.auditlog.rate_limits import database_rate_limit
@@ -46,6 +48,17 @@ HEATMAP_TABLE_PAGE_SIZE = 50
 REACHABILITY_FILTER_VALUES = {
     value for value, _label in ServerAsset.REACHABILITY_CHOICES
 }
+
+
+def _asset_environment_choices():
+    values = (
+        ServerAsset.objects.exclude(environment="")
+        .values_list("environment", flat=True)
+        .order_by("environment")
+    )
+    return sorted({value.strip().upper() for value in values if value.strip()})
+
+
 limit_inventory_sync = database_rate_limit(
     scope="server_inventory_sync",
     limit_setting="ADMIN_ACTION_RATE_LIMIT_SYNC",
@@ -102,6 +115,7 @@ def build_server_heatmap_context(params):
     environment_filter = (params.get("environment") or "PROD").strip()
     inventory_status = (params.get("inventory_status") or "all").strip()
     inventory_query = (params.get("inventory_q") or "").strip()
+    new_server_cutoff = timezone.now() - timedelta(days=7)
 
     qs = ServerAsset.objects.all()
     if environment_filter.lower() == "all":
@@ -136,6 +150,8 @@ def build_server_heatmap_context(params):
         qs = qs.filter(in_active_directory=True, in_siem=True)
     elif inventory_status == "pending":
         qs = qs.filter(in_active_directory=True, in_siem=False)
+    elif inventory_status == "new":
+        qs = qs.filter(in_active_directory=True, created_at__gte=new_server_cutoff)
     elif inventory_status != "all":
         inventory_status = "all"
     if inventory_query:
@@ -265,6 +281,10 @@ def build_server_heatmap_context(params):
         both_count=Count("id", filter=Q(in_active_directory=True, in_siem=True)),
         ad_only_count=Count("id", filter=Q(in_active_directory=True, in_siem=False)),
         siem_only_count=Count("id", filter=Q(in_active_directory=False, in_siem=True)),
+        new_server_count=Count(
+            "id",
+            filter=Q(in_active_directory=True, created_at__gte=new_server_cutoff),
+        ),
     )
     gaps_qs = qs.filter(in_active_directory=True, in_siem=False)
     gap_summary = gaps_qs.aggregate(
@@ -402,6 +422,7 @@ def build_server_heatmap_context(params):
         "both_count": summary["both_count"],
         "ad_only_count": summary["ad_only_count"],
         "siem_only_count": summary["siem_only_count"],
+        "new_server_count": summary["new_server_count"],
         "siem_coverage_percent": _percent(summary["both_count"], summary["ad_count"]),
         "os_choices": [
             (ServerAsset.OS_WINDOWS, "Windows"),
@@ -427,6 +448,7 @@ def build_server_inventory_results_context(params):
     coverage_filter = (params.get("coverage") or "").strip()
     inventory_status = (params.get("inventory_status") or "all").strip()
     inventory_query = (params.get("inventory_q") or "").strip()
+    new_server_cutoff = timezone.now() - timedelta(days=7)
 
     if environment_filter.lower() != "all":
         qs = qs.filter(environment__iexact=environment_filter)
@@ -453,6 +475,8 @@ def build_server_inventory_results_context(params):
         qs = qs.filter(in_siem=True)
     elif inventory_status == "pending":
         qs = qs.filter(in_siem=False)
+    elif inventory_status == "new":
+        qs = qs.filter(created_at__gte=new_server_cutoff)
     if inventory_query:
         qs = qs.filter(
             Q(hostname__icontains=inventory_query)
@@ -761,6 +785,7 @@ def server_administration(request):
     enabled = (request.GET.get("enabled") or "all").strip()
     server_type = (request.GET.get("type") or "").strip()
     selected_ping = (request.GET.get("ping") or "all").strip()
+    selected_asset_environment = (request.GET.get("asset_environment") or "all").strip()
     if selected_ping not in REACHABILITY_FILTER_VALUES | {"all"}:
         selected_ping = "all"
     assets = ServerAsset.objects.select_related("category")
@@ -784,6 +809,8 @@ def server_administration(request):
         assets = assets.filter(category_id=server_type)
     if selected_ping != "all":
         assets = assets.filter(reachability_status=selected_ping)
+    if selected_asset_environment.lower() != "all":
+        assets = assets.filter(environment__iexact=selected_asset_environment)
     page = Paginator(assets.order_by("hostname"), 20).get_page(request.GET.get("page"))
 
     return render(
@@ -801,6 +828,8 @@ def server_administration(request):
             "selected_enabled": enabled,
             "selected_type": server_type,
             "selected_ping": selected_ping,
+            "selected_asset_environment": selected_asset_environment,
+            "asset_environment_choices": _asset_environment_choices(),
             "type_choices": ServerCategory.objects.filter(is_active=True),
         },
     )
@@ -811,6 +840,7 @@ def _filtered_assets(params):
     enabled = (params.get("enabled") or "all").strip()
     server_type = (params.get("type") or "").strip()
     selected_ping = (params.get("ping") or "all").strip()
+    selected_asset_environment = (params.get("asset_environment") or "all").strip()
     if selected_ping not in REACHABILITY_FILTER_VALUES | {"all"}:
         selected_ping = "all"
     assets = ServerAsset.objects.select_related("category")
@@ -834,6 +864,8 @@ def _filtered_assets(params):
         assets = assets.filter(category_id=server_type)
     if selected_ping != "all":
         assets = assets.filter(reachability_status=selected_ping)
+    if selected_asset_environment.lower() != "all":
+        assets = assets.filter(environment__iexact=selected_asset_environment)
     page = Paginator(assets.order_by("hostname"), 20).get_page(params.get("page"))
     return {
         "asset_page": page,
@@ -841,6 +873,7 @@ def _filtered_assets(params):
         "selected_enabled": enabled,
         "selected_type": server_type,
         "selected_ping": selected_ping,
+        "selected_asset_environment": selected_asset_environment,
     }
 
 
@@ -888,6 +921,26 @@ def server_administration_list_results(request):
         request,
         template,
         _administration_list_context(list_name, request.GET.get("page")),
+    )
+
+
+@login_required
+def server_inventory_configuration(request):
+    if not can_manage_server_heatmap(request.user):
+        return HttpResponseForbidden("No tenés permisos para configurar el inventario.")
+    configuration = ServerInventoryConfiguration.load()
+    form = InventoryConfigurationForm(
+        request.POST or None,
+        instance=configuration,
+    )
+    if request.method == "POST" and form.is_valid():
+        form.save()
+        messages.success(request, "Configuración del inventario actualizada.")
+        return redirect("server_heatmap_inventory_configuration")
+    return render(
+        request,
+        "server_heatmap/configuration.html",
+        {"configuration_form": form},
     )
 
 

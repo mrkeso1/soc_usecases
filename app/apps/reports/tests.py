@@ -28,6 +28,12 @@ class ReportViewsTests(TestCase):
 
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "Centro de reportes")
+        self.assertContains(
+            response,
+            reverse("report_preview", args=[ReportDownload.TYPE_EXECUTIVE]),
+        )
+        self.assertContains(response, 'class="report-card-link"')
+        self.assertNotContains(response, ">Vista previa</a>")
 
     def test_analyst_can_download_executive_pdf(self):
         self.client.login(username="analyst", password="pass")

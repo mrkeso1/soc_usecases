@@ -11,7 +11,12 @@
     .explain-icon { width: 28px; height: 28px; border-radius: 999px; display: flex; align-items: center; justify-content: center; flex: 0 0 auto; background: rgba(45,122,255,.18); color: var(--accent); font-family: 'JetBrains Mono', monospace; font-weight: 700; }
     .coverage-row { transition: border-color .18s ease; }
     .coverage-row:hover { border-color: var(--border-bright) !important; }
-    .row-form { display: contents; }
+    .row-form { min-width: 0; }
+    .coverage-editor { height: 100%; }
+    .coverage-editor > [class*="col-"] { min-width: 0; }
+    .coverage-editor .reason-field,
+    .coverage-editor .action-field { display: flex; flex-direction: column; }
+    .coverage-editor .action-field { justify-content: flex-end; }
     .row-kicker { display: flex; flex-wrap: wrap; align-items: center; gap: 7px; margin-bottom: 7px; }
     .object-type { font-family: 'JetBrains Mono', monospace; color: var(--accent); font-size: 11px; letter-spacing: .08em; text-transform: uppercase; }
     .row-title { color: var(--text-strong); font-weight: 700; line-height: 1.25; overflow-wrap: anywhere; }
@@ -78,17 +83,19 @@
                 {% for row in rows %}
                     <article class="card border shadow-sm coverage-row">
                         <div class="card-body p-3">
-                            <div class="row g-3 align-items-start">
+                            <div class="row g-3 align-items-stretch">
                                 <div class="col-12 col-xl-4">
                                     <div class="row-kicker"><span class="object-type">{{ row.object_type_label }}</span><span class="status-chip {{ row.status_class }}">{{ row.status_label }}</span>{% if row.source == "catalog" %}<span class="status-chip catalog">desde catálogo</span>{% endif %}</div>
                                     <div class="row-title">{{ row.title }}</div><div class="row-subtitle">{{ row.subtitle }}</div>
                                 </div>
-                                <form class="row-form" method="post" action="{% url 'coverage_override_update' %}">
+                                <form class="col-12 col-xl-8 row-form" method="post" action="{% url 'coverage_override_update' %}">
                                     {% csrf_token %}
                                     <input type="hidden" name="framework" value="{{ row.framework }}"><input type="hidden" name="object_type" value="{{ row.object_type }}"><input type="hidden" name="object_key" value="{{ row.object_key }}"><input type="hidden" name="object_name" value="{{ row.object_name }}"><input type="hidden" name="default_enabled" value="{% if row.default_enabled %}1{% else %}0{% endif %}"><input type="hidden" name="next" value="{{ request.get_full_path }}">
-                                    <div class="col-12 col-md-4 col-xl-2"><label class="form-label">Estado</label><select class="form-select" name="status">{% for value, label in status_options %}<option value="{{ value }}" {% if row.status == value %}selected{% endif %}>{{ label }}</option>{% endfor %}</select></div>
-                                    <div class="col-12 col-md-8 col-xl-4 reason-field"><label class="form-label">Motivo / herramienta / evidencia</label><textarea class="form-control" name="reason" placeholder="Ej: cubierto por EDR, no aplica a nuestro entorno, control compensatorio...">{{ row.reason }}</textarea></div>
-                                    <div class="col-12 col-xl-2 d-flex justify-content-xl-end align-items-end"><button class="btn btn-primary" type="submit">Guardar</button></div>
+                                    <div class="row g-3 coverage-editor">
+                                        <div class="col-12 col-md-4 col-xl-3"><label class="form-label">Estado</label><select class="form-select" name="status">{% for value, label in status_options %}<option value="{{ value }}" {% if row.status == value %}selected{% endif %}>{{ label }}</option>{% endfor %}</select></div>
+                                        <div class="col-12 col-md-8 col-xl-7 reason-field"><label class="form-label">Motivo / herramienta / evidencia</label><textarea class="form-control" name="reason" placeholder="Ej: cubierto por EDR, no aplica a nuestro entorno, control compensatorio...">{{ row.reason }}</textarea></div>
+                                        <div class="col-12 col-xl-2 action-field"><button class="btn btn-primary w-100" type="submit">Guardar</button></div>
+                                    </div>
                                 </form>
                             </div>
                         </div>

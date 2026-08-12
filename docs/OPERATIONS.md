@@ -281,14 +281,14 @@ docker compose exec web python manage.py sync_usecase_d3fends
 
 ## Snapshot Diario MITRE
 
+El servicio `mitre_scheduler` comprueba en cada ciclo si ya existe la captura de
+la fecha local. Si falta, ejecuta la captura una sola vez. No requiere un cron
+adicional y abrir el dashboard no modifica el historico.
+
+Ejecucion manual opcional:
+
 ```bash
 docker compose exec web python manage.py capture_mitre_coverage_snapshot
-```
-
-Ejemplo cron Linux:
-
-```cron
-5 0 * * * cd /opt/soc_usecases && /usr/bin/docker compose exec -T web python manage.py capture_mitre_coverage_snapshot >> /var/log/soc-usecases-coverage.log 2>&1
 ```
 
 ## Reportes

@@ -136,6 +136,24 @@ def run_apply_filters(*, progress_callback=None):
     return result
 
 
+def run_siem_inventory_sync(*, siem_file=None, scheduled=False, progress_callback=None):
+    _progress(progress_callback, "collect_siem", scheduled=scheduled)
+    run = synchronize_inventory(
+        InventorySyncRun.SOURCE_SIEM,
+        build_siem_connector(path=siem_file),
+        metadata={"scheduled": bool(scheduled)},
+    )
+    result = {
+        "siem_run_id": run.id,
+        "records": run.records_read,
+        "associated": run.assets_updated,
+        "issues": run.issues_count,
+        "scheduled": bool(scheduled),
+    }
+    _progress(progress_callback, "completed", **result)
+    return result
+
+
 def run_network_diagnostics(*, progress_callback=None):
     _progress(progress_callback, "diagnose_network", scope="pending_or_disabled")
     result = diagnose_ingestion_gaps(
