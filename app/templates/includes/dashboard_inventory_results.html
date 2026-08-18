@@ -1,0 +1,85 @@
+<div class="inventory-kpi-grid">
+    <button class="inventory-kpi-card{% if inventory_list_mode == 'new' %} active{% endif %}" type="button" data-inventory-mode="new">
+        <span class="ops-icon">NV</span>
+        <span><small>Nuevos encontrados</small><strong>{{ inventory_new_count }}</strong><em>Últimos {{ inventory_period_days }} días</em></span>
+    </button>
+    <button class="inventory-kpi-card{% if inventory_list_mode == 'pending' %} active{% endif %}" type="button" data-inventory-mode="pending">
+        <span class="ops-icon warn">PI</span>
+        <span><small>Falta de ingesta</small><strong>{{ inventory_pending_count }}</strong><em>Presentes en AD, ausentes en SIEM</em></span>
+    </button>
+    <button class="inventory-kpi-card{% if inventory_list_mode == 'completed' %} active{% endif %}" type="button" data-inventory-mode="completed">
+        <span class="ops-icon">TP</span>
+        <span><small>Tiempo promedio de ingesta</small><strong>{{ inventory_average_ingestion }}</strong><em>{{ inventory_completed_count }} equipos completaron el circuito</em></span>
+    </button>
+    <button class="inventory-kpi-card{% if inventory_list_mode == 'overdue' %} active{% endif %}" type="button" data-inventory-mode="overdue">
+        <span class="ops-icon warn">SL</span>
+        <span><small>Fuera del SLA</small><strong>{{ inventory_overdue_count }}</strong><em>Más de {{ inventory_sla_days }} días sin ingesta</em></span>
+    </button>
+</div>
+
+<section class="ops-panel inventory-results-panel">
+    <div class="ops-panel-title">
+        <div>
+            <h2>{{ inventory_list_title }}</h2>
+            <small>{{ inventory_page_obj.paginator.count }} equipos con los filtros actuales</small>
+        </div>
+        <span class="badge{% if inventory_list_mode == 'overdue' %} bad{% elif inventory_list_mode == 'completed' %} good{% else %} warn{% endif %}">
+            Página {{ inventory_page_obj.number }} de {{ inventory_page_obj.paginator.num_pages }}
+        </span>
+    </div>
+
+    <div class="table-responsive inventory-table-wrap">
+        <table class="table align-middle inventory-table mb-0">
+            <thead>
+                <tr>
+                    <th>Equipo</th>
+                    <th>Ambiente</th>
+                    <th>Sección</th>
+                    <th>Criticidad</th>
+                    <th>Descubierto en AD</th>
+                    <th>Ingesta</th>
+                    <th>Tiempo</th>
+                    <th>Ping</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for row in inventory_rows %}
+                    <tr>
+                        <td>
+                            <strong>{{ row.asset.hostname }}</strong>
+                            <small>{{ row.asset.ip_address|default:"Sin IP" }}</small>
+                        </td>
+                        <td>{{ row.asset.environment|default:"Sin definir" }}</td>
+                        <td>{{ row.asset.category.name|default:"Sin sección" }}</td>
+                        <td>
+                            {% if row.asset.is_critical %}<span class="badge bad">Crítico</span>{% else %}<span class="badge">Estándar</span>{% endif %}
+                        </td>
+                        <td>{{ row.discovered_at|date:"d/m/Y H:i"|default:"Sin fecha" }}</td>
+                        <td><span class="badge {{ row.status_class }}">{{ row.status }}</span></td>
+                        <td>
+                            <strong>{{ row.elapsed_label }}</strong>
+                            {% if row.sla_overdue %}<small class="inventory-sla-warning">SLA vencido</small>{% endif %}
+                        </td>
+                        <td>{{ row.asset.get_reachability_status_display }}</td>
+                    </tr>
+                {% empty %}
+                    <tr><td colspan="8"><div class="empty-state">No hay equipos que coincidan con los filtros seleccionados.</div></td></tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+
+    {% if inventory_page_obj.paginator.num_pages > 1 %}
+        <nav class="mt-3" aria-label="Paginación del inventario">
+            <ul class="pagination justify-content-center flex-wrap mb-0">
+                {% if inventory_page_obj.has_previous %}
+                    <li class="page-item"><a class="page-link" href="?tab=inventario&amp;inventory_page={{ inventory_page_obj.previous_page_number }}" data-inventory-page="{{ inventory_page_obj.previous_page_number }}">Anterior</a></li>
+                {% endif %}
+                <li class="page-item active"><span class="page-link">{{ inventory_page_obj.number }} / {{ inventory_page_obj.paginator.num_pages }}</span></li>
+                {% if inventory_page_obj.has_next %}
+                    <li class="page-item"><a class="page-link" href="?tab=inventario&amp;inventory_page={{ inventory_page_obj.next_page_number }}" data-inventory-page="{{ inventory_page_obj.next_page_number }}">Siguiente</a></li>
+                {% endif %}
+            </ul>
+        </nav>
+    {% endif %}
+</section>

@@ -122,6 +122,25 @@
     .inventory-state { display:inline-flex; padding:4px 8px; border-radius:999px; font-size:.7rem; font-weight:800; }
     .inventory-state.ingested { color:var(--good); background:rgba(0,229,160,.12); }
     .inventory-state.pending { color:var(--medium); background:rgba(245,166,35,.14); }
+    .critical-coverage-card { padding:16px; overflow:hidden; }
+    .critical-coverage-head { display:flex; justify-content:space-between; gap:16px; align-items:flex-start; }
+    .critical-coverage-head h2 { margin:0 0 4px; color:var(--text-strong); font-size:1rem; }
+    .critical-coverage-head p { margin:0; color:var(--text-muted); font-size:.78rem; }
+    .critical-total { color:var(--bad); font-size:1.55rem; font-weight:900; line-height:1; }
+    .critical-bar { display:flex; width:100%; height:14px; margin:15px 0 12px; overflow:hidden; border-radius:999px; background:var(--surface-3); }
+    .critical-bar-ingested { background:var(--good); transition:width .2s ease; }
+    .critical-bar-pending { background:var(--medium); transition:width .2s ease; }
+    .critical-metrics { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:10px; }
+    .critical-filter-button { width:100%; padding:10px 12px; border:1px solid var(--border); border-radius:10px; color:var(--text); background:var(--surface-2); text-align:left; }
+    .critical-filter-button:hover,.critical-filter-button:focus-visible { border-color:var(--accent); background:var(--accent-dim); }
+    .critical-filter-button span { display:block; color:var(--text-muted); font:700 9px 'JetBrains Mono',monospace; letter-spacing:.06em; text-transform:uppercase; }
+    .critical-filter-button strong { display:block; margin-top:3px; color:var(--text-strong); font-size:1rem; }
+    .critical-filter-button.pending strong { color:var(--medium); }
+    .critical-filter-button.ingested strong { color:var(--good); }
+    .criticality-badge { display:inline-flex; padding:4px 8px; border-radius:999px; font-size:.7rem; font-weight:800; }
+    .criticality-badge.critical { color:var(--bad); background:rgba(255,71,87,.14); }
+    .criticality-badge.standard { color:var(--text-muted); background:var(--surface-3); }
+    @media(max-width:650px){.critical-metrics{grid-template-columns:1fr}.critical-coverage-head{align-items:flex-start;flex-direction:column}}
     @media(max-width:760px){.os-coverage-head{align-items:start;flex-direction:column}.os-coverage-legend{white-space:normal}}
     @media(max-width:650px){.inventory-upload{align-items:stretch;flex-direction:column}.os-card-head{align-items:flex-start}.os-percent{font-size:1.3rem}.os-metrics{gap:5px}}
 </style>
@@ -294,6 +313,15 @@
                     </option>
                 </select>
             </div>
+
+            <div class="field col-12 col-sm-6 col-md-3 col-lg-2">
+                <label class="form-label" for="inventory-criticality">Criticidad</label>
+                <select class="form-select form-select-sm" id="inventory-criticality" name="criticality">
+                    <option value="all" {% if selected_criticality == 'all' %}selected{% endif %}>Todos</option>
+                    <option value="critical" {% if selected_criticality == 'critical' %}selected{% endif %}>Críticos</option>
+                    <option value="not_critical" {% if selected_criticality == 'not_critical' %}selected{% endif %}>No críticos</option>
+                </select>
+            </div>
                          <a
                     class="btn btn-outline-secondary inventory-filter-reset"
                     href="{% url 'server_heatmap' %}"
@@ -367,7 +395,7 @@
             </div>
             <div class="header-actions">
                 <form method="post" action="{% url 'server_heatmap_gap_diagnose' %}" data-submit-once>{% csrf_token %}<button class="btn btn-outline-secondary" type="submit" data-busy-text="Encolando…">Diagnosticar todos</button></form>
-                <a class="btn btn-outline-secondary" href="{% url 'server_heatmap_gap_export' %}">Descargar pendientes CSV</a>
+                <a class="btn btn-outline-secondary" id="inventory-export-link" data-export-url="{% url 'server_heatmap_gap_export' %}" href="{% url 'server_heatmap_gap_export' %}">Descargar CSV</a>
             </div>
         </div>
         <div id="inventory-results">{% include "server_heatmap/_inventory_results.html" %}</div>
@@ -379,6 +407,7 @@
     const results = document.getElementById("inventory-results");
     const status = document.getElementById("inventory-live-status");
     const heatmap = document.getElementById("coverage-heatmap");
+    const exportLink = document.getElementById("inventory-export-link");
     if (!filters || !results) return;
 
     const endpoint = "{% url 'server_heatmap_inventory_results' %}";
@@ -395,6 +424,7 @@
         requestController = currentController;
         const params = new URLSearchParams(new FormData(filters));
         if (page) params.set("inventory_page", page);
+        updateExportLink(params);
         results.classList.add("is-loading");
         announce("Buscando…");
         try {
@@ -415,6 +445,15 @@
     function scheduleRefresh() {
         clearTimeout(debounceTimer);
         debounceTimer = setTimeout(() => refreshInventory(), 250);
+    }
+
+    function updateExportLink(params) {
+        if (!exportLink) return;
+        const exportParams = new URLSearchParams(
+            params || new FormData(filters)
+        );
+        exportParams.delete("inventory_page");
+        exportLink.href = `${exportLink.dataset.exportUrl}?${exportParams.toString()}`;
     }
 
     function clearHeatmapSelection() {
@@ -438,10 +477,12 @@
         filters.elements.namedItem("coverage").value = "";
         filters.elements.namedItem("inventory_status").value = "all";
         filters.elements.namedItem("inventory_q").value = "";
+        filters.elements.namedItem("criticality").value = "all";
     }
 
     function clearSelectionAndRefresh() {
         clearHeatmapSelection();
+        updateExportLink();
         scheduleRefresh();
     }
 
@@ -470,13 +511,13 @@
         refreshInventory();
         results.scrollIntoView({behavior: "smooth", block: "start"});
     });
-
     const selectedHeatmapLink = [...(heatmap?.querySelectorAll("[data-heatmap-filter]") || [])].find(link => (
         link.dataset.os === filters.elements.namedItem("os").value
         && link.dataset.type === filters.elements.namedItem("type").value
         && filters.elements.namedItem("inventory_status").value === "pending"
     ));
     if (selectedHeatmapLink) selectHeatmapCell(selectedHeatmapLink);
+    updateExportLink();
 
     results.addEventListener("click", event => {
         const link = event.target.closest("[data-inventory-page]");

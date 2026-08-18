@@ -10,6 +10,10 @@ from ldap3 import ALL, SUBTREE, Connection, Server
 from .base import InventoryRecord
 
 
+_PAGED_RESULTS_OID = "1.2.840.113556.1.4.319"
+_DEFAULT_PAGE_SIZE = 500
+
+
 def _text(value):
     return str(value or "").strip()
 
@@ -46,12 +50,16 @@ def _last_logon(value):
 
 
 def _active_computer_filter(active_days, now=None):
+    # Con 0 se conserva el alcance del mapa de calor original: todos los
+    # objetos Computer del dominio. Esto es importante para equipos Unix/AIX,
+    # cuyo lastLogonTimestamp puede estar vacío o no reflejar su actividad.
+    if active_days <= 0:
+        return "(objectCategory=computer)"
+
     enabled_computer = (
         "(&(objectCategory=computer)"
         "(!(userAccountControl:1.2.840.113556.1.4.803:=2))"
     )
-    if active_days <= 0:
-        return f"{enabled_computer})"
     cutoff = (now or datetime.now(dt_timezone.utc)) - timedelta(days=active_days)
     # Active Directory almacena lastLogonTimestamp como intervalos de 100 ns
     # transcurridos desde el 1 de enero de 1601 UTC.
@@ -70,6 +78,34 @@ def _ldap_server_address(server_uri, use_ssl):
     return host, port, ssl_enabled
 
 
+def _paged_entries(
+    connection,
+    *,
+    search_base,
+    search_filter,
+    attributes,
+    page_size=_DEFAULT_PAGE_SIZE,
+):
+    """Recorre todas las páginas LDAP sin depender del límite del servidor."""
+    cookie = None
+    while True:
+        connection.search(
+            search_base=search_base,
+            search_filter=search_filter,
+            search_scope=SUBTREE,
+            attributes=attributes,
+            paged_size=page_size,
+            paged_cookie=cookie,
+        )
+        yield from connection.entries
+
+        controls = (connection.result or {}).get("controls", {})
+        page_control = controls.get(_PAGED_RESULTS_OID, {})
+        cookie = (page_control.get("value") or {}).get("cookie")
+        if not cookie:
+            break
+
+
 class ActiveDirectoryConnector:
     def __init__(
         self,
@@ -81,7 +117,8 @@ class ActiveDirectoryConnector:
         use_ssl=True,
         connect_timeout=15,
         resolve_ip=False,
-        active_days=60,
+        active_days=0,
+        page_size=_DEFAULT_PAGE_SIZE,
     ):
         if not all((server_uri, bind_user, bind_password, search_base)):
             raise ValueError("Falta configuración obligatoria para Active Directory.")
@@ -93,6 +130,7 @@ class ActiveDirectoryConnector:
         self.connect_timeout = connect_timeout
         self.resolve_ip = resolve_ip
         self.active_days = active_days
+        self.page_size = max(1, min(int(page_size), 1000))
 
     def collect(self):
         host, port, use_ssl = _ldap_server_address(self.server_uri, self.use_ssl)
@@ -111,10 +149,11 @@ class ActiveDirectoryConnector:
             raise_exceptions=True,
         )
         try:
-            connection.search(
+            records = []
+            entries = _paged_entries(
+                connection,
                 search_base=self.search_base,
                 search_filter=_active_computer_filter(self.active_days),
-                search_scope=SUBTREE,
                 attributes=[
                     "cn",
                     "dNSHostName",
@@ -123,9 +162,9 @@ class ActiveDirectoryConnector:
                     "memberOf",
                     "lastLogonTimestamp",
                 ],
+                page_size=self.page_size,
             )
-            records = []
-            for entry in connection.entries:
+            for entry in entries:
                 hostname = _text(entry.cn)
                 fqdn = _text(getattr(entry, "dNSHostName", "")).lower().rstrip(".")
                 if not hostname and not fqdn:

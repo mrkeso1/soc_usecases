@@ -92,9 +92,28 @@ class ServerAsset(models.Model):
     legacy_classification = models.CharField("Clasificación anterior", max_length=80, blank=True)
     in_active_directory = models.BooleanField("Presente en AD", default=False)
     in_siem = models.BooleanField("Con ingesta en SIEM", default=False)
+    is_critical = models.BooleanField(
+        "Servidor crítico",
+        default=False,
+        help_text="Marca manual independiente de la sección, el ambiente y las fuentes de inventario.",
+    )
     ad_last_seen_at = models.DateTimeField("Última observación AD", null=True, blank=True)
     ad_last_logon_at = models.DateTimeField("Última actividad AD", null=True, blank=True)
     siem_last_seen_at = models.DateTimeField("Última observación SIEM", null=True, blank=True)
+    ad_first_seen_at = models.DateTimeField(
+        "Primera detección AD",
+        null=True,
+        blank=True,
+        db_index=True,
+        editable=False,
+    )
+    siem_first_seen_at = models.DateTimeField(
+        "Primera detección SIEM",
+        null=True,
+        blank=True,
+        db_index=True,
+        editable=False,
+    )
     dns_status = models.CharField(
         "Estado DNS",
         max_length=20,
@@ -534,18 +553,19 @@ class ServerInventoryConfiguration(models.Model):
     )
     ad_active_days = models.PositiveSmallIntegerField(
         "Actividad máxima en AD (días)",
-        default=60,
+        default=0,
         help_text=(
-            "Solo se importan equipos habilitados cuya última actividad en Active Directory "
-            "esté dentro de este período. Use 0 para no filtrar por fecha."
+            "Use 0 para importar todos los objetos Computer, como en el mapa de calor "
+            "original. Un valor mayor sólo incluye cuentas habilitadas cuya última "
+            "actividad en Active Directory esté dentro de ese período."
         ),
     )
     retention_days = models.PositiveSmallIntegerField(
         "Eliminar equipos sin conexión después de (días)",
         default=90,
         help_text=(
-            "Después de una sincronización AD exitosa se eliminan los equipos cuya última "
-            "actividad AD sea anterior a este período. Use 0 para no eliminar."
+            "Después de una sincronización AD exitosa sólo se eliminan equipos que ya no "
+            "aparecen en AD y superan este período. Use 0 para no eliminar."
         ),
     )
     inventory_history_days = models.PositiveSmallIntegerField(
@@ -563,6 +583,30 @@ class ServerInventoryConfiguration(models.Model):
             "El mantenimiento elimina trabajos finalizados, fallidos o cancelados más antiguos. "
             "Los trabajos activos nunca se eliminan. Use 0 para no eliminar."
         ),
+    )
+    dashboard_period_days = models.PositiveSmallIntegerField(
+        "Período predeterminado del dashboard (días)",
+        default=7,
+        help_text="Cantidad de días usada inicialmente para medir descubrimientos e ingestas.",
+    )
+    ingestion_sla_days = models.PositiveSmallIntegerField(
+        "SLA máximo de ingesta (días)",
+        default=3,
+        help_text="Un equipo pendiente supera el SLA cuando pasa esta cantidad de días sin aparecer en SIEM.",
+    )
+    dashboard_default_environment = models.CharField(
+        "Ambiente predeterminado del dashboard",
+        max_length=80,
+        default="PROD",
+        help_text="Use ALL para mostrar todos los ambientes inicialmente.",
+    )
+    dashboard_enabled_only = models.BooleanField(
+        "Mostrar sólo equipos habilitados en el dashboard",
+        default=True,
+    )
+    dashboard_page_size = models.PositiveSmallIntegerField(
+        "Filas por página en el dashboard",
+        default=25,
     )
     updated_at = models.DateTimeField(auto_now=True)
 

@@ -24,6 +24,8 @@
     .status-pill.ping-unreachable { color:var(--bad); background:rgba(255,71,87,.14); }
     .status-pill.ping-error { color:var(--medium); background:rgba(245,166,35,.14); }
     .status-pill.ping-unchecked { color:var(--text-muted); background:var(--surface-3); }
+    .status-pill.critical { color:var(--bad); background:rgba(255,71,87,.14); font-weight:800; }
+    .status-pill.standard { color:var(--text-muted); background:var(--surface-3); }
     .ping-checked-at { display:block; margin-top:4px; color:var(--text-muted); font-size:.68rem; white-space:nowrap; }
     .asset-filters { margin:12px 0; }
     .live-status { min-height:18px; color:var(--text-muted); font-size:.75rem; }
@@ -69,11 +71,12 @@
             <h2>Administrar equipos</h2>
             <p>Los resultados se actualizan mientras escribís, sin recargar la pantalla. El ambiente parte de la OU informada por AD y puede ajustarse mediante las reglas de inventario.</p>
             <form method="get" class="asset-filters row g-2 align-items-end" id="asset-live-filters">
-                <div class="col-12 col-lg-4"><label class="form-label visually-hidden" for="asset-search">Buscar equipo</label><input class="form-control" id="asset-search" type="search" name="q" value="{{ query }}" placeholder="Hostname, IP, aplicación u OU" autocomplete="off"></div>
-                <div class="col-12 col-md-6 col-lg-2"><label class="form-label visually-hidden" for="asset-enabled">Estado</label><select class="form-select" id="asset-enabled" name="enabled"><option value="all">Todos los estados</option><option value="yes" {% if selected_enabled == 'yes' %}selected{% endif %}>Habilitados</option><option value="no" {% if selected_enabled == 'no' %}selected{% endif %}>Deshabilitados</option></select></div>
-                <div class="col-12 col-md-6 col-lg-2"><label class="form-label visually-hidden" for="asset-type">Sección</label><select class="form-select" id="asset-type" name="type"><option value="">Todas las secciones</option>{% for category in type_choices %}<option value="{{ category.id }}" {% if selected_type == category.id|stringformat:"s" %}selected{% endif %}>{{ category.name }}</option>{% endfor %}</select></div>
-                <div class="col-12 col-md-6 col-lg-2"><label class="form-label visually-hidden" for="asset-ping">Ping</label><select class="form-select" id="asset-ping" name="ping"><option value="all">Todos los resultados de ping</option><option value="reachable" {% if selected_ping == 'reachable' %}selected{% endif %}>Responde</option><option value="unreachable" {% if selected_ping == 'unreachable' %}selected{% endif %}>No responde</option><option value="unchecked" {% if selected_ping == 'unchecked' %}selected{% endif %}>Sin verificar</option><option value="error" {% if selected_ping == 'error' %}selected{% endif %}>Ping no disponible</option></select></div>
-                <div class="col-12 col-md-6 col-lg-2"><label class="form-label visually-hidden" for="asset-environment">Ambiente</label><select class="form-select" id="asset-environment" name="asset_environment"><option value="all">Todos los ambientes</option>{% for environment in asset_environment_choices %}<option value="{{ environment }}" {% if selected_asset_environment|upper == environment %}selected{% endif %}>{{ environment }}</option>{% endfor %}</select></div>
+                <div class="col-12 col-lg-3"><label class="form-label" for="asset-search">Buscar equipo</label><input class="form-control" id="asset-search" type="search" name="q" value="{{ query }}" placeholder="Hostname, IP, OS, aplicación u OU" autocomplete="off"></div>
+                <div class="col-12 col-md-6 col-lg"><label class="form-label" for="asset-enabled">Estado</label><select class="form-select" id="asset-enabled" name="enabled"><option value="all">Todos</option><option value="yes" {% if selected_enabled == 'yes' %}selected{% endif %}>Habilitados</option><option value="no" {% if selected_enabled == 'no' %}selected{% endif %}>Deshabilitados</option></select></div>
+                <div class="col-12 col-md-6 col-lg"><label class="form-label" for="asset-type">Sección</label><select class="form-select" id="asset-type" name="type"><option value="">Todas</option>{% for category in type_choices %}<option value="{{ category.id }}" {% if selected_type == category.id|stringformat:"s" %}selected{% endif %}>{{ category.name }}</option>{% endfor %}</select></div>
+                <div class="col-12 col-md-6 col-lg"><label class="form-label" for="asset-ping">Resultado de ping</label><select class="form-select" id="asset-ping" name="ping"><option value="all">Todos</option><option value="reachable" {% if selected_ping == 'reachable' %}selected{% endif %}>Responde</option><option value="unreachable" {% if selected_ping == 'unreachable' %}selected{% endif %}>No responde</option><option value="unchecked" {% if selected_ping == 'unchecked' %}selected{% endif %}>Sin verificar</option><option value="error" {% if selected_ping == 'error' %}selected{% endif %}>No disponible</option></select></div>
+                <div class="col-12 col-md-6 col-lg"><label class="form-label" for="asset-environment">Ambiente</label><select class="form-select" id="asset-environment" name="asset_environment"><option value="all">Todos</option>{% for environment in asset_environment_choices %}<option value="{{ environment }}" {% if selected_asset_environment|upper == environment %}selected{% endif %}>{{ environment }}</option>{% endfor %}</select></div>
+                <div class="col-12 col-md-6 col-lg"><label class="form-label" for="asset-criticality">Criticidad</label><select class="form-select" id="asset-criticality" name="criticality"><option value="all">Todos</option><option value="critical" {% if selected_criticality == 'critical' %}selected{% endif %}>Críticos</option><option value="not_critical" {% if selected_criticality == 'not_critical' %}selected{% endif %}>No críticos</option></select></div>
             </form>
             <div class="live-status" id="asset-live-status" aria-live="polite"></div>
             <div id="asset-results">{% include "server_heatmap/_asset_results.html" %}</div>
@@ -133,9 +136,10 @@
         results.classList.add("is-loading");
         status.textContent = "Buscando…";
         try {
-            const response = await fetch(`${endpoint}?${searchParams}`, {
+            const response = await fetch(`${endpoint}?${searchParams.toString()}`, {
                 headers: {"X-Requested-With": "XMLHttpRequest"},
-                signal: controller.signal
+                signal: controller.signal,
+                cache: "no-store"
             });
             if (!response.ok) throw new Error(`HTTP ${response.status}`);
             results.innerHTML = await response.text();
@@ -152,7 +156,9 @@
         clearTimeout(timer);
         timer = setTimeout(() => updateAssets(new URLSearchParams(new FormData(filters))), 280);
     }
-    filters.addEventListener("input", requestUpdate);
+    filters.addEventListener("input", event => {
+        if (event.target.matches("input[type='search']")) requestUpdate();
+    });
     filters.addEventListener("change", requestUpdate);
     filters.addEventListener("submit", event => { event.preventDefault(); requestUpdate(); });
     results.addEventListener("click", event => {

@@ -39,10 +39,25 @@ class InventoryConfigurationForm(BootstrapFormMixin, forms.ModelForm):
             "retention_days",
             "inventory_history_days",
             "job_history_days",
+            "dashboard_period_days",
+            "ingestion_sla_days",
+            "dashboard_default_environment",
+            "dashboard_enabled_only",
+            "dashboard_page_size",
         )
         widgets = {
             "siem_sync_time": forms.TimeInput(format="%H:%M", attrs={"type": "time"}),
         }
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields["siem_sync_enabled"].label = "Actualización automática de AD y SIEM"
+        self.fields["siem_sync_enabled"].help_text = (
+            "Consulta Active Directory y luego descarga y procesa el archivo configurado "
+            "en SERVER_INVENTORY_SIEM_URL."
+        )
+        self.fields["siem_sync_interval_days"].label = "Periodicidad del inventario (días)"
+        self.fields["siem_sync_time"].label = "Horario de actualización del inventario"
 
     def clean_siem_sync_interval_days(self):
         value = self.cleaned_data["siem_sync_interval_days"]
@@ -50,8 +65,36 @@ class InventoryConfigurationForm(BootstrapFormMixin, forms.ModelForm):
             raise forms.ValidationError("La periodicidad debe ser de al menos un día.")
         return value
 
+    def clean_dashboard_period_days(self):
+        value = self.cleaned_data["dashboard_period_days"]
+        if not 1 <= value <= 365:
+            raise forms.ValidationError("El período debe estar entre 1 y 365 días.")
+        return value
+
+    def clean_ingestion_sla_days(self):
+        value = self.cleaned_data["ingestion_sla_days"]
+        if not 1 <= value <= 365:
+            raise forms.ValidationError("El SLA debe estar entre 1 y 365 días.")
+        return value
+
+    def clean_dashboard_default_environment(self):
+        return (self.cleaned_data["dashboard_default_environment"] or "PROD").strip().upper()
+
+    def clean_dashboard_page_size(self):
+        value = self.cleaned_data["dashboard_page_size"]
+        if not 10 <= value <= 100:
+            raise forms.ValidationError("La cantidad de filas debe estar entre 10 y 100.")
+        return value
+
 
 class ServerAssetForm(BootstrapFormMixin, forms.ModelForm):
+    MANUAL_CLASSIFICATION_FIELDS = {
+        "os_family",
+        "category",
+        "application_name",
+        "environment",
+    }
+
     class Meta:
         model = ServerAsset
         fields = (
@@ -61,10 +104,16 @@ class ServerAssetForm(BootstrapFormMixin, forms.ModelForm):
             "category",
             "application_name",
             "environment",
+            "is_critical",
             "classification_source",
             "is_enabled",
             "notes",
         )
+
+    def save(self, commit=True):
+        if self.MANUAL_CLASSIFICATION_FIELDS.intersection(self.changed_data):
+            self.instance.classification_source = ServerAsset.CLASSIFICATION_MANUAL
+        return super().save(commit=commit)
 
 
 class ServerCategoryForm(BootstrapFormMixin, forms.ModelForm):

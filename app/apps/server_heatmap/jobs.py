@@ -73,7 +73,7 @@ def enqueue_inventory_job(
         return InventoryJob.objects.get(idempotency_key=idempotency_key), False
 
 
-def enqueue_due_siem_sync(*, now=None):
+def enqueue_due_inventory_sync(*, now=None):
     now = now or timezone.now()
     ServerInventoryConfiguration.load()
     with transaction.atomic():
@@ -91,13 +91,18 @@ def enqueue_due_siem_sync(*, now=None):
             if elapsed_days < max(1, configuration.siem_sync_interval_days):
                 return None, False
         job, created = enqueue_inventory_job(
-            InventoryJob.TYPE_SIEM_SYNC,
+            InventoryJob.TYPE_FULL_SYNC,
             payload={"scheduled": True},
-            idempotency_key=f"scheduled-siem:{local_now.date().isoformat()}",
+            idempotency_key=f"scheduled-inventory:{local_now.date().isoformat()}",
         )
         configuration.siem_sync_last_enqueued_at = now
         configuration.save(update_fields=["siem_sync_last_enqueued_at", "updated_at"])
         return job, created
+
+
+def enqueue_due_siem_sync(*, now=None):
+    """Compatibilidad con llamadas anteriores al planificador SIEM."""
+    return enqueue_due_inventory_sync(now=now)
 
 
 def recover_zombie_jobs():

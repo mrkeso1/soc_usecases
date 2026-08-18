@@ -1,3 +1,4 @@
+{% load l10n %}
 <div class="table-responsive">
     <table class="table gap-table table-hover align-middle text-center mb-0">
         <thead>
@@ -7,6 +8,7 @@
                 <th>OS</th>
                 <th>Tipo</th>
                 <th>Ambiente</th>
+                <th>Criticidad</th>
                 <th>IP</th>
                 <th>Ping</th>
             </tr>
@@ -48,6 +50,10 @@
                     </td>
 
                     <td>
+                        {% if item.is_critical %}<span class="criticality-badge critical">Crítico</span>{% else %}<span class="criticality-badge standard">No crítico</span>{% endif %}
+                    </td>
+
+                    <td>
                         {{ item.resolved_ip_address|default:item.ip_address|default:'-' }}
                     </td>
 
@@ -58,7 +64,7 @@
 
             {% empty %}
                 <tr>
-                    <td colspan="7" class="muted text-center py-4">
+                    <td colspan="8" class="muted text-center py-4">
                         No hay equipos que coincidan con los filtros.
                     </td>
                 </tr>

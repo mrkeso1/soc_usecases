@@ -164,6 +164,8 @@ def apply_inventory_filters():
             elif source == InventorySyncRun.SOURCE_SIEM:
                 siem_asset_ids.add(asset.id)
 
+            if asset.classification_source == ServerAsset.CLASSIFICATION_MANUAL:
+                continue
             assignments = classification_by_asset.setdefault(asset.id, {})
             for rule in evaluation["classification_rules"]:
                 if rule.category_id and "category_id" not in assignments:

@@ -45,9 +45,10 @@ def apply_automatic_classification(
     *,
     save=True,
     rules=None,
-    force=False,
 ) -> ServerAsset:
-    if not force and asset.classification_source != ServerAsset.CLASSIFICATION_AUTO:
+    # Precedencia absoluta: una clasificación manual nunca puede ser
+    # reemplazada por AD, SIEM, reglas ni reprocesamientos automáticos.
+    if asset.classification_source == ServerAsset.CLASSIFICATION_MANUAL:
         return asset
     classification = classify_hostname(asset.hostname, rules=rules)
     if classification["os_family"] != ServerAsset.OS_UNKNOWN:

@@ -14,10 +14,16 @@ from django.urls import resolve, reverse
 from django.utils import timezone as django_timezone
 
 from .classification import apply_automatic_classification
-from .connectors.ad import _active_computer_filter, _environment, _ldap_server_address
+from .connectors.ad import (
+    _PAGED_RESULTS_OID,
+    _active_computer_filter,
+    _environment,
+    _ldap_server_address,
+    _paged_entries,
+)
 from .connectors.base import InventoryRecord
 from .connectors.siem import SiemCsvConnector
-from .forms import InventoryFilterRuleForm
+from .forms import InventoryFilterRuleForm, ServerAssetForm
 from .inventory_filters import (
     apply_inventory_filters,
     evaluate_observation,
@@ -39,16 +45,16 @@ from .models import (
 )
 from .jobs import (
     claim_next_inventory_job,
-    enqueue_due_siem_sync,
+    enqueue_due_inventory_sync,
     enqueue_inventory_job,
     execute_inventory_job,
     recover_zombie_jobs,
 )
 from .maintenance import maintain_server_inventory
 from .network_diagnostics import diagnose_asset, diagnose_ingestion_gaps
-from .reconciliation import synchronize_inventory
+from .reconciliation import reprocess_stored_inventory, synchronize_inventory
 from apps.accounts.models import LDAPSettings
-from apps.auditlog.models import ActionRateLimit, OperationalAlert
+from apps.auditlog.models import ActionRateLimit, AuditLog, OperationalAlert
 from .management.commands.sync_server_inventory import (
     _domain_base_from_dn,
     build_ad_connector,
@@ -300,7 +306,7 @@ class ServerHeatmapTests(TestCase):
         self.assertEqual(ServerInventoryConfiguration.load().ad_active_days, 45)
         self.assertEqual(ServerInventoryConfiguration.objects.count(), 1)
 
-    def test_due_siem_schedule_enqueues_once_for_configured_period(self):
+    def test_due_inventory_schedule_enqueues_full_sync_once_for_configured_period(self):
         configuration = ServerInventoryConfiguration.load()
         configuration.siem_sync_enabled = True
         configuration.siem_sync_interval_days = 1
@@ -308,18 +314,18 @@ class ServerHeatmapTests(TestCase):
         configuration.save()
         now = django_timezone.make_aware(datetime(2026, 8, 11, 10, 0))
 
-        job, created = enqueue_due_siem_sync(now=now)
-        duplicate, duplicate_created = enqueue_due_siem_sync(
+        job, created = enqueue_due_inventory_sync(now=now)
+        duplicate, duplicate_created = enqueue_due_inventory_sync(
             now=now + timedelta(hours=1),
         )
 
         self.assertTrue(created)
-        self.assertEqual(job.job_type, InventoryJob.TYPE_SIEM_SYNC)
+        self.assertEqual(job.job_type, InventoryJob.TYPE_FULL_SYNC)
         self.assertTrue(job.payload["scheduled"])
         self.assertIsNone(duplicate)
         self.assertFalse(duplicate_created)
 
-    def test_siem_schedule_waits_until_configured_time(self):
+    def test_inventory_schedule_waits_until_configured_time(self):
         configuration = ServerInventoryConfiguration.load()
         configuration.siem_sync_enabled = True
         configuration.siem_sync_interval_days = 1
@@ -327,7 +333,7 @@ class ServerHeatmapTests(TestCase):
         configuration.save()
         now = django_timezone.make_aware(datetime(2026, 8, 11, 10, 0))
 
-        job, created = enqueue_due_siem_sync(now=now)
+        job, created = enqueue_due_inventory_sync(now=now)
 
         self.assertIsNone(job)
         self.assertFalse(created)
@@ -477,6 +483,32 @@ class ServerHeatmapTests(TestCase):
 
         self.assertFalse(ServerAsset.objects.filter(pk=zombie.pk).exists())
         self.assertEqual(run.metadata["deleted_stale_assets"], 1)
+
+    def test_ad_sync_preserves_present_asset_with_old_last_logon(self):
+        configuration = ServerInventoryConfiguration.load()
+        configuration.retention_days = 90
+        configuration.save()
+        asset = ServerAsset.objects.create(
+            hostname="buapaix01",
+            in_active_directory=True,
+            ad_last_logon_at=datetime.now(timezone.utc) - timedelta(days=365),
+        )
+
+        class Connector:
+            def collect(self):
+                return [
+                    InventoryRecord(
+                        external_id="buapaix01",
+                        hostname="buapaix01",
+                        observed_at=datetime.now(timezone.utc) - timedelta(days=365),
+                    ),
+                ]
+
+        run = synchronize_inventory(InventorySyncRun.SOURCE_AD, Connector())
+
+        asset.refresh_from_db()
+        self.assertTrue(asset.in_active_directory)
+        self.assertEqual(run.metadata["deleted_stale_assets"], 0)
 
     def test_inventory_sync_does_not_reenable_manually_disabled_asset(self):
         asset = ServerAsset.objects.create(hostname="disabled01", is_enabled=False)
@@ -878,21 +910,21 @@ class ServerHeatmapTests(TestCase):
         self.assertIsNotNone(completed.finished_at)
 
     @patch(
-        "apps.server_heatmap.jobs.run_siem_inventory_sync",
-        return_value={"records": 3000, "associated": 1200, "issues": 10},
+        "apps.server_heatmap.jobs.run_full_inventory_sync",
+        return_value={"ad": {"received": 3000}, "siem": {"received": 1200}},
     )
-    def test_worker_executes_scheduled_siem_sync(self, siem_sync):
+    def test_worker_executes_scheduled_full_inventory_sync(self, full_sync):
         job, _ = enqueue_inventory_job(
-            InventoryJob.TYPE_SIEM_SYNC,
+            InventoryJob.TYPE_FULL_SYNC,
             payload={"scheduled": True},
         )
         claimed = claim_next_inventory_job("worker-test")
 
         completed = execute_inventory_job(claimed, "worker-test")
 
-        siem_sync.assert_called_once()
+        full_sync.assert_called_once()
         self.assertEqual(completed.status, InventoryJob.STATUS_COMPLETED)
-        self.assertEqual(completed.result["records"], 3000)
+        self.assertEqual(completed.result["ad"]["received"], 3000)
 
     @patch("apps.server_heatmap.jobs._execute", side_effect=OSError("SIEM no disponible"))
     def test_worker_retries_failed_job_without_losing_it(self, execute):
@@ -971,6 +1003,53 @@ class ServerHeatmapTests(TestCase):
         self.assertIn("(!(userAccountControl:1.2.840.113556.1.4.803:=2))", search_filter)
         self.assertIn("(lastLogonTimestamp>=", search_filter)
 
+    def test_ad_filter_with_zero_matches_original_full_computer_scope(self):
+        self.assertEqual(
+            _active_computer_filter(0),
+            "(objectCategory=computer)",
+        )
+
+    def test_ad_search_reads_every_ldap_page(self):
+        class PagedConnection:
+            def __init__(self):
+                self.entries = []
+                self.result = {}
+                self.calls = []
+
+            def search(self, **kwargs):
+                self.calls.append(kwargs)
+                if len(self.calls) == 1:
+                    self.entries = ["page-1-entry"]
+                    cookie = b"next-page"
+                else:
+                    self.entries = ["page-2-entry"]
+                    cookie = b""
+                self.result = {
+                    "controls": {
+                        _PAGED_RESULTS_OID: {
+                            "value": {"cookie": cookie},
+                        },
+                    },
+                }
+                return True
+
+        connection = PagedConnection()
+        entries = list(
+            _paged_entries(
+                connection,
+                search_base="DC=ardp,DC=local",
+                search_filter="(objectCategory=computer)",
+                attributes=["cn"],
+                page_size=500,
+            )
+        )
+
+        self.assertEqual(entries, ["page-1-entry", "page-2-entry"])
+        self.assertEqual(len(connection.calls), 2)
+        self.assertIsNone(connection.calls[0]["paged_cookie"])
+        self.assertEqual(connection.calls[1]["paged_cookie"], b"next-page")
+        self.assertEqual(connection.calls[0]["paged_size"], 500)
+
     def test_ad_environment_matches_original_prod_or_lab_model(self):
         self.assertEqual(_environment("Servers > Production"), "PROD")
         self.assertEqual(_environment("Servidores > Producción"), "PROD")
@@ -1031,6 +1110,113 @@ class ServerHeatmapTests(TestCase):
         asset.refresh_from_db()
         self.assertEqual(asset.os_family, ServerAsset.OS_LINUX)
         self.assertEqual(asset.server_type, ServerAsset.TYPE_DATABASE)
+
+    def test_editing_category_marks_asset_classification_as_manual(self):
+        original = ServerCategory.objects.get(code="application")
+        selected = ServerCategory.objects.get(code="database")
+        asset = ServerAsset.objects.create(
+            hostname="manual-category",
+            category=original,
+            environment="PROD",
+            classification_source=ServerAsset.CLASSIFICATION_AUTO,
+        )
+        form = ServerAssetForm(
+            {
+                "display_name": "",
+                "ip_address": "",
+                "os_family": ServerAsset.OS_UNKNOWN,
+                "category": selected.id,
+                "application_name": "",
+                "environment": "PROD",
+                "classification_source": ServerAsset.CLASSIFICATION_AUTO,
+                "is_enabled": "on",
+                "notes": "",
+            },
+            instance=asset,
+        )
+
+        self.assertTrue(form.is_valid(), form.errors)
+        form.save()
+
+        asset.refresh_from_db()
+        self.assertEqual(asset.category, selected)
+        self.assertEqual(
+            asset.classification_source,
+            ServerAsset.CLASSIFICATION_MANUAL,
+        )
+
+    def test_reprocess_preserves_manual_category(self):
+        manual_category = ServerCategory.objects.get(code="application")
+        automatic_category = ServerCategory.objects.get(code="database")
+        InventoryFilterRule.objects.create(
+            name="Clasificar categoría automática de prueba",
+            source=InventorySyncRun.SOURCE_AD,
+            field=InventoryFilterRule.FIELD_HOSTNAME,
+            operator=InventoryFilterRule.OP_WILDCARD,
+            pattern="protected-*",
+            action=InventoryFilterRule.ACTION_CLASSIFY,
+            category=automatic_category,
+            priority=1,
+            is_active=True,
+        )
+        asset = ServerAsset.objects.create(
+            hostname="protected-server",
+            category=manual_category,
+            classification_source=ServerAsset.CLASSIFICATION_MANUAL,
+        )
+
+        reprocess_stored_inventory()
+
+        asset.refresh_from_db()
+        self.assertEqual(asset.category, manual_category)
+        self.assertEqual(
+            asset.classification_source,
+            ServerAsset.CLASSIFICATION_MANUAL,
+        )
+
+    def test_full_ad_sync_and_rules_preserve_manual_category(self):
+        manual_category = ServerCategory.objects.get(code="application")
+        automatic_category = ServerCategory.objects.get(code="database")
+        InventoryFilterRule.objects.create(
+            name="Regla automática que no debe pisar manual",
+            source=InventorySyncRun.SOURCE_AD,
+            field=InventoryFilterRule.FIELD_HOSTNAME,
+            operator=InventoryFilterRule.OP_WILDCARD,
+            pattern="manual-priority-*",
+            action=InventoryFilterRule.ACTION_CLASSIFY,
+            category=automatic_category,
+            priority=1,
+            is_active=True,
+        )
+        asset = ServerAsset.objects.create(
+            hostname="manual-priority-01",
+            category=manual_category,
+            environment="AMBIENTE-MANUAL",
+            classification_source=ServerAsset.CLASSIFICATION_MANUAL,
+        )
+
+        class Connector:
+            def collect(self):
+                return [
+                    InventoryRecord(
+                        external_id="manual-priority-01.ardp.local",
+                        hostname="manual-priority-01",
+                        fqdn="manual-priority-01.ardp.local",
+                        os_name="AIX 7.3",
+                        organizational_unit="Servers > Production",
+                        environment="PROD",
+                    ),
+                ]
+
+        synchronize_inventory(InventorySyncRun.SOURCE_AD, Connector())
+
+        asset.refresh_from_db()
+        self.assertEqual(asset.category, manual_category)
+        self.assertEqual(asset.environment, "AMBIENTE-MANUAL")
+        self.assertEqual(
+            asset.classification_source,
+            ServerAsset.CLASSIFICATION_MANUAL,
+        )
 
     def test_heatmap_compares_ad_coverage_against_siem(self):
         category = ServerCategory.objects.get(code="application")
@@ -1095,19 +1281,59 @@ class ServerHeatmapTests(TestCase):
         self.assertEqual(all_context["total_assets"], 2)
         self.assertEqual(all_context["environment_choices"], ["DESA", "PROD"])
 
+    def test_critical_server_coverage_is_independent_from_functional_section(self):
+        category = ServerCategory.objects.get(code="database")
+        ServerAsset.objects.create(
+            hostname="critical-covered-with-section",
+            environment="PROD",
+            category=category,
+            is_critical=True,
+            in_active_directory=True,
+            in_siem=True,
+        )
+        pending = ServerAsset.objects.create(
+            hostname="critical-pending-without-section",
+            environment="PROD",
+            is_critical=True,
+            in_active_directory=True,
+            in_siem=False,
+        )
+        ServerAsset.objects.create(
+            hostname="standard-pending",
+            environment="PROD",
+            is_critical=False,
+            in_active_directory=True,
+            in_siem=False,
+        )
+
+        context = build_server_heatmap_context({"environment": "PROD"})
+        filtered = build_server_inventory_results_context({
+            "environment": "PROD",
+            "criticality": "critical",
+            "inventory_status": "pending",
+        })
+
+        self.assertEqual(context["critical_summary"]["total"], 2)
+        self.assertEqual(context["critical_summary"]["ingested"], 1)
+        self.assertEqual(context["critical_summary"]["pending"], 1)
+        self.assertEqual(context["critical_summary"]["coverage_percent"], 50.0)
+        self.assertEqual(
+            list(filtered["inventory_page"].object_list.values_list("id", flat=True)),
+            [pending.id],
+        )
+
     def test_new_servers_card_and_inventory_filter_use_last_seven_days(self):
         recent = ServerAsset.objects.create(
             hostname="recent-server",
             environment="PROD",
             in_active_directory=True,
+            ad_first_seen_at=django_timezone.now(),
         )
         old = ServerAsset.objects.create(
             hostname="old-server",
             environment="PROD",
             in_active_directory=True,
-        )
-        ServerAsset.objects.filter(pk=old.pk).update(
-            created_at=django_timezone.now() - timedelta(days=8),
+            ad_first_seen_at=django_timezone.now() - timedelta(days=8),
         )
 
         context = build_server_heatmap_context({"environment": "PROD"})
@@ -1150,6 +1376,7 @@ class ServerHeatmapTests(TestCase):
             in_siem=True,
         )
 
+        all_assets = build_server_heatmap_context({})
         ingested = build_server_heatmap_context({"inventory_status": "ingested"})
         pending = build_server_heatmap_context({"inventory_status": "pending"})
         searched = build_server_heatmap_context({
@@ -1157,6 +1384,10 @@ class ServerHeatmapTests(TestCase):
             "inventory_q": "payments",
         })
 
+        self.assertEqual(
+            [asset.hostname for asset in all_assets["inventory_page"]],
+            ["prod-ingested", "prod-pending"],
+        )
         self.assertEqual(
             [asset.hostname for asset in ingested["inventory_page"]],
             ["prod-ingested"],
@@ -1479,6 +1710,11 @@ class ServerHeatmapTests(TestCase):
                 "retention_days": 120,
                 "inventory_history_days": 180,
                 "job_history_days": 90,
+                "dashboard_period_days": 7,
+                "ingestion_sla_days": 3,
+                "dashboard_default_environment": "PROD",
+                "dashboard_enabled_only": "on",
+                "dashboard_page_size": 25,
             },
         )
         self.assertRedirects(response, reverse("server_heatmap_inventory_configuration"))
@@ -1505,6 +1741,11 @@ class ServerHeatmapTests(TestCase):
                 "retention_days": 120,
                 "inventory_history_days": 180,
                 "job_history_days": 90,
+                "dashboard_period_days": 7,
+                "ingestion_sla_days": 3,
+                "dashboard_default_environment": "PROD",
+                "dashboard_enabled_only": "on",
+                "dashboard_page_size": 25,
             },
             follow=True,
         )
@@ -1581,6 +1822,36 @@ class ServerHeatmapTests(TestCase):
         asset.refresh_from_db()
         self.assertTrue(asset.is_enabled)
         self.assertFalse(ServerAssetDisableEvent.objects.filter(asset=asset).exists())
+
+    def test_front_panel_can_mark_and_clear_selected_assets_as_critical(self):
+        user = get_user_model().objects.create_user("critical-admin", password="pass")
+        group, _ = Group.objects.get_or_create(name="Admin")
+        user.groups.add(group)
+        self.client.login(username="critical-admin", password="pass")
+        selected = ServerAsset.objects.create(hostname="critical-selected")
+        untouched = ServerAsset.objects.create(hostname="critical-untouched")
+
+        response = self.client.post(
+            reverse("server_heatmap_administration"),
+            {"action": "mark_critical_assets", "asset_ids": [selected.id]},
+        )
+
+        self.assertEqual(response.status_code, 302)
+        selected.refresh_from_db()
+        untouched.refresh_from_db()
+        self.assertTrue(selected.is_critical)
+        self.assertFalse(untouched.is_critical)
+        event = AuditLog.objects.get(action="server_assets_criticality_changed")
+        self.assertEqual(event.actor, user)
+        self.assertTrue(event.details["is_critical"])
+        self.assertEqual(event.details["hostnames"], [selected.hostname])
+
+        self.client.post(
+            reverse("server_heatmap_administration"),
+            {"action": "clear_critical_assets", "asset_ids": [selected.id]},
+        )
+        selected.refresh_from_db()
+        self.assertFalse(selected.is_critical)
 
     def test_asset_results_filter_without_rendering_full_panel(self):
         user = get_user_model().objects.create_user("live-admin", password="pass")
@@ -1683,9 +1954,87 @@ class ServerHeatmapTests(TestCase):
             {"q": "ltp-rule-disabled", "enabled": "no"},
         )
 
-        self.assertNotContains(enabled_response, "ltp-rule-disabled")
-        self.assertContains(disabled_response, "ltp-rule-disabled")
+        self.assertNotContains(
+            enabled_response,
+            "<strong>ltp-rule-disabled</strong>",
+            html=True,
+        )
+        self.assertContains(
+            disabled_response,
+            "<strong>ltp-rule-disabled</strong>",
+            html=True,
+        )
         self.assertContains(disabled_response, "Deshabilitado")
+
+    def test_asset_ajax_combines_state_section_ping_environment_and_criticality(self):
+        user = get_user_model().objects.create_user("combined-filter-admin", password="pass")
+        group, _ = Group.objects.get_or_create(name="Admin")
+        user.groups.add(group)
+        self.client.login(username="combined-filter-admin", password="pass")
+        category = ServerCategory.objects.get(code="database")
+        target = ServerAsset.objects.create(
+            hostname="combined-filter-target",
+            category=category,
+            environment="LAB",
+            is_enabled=False,
+            reachability_status=ServerAsset.REACHABILITY_UNREACHABLE,
+            is_critical=True,
+        )
+        ServerAsset.objects.create(
+            hostname="wrong-state",
+            category=category,
+            environment="LAB",
+            is_enabled=True,
+            reachability_status=ServerAsset.REACHABILITY_UNREACHABLE,
+            is_critical=True,
+        )
+        ServerAsset.objects.create(
+            hostname="wrong-criticality",
+            category=category,
+            environment="LAB",
+            is_enabled=False,
+            reachability_status=ServerAsset.REACHABILITY_UNREACHABLE,
+            is_critical=False,
+        )
+
+        params = {
+            "enabled": "no",
+            "type": category.id,
+            "ping": ServerAsset.REACHABILITY_UNREACHABLE,
+            "asset_environment": "LAB",
+            "criticality": "critical",
+        }
+        response = self.client.get(reverse("server_heatmap_asset_results"), params)
+        full_response = self.client.get(reverse("server_heatmap_administration"), params)
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(list(response.context["asset_page"].object_list), [target])
+        self.assertEqual(list(full_response.context["asset_page"].object_list), [target])
+        self.assertContains(response, "combined-filter-target")
+        self.assertNotContains(response, "wrong-state")
+        self.assertNotContains(response, "wrong-criticality")
+
+    def test_criticality_survives_ad_inventory_refresh(self):
+        asset = ServerAsset.objects.create(
+            hostname="critical-persistent",
+            is_critical=True,
+            in_active_directory=True,
+        )
+
+        class Connector:
+            def collect(self):
+                return [
+                    InventoryRecord(
+                        external_id="critical-persistent",
+                        hostname="critical-persistent",
+                        os_name="Windows Server 2022",
+                    ),
+                ]
+
+        synchronize_inventory(InventorySyncRun.SOURCE_AD, Connector())
+
+        asset.refresh_from_db()
+        self.assertTrue(asset.is_critical)
 
     def test_new_inventory_filter_is_active_by_default(self):
         user = get_user_model().objects.create_user(
@@ -2051,15 +2400,24 @@ class ServerHeatmapTests(TestCase):
         self.assertEqual(run.records_read, 1)
         self.assertEqual(run.issues_count, 0)
 
-    def test_gap_export_contains_only_ad_without_siem(self):
-        ServerAsset.objects.create(hostname="missing01", in_active_directory=True, in_siem=False)
-        ServerAsset.objects.create(hostname="covered01", in_active_directory=True, in_siem=True)
+    def test_inventory_export_uses_the_same_filters_as_the_list(self):
+        ServerAsset.objects.create(
+            hostname="missing01", environment="PROD",
+            in_active_directory=True, in_siem=False,
+        )
+        ServerAsset.objects.create(
+            hostname="covered01", environment="PROD",
+            in_active_directory=True, in_siem=True,
+        )
         user = get_user_model().objects.create_user("export-admin", password="pass")
         group, _ = Group.objects.get_or_create(name="Admin")
         user.groups.add(group)
         self.client.login(username="export-admin", password="pass")
 
-        response = self.client.get(reverse("server_heatmap_gap_export"))
+        response = self.client.get(
+            reverse("server_heatmap_gap_export"),
+            {"environment": "PROD", "enabled": "yes", "inventory_status": "pending"},
+        )
 
         content = response.content.decode("utf-8-sig")
         self.assertEqual(response.status_code, 200)
@@ -2103,6 +2461,23 @@ class ServerHeatmapTests(TestCase):
         self.assertEqual(result.resolved_ip_address, "10.0.0.20")
         self.assertEqual(result.reachability_status, ServerAsset.REACHABILITY_REACHABLE)
 
+    @patch(
+        "apps.server_heatmap.network_diagnostics.socket.getaddrinfo",
+        side_effect=OSError("Name or service not known"),
+    )
+    def test_network_diagnostic_without_resolved_ip_is_error_not_unchecked(self, _getaddrinfo):
+        asset = ServerAsset.objects.create(
+            hostname="buapaix-unresolved",
+            in_active_directory=True,
+            in_siem=False,
+        )
+
+        result = diagnose_asset(asset)
+
+        self.assertEqual(result.dns_status, ServerAsset.DNS_FAILED)
+        self.assertEqual(result.reachability_status, ServerAsset.REACHABILITY_ERROR)
+        self.assertIn("no se obtuvo una dirección IP", result.error)
+
     @patch("apps.server_heatmap.network_diagnostics.diagnose_asset")
     def test_gap_diagnostic_persists_operational_result(self, diagnose):
         from .network_diagnostics import NetworkDiagnosticResult
@@ -2128,13 +2503,13 @@ class ServerHeatmapTests(TestCase):
         self.assertEqual(asset.diagnostic_result, "Revisar disponibilidad")
 
     @patch("apps.server_heatmap.network_diagnostics.diagnose_asset")
-    def test_pending_and_disabled_diagnostic_auto_disables_only_unreachable(self, diagnose):
+    def test_pending_and_disabled_diagnostic_auto_disables_network_failures(self, diagnose):
         from .network_diagnostics import NetworkDiagnosticResult
 
         pending = ServerAsset.objects.create(
             hostname="pending-unreachable",
             in_active_directory=True,
-            in_siem=True,
+            in_siem=False,
         )
         disabled = ServerAsset.objects.create(
             hostname="disabled-reachable",
@@ -2146,6 +2521,7 @@ class ServerHeatmapTests(TestCase):
         checked = ServerAsset.objects.create(
             hostname="checked-enabled",
             in_active_directory=True,
+            reachability_status=ServerAsset.REACHABILITY_REACHABLE,
             network_checked_at=checked_at,
         )
         errored = ServerAsset.objects.create(
@@ -2178,7 +2554,7 @@ class ServerHeatmapTests(TestCase):
             only_unchecked=True,
             include_disabled=True,
             include_covered=True,
-            auto_disable_unreachable=True,
+            auto_disable_failures=True,
         )
 
         pending.refresh_from_db()
@@ -2195,3 +2571,41 @@ class ServerHeatmapTests(TestCase):
         event = ServerAssetDisableEvent.objects.get(asset=pending)
         self.assertIsNone(event.actor)
         self.assertIn("no respondió al ping", event.justification)
+
+    @patch("apps.server_heatmap.network_diagnostics.diagnose_asset")
+    def test_network_failure_disables_only_ad_asset_without_siem(self, diagnose):
+        from .network_diagnostics import NetworkDiagnosticResult
+
+        missing = ServerAsset.objects.create(
+            hostname="buapaix-missing",
+            in_active_directory=True,
+            in_siem=False,
+        )
+        covered = ServerAsset.objects.create(
+            hostname="buapaix-covered",
+            in_active_directory=True,
+            in_siem=True,
+        )
+
+        def unresolved(asset, *, timeout):
+            return NetworkDiagnosticResult(
+                asset_id=asset.id,
+                dns_status=ServerAsset.DNS_FAILED,
+                reachability_status=ServerAsset.REACHABILITY_ERROR,
+                error="DNS directo: no resuelto",
+            )
+
+        diagnose.side_effect = unresolved
+        summary = diagnose_ingestion_gaps(
+            limit=None,
+            include_covered=True,
+            auto_disable_failures=True,
+        )
+
+        missing.refresh_from_db()
+        covered.refresh_from_db()
+        self.assertEqual(summary["disabled"], 1)
+        self.assertFalse(missing.is_enabled)
+        self.assertTrue(covered.is_enabled)
+        event = ServerAssetDisableEvent.objects.get(asset=missing)
+        self.assertIn("no resolvió DNS", event.justification)

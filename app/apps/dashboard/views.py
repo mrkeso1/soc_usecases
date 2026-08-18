@@ -13,6 +13,7 @@ from apps.dashboard.dashboard import (
 )
 from apps.usecases.permissions import can_access_usecases
 from apps.dashboard.reports import build_dashboard_pdf
+from apps.dashboard.inventory_metrics import build_inventory_dashboard_context
 from apps.reports.models import ReportDownload
 from apps.reports.services import report_template_config
 
@@ -71,6 +72,15 @@ def dashboard_view(request):
     context = build_executive_dashboard_context(request)
     context["report_template"] = report_template_config(ReportDownload.TYPE_EXECUTIVE)
     return render(request, "dashboard_executive.html", context)
+
+
+@login_required
+def dashboard_inventory_results_view(request):
+    return render(
+        request,
+        "includes/dashboard_inventory_results.html",
+        build_inventory_dashboard_context(request),
+    )
 
 
 @login_required

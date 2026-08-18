@@ -132,7 +132,8 @@ def diagnose_asset(asset, *, timeout=2):
         if ping_error:
             errors.append(ping_error)
     else:
-        reachability = ServerAsset.REACHABILITY_UNCHECKED
+        reachability = ServerAsset.REACHABILITY_ERROR
+        errors.append("Ping: no se obtuvo una dirección IP para verificar el equipo.")
     return NetworkDiagnosticResult(
         asset_id=asset.id,
         dns_status=dns_status,
@@ -151,7 +152,7 @@ def diagnose_ingestion_gaps(
     only_unchecked=False,
     include_disabled=False,
     include_covered=False,
-    auto_disable_unreachable=False,
+    auto_disable_failures=False,
 ):
     queryset = ServerAsset.objects.filter(in_active_directory=True)
     if not include_covered:
@@ -162,6 +163,7 @@ def diagnose_ingestion_gaps(
                 Q(network_checked_at__isnull=True)
                 | Q(is_enabled=False)
                 | Q(is_excluded_by_rule=True)
+                | Q(reachability_status=ServerAsset.REACHABILITY_UNCHECKED)
                 | Q(reachability_status=ServerAsset.REACHABILITY_ERROR)
             )
     else:
@@ -197,9 +199,13 @@ def diagnose_ingestion_gaps(
     automatically_disabled = [
         asset
         for asset in assets
-        if auto_disable_unreachable
+        if auto_disable_failures
+        and not asset.in_siem
         and asset.is_effectively_enabled
-        and asset.reachability_status == ServerAsset.REACHABILITY_UNREACHABLE
+        and (
+            asset.dns_status == ServerAsset.DNS_FAILED
+            or asset.reachability_status == ServerAsset.REACHABILITY_UNREACHABLE
+        )
     ]
     for asset in automatically_disabled:
         asset.is_enabled = False
@@ -212,7 +218,7 @@ def diagnose_ingestion_gaps(
         "network_checked_at",
         "network_check_error",
     ]
-    if auto_disable_unreachable:
+    if auto_disable_failures:
         update_fields.append("is_enabled")
     with transaction.atomic():
         ServerAsset.objects.bulk_update(assets, update_fields)
@@ -222,8 +228,18 @@ def diagnose_ingestion_gaps(
                 hostname=asset.hostname,
                 actor=None,
                 justification=(
-                    "Deshabilitado automáticamente: el equipo no respondió al ping "
-                    "durante el diagnóstico de red."
+                    "Deshabilitado automáticamente: "
+                    + (
+                        "no resolvió DNS y no respondió al ping"
+                        if asset.dns_status == ServerAsset.DNS_FAILED
+                        and asset.reachability_status == ServerAsset.REACHABILITY_UNREACHABLE
+                        else (
+                            "no resolvió DNS"
+                            if asset.dns_status == ServerAsset.DNS_FAILED
+                            else "no respondió al ping"
+                        )
+                    )
+                    + " durante el diagnóstico de red."
                 ),
                 previous_enabled=True,
                 new_enabled=False,

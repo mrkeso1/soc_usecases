@@ -22,6 +22,7 @@ from apps.controls.models import Control
 from apps.sigma_tools.models import UseCaseTechnicalBackup
 from apps.server_heatmap.models import ServerAsset, ServerCategory
 from .models import MitreCoverageSnapshot
+from .inventory_metrics import build_inventory_dashboard_context
 
 
 PRODUCTION_STATUS = UseCase.STATUS_PRODUCTION
@@ -304,6 +305,16 @@ def build_executive_dashboard_context(request):
     server_heatmap_matrix_rows = []
     server_heatmap_matrix_types = []
     server_environment_choices = []
+    server_critical_coverage = {
+        "name": "Servidores críticos",
+        "code": "CRIT",
+        "total": 0,
+        "covered": 0,
+        "pending": 0,
+        "percent": 0.0,
+        "color": "#a78bfa",
+        "gradient": "conic-gradient(#a78bfa 0% 0%, rgba(255,71,87,.78) 0% 100%)",
+    }
     try:
         server_environment_choices = sorted({
             value.strip().upper()
@@ -348,6 +359,20 @@ def build_executive_dashboard_context(request):
                     f"rgba(255,71,87,.78) {percent}% 100%)"
                 ),
             })
+        critical_assets = enabled_ad_assets.filter(is_critical=True)
+        critical_total = critical_assets.count()
+        critical_covered = critical_assets.filter(in_siem=True).count()
+        critical_percent = _safe_percent(critical_covered, critical_total)
+        server_critical_coverage.update({
+            "total": critical_total,
+            "covered": critical_covered,
+            "pending": max(critical_total - critical_covered, 0),
+            "percent": critical_percent,
+            "gradient": (
+                f"conic-gradient(#a78bfa 0% {critical_percent}%, "
+                f"rgba(255,71,87,.78) {critical_percent}% 100%)"
+            ),
+        })
         server_heatmap_matrix_types = list(
             ServerCategory.objects.filter(is_active=True).order_by("order", "name")
         )
@@ -484,10 +509,12 @@ def build_executive_dashboard_context(request):
         "server_heatmap_covered": server_heatmap_covered,
         "server_heatmap_pending": server_heatmap_pending,
         "server_heatmap_percent": server_heatmap_percent,
+        "server_critical_coverage": server_critical_coverage,
         "server_heatmap_matrix_rows": server_heatmap_matrix_rows,
         "server_heatmap_matrix_types": server_heatmap_matrix_types,
         "server_environment_choices": server_environment_choices,
         "selected_server_environment": server_environment,
+        **build_inventory_dashboard_context(request),
     }
 
 

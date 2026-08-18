@@ -3,11 +3,11 @@
 {% block title %}Centro de Operaciones - SOC Control Manager{% endblock %}
 
 {% block extra_css %}
-<link rel="stylesheet" href="{% static 'css/dashboard-executive.css' %}?v=20260716-3">
+<link rel="stylesheet" href="{% static 'css/dashboard-executive.css' %}?v=20260818-1">
 <style>
     .ops-kpi-grid.case-summary-grid { grid-template-columns:repeat(5, minmax(0, 1fr)); }
-    .heat-overview-grid { display:grid; grid-template-columns:minmax(260px,.72fr) repeat(2,minmax(280px,1fr)); gap:14px; }
-    .heat-summary-card,.heat-os-card { min-height:410px; display:flex; flex-direction:column; border:1px solid var(--border); border-radius:12px; background:var(--surface); box-shadow:0 14px 36px rgba(0,0,0,.16); padding:22px; overflow:hidden; position:relative; }
+    .heat-overview-grid { display:grid; grid-template-columns:minmax(220px,.82fr) repeat(3,minmax(0,1fr)); gap:14px; }
+    .heat-summary-card,.heat-os-card { min-width:0; min-height:390px; display:flex; flex-direction:column; border:1px solid var(--border); border-radius:12px; background:var(--surface); box-shadow:0 14px 36px rgba(0,0,0,.16); padding:18px; overflow:hidden; position:relative; }
     .heat-summary-card::before,.heat-os-card::before { content:""; position:absolute; inset:0 0 auto; height:3px; background:linear-gradient(90deg,transparent,var(--heat-color,var(--ops-accent)),transparent); }
     .heat-card-kicker { color:var(--text-muted); font:900 10px 'JetBrains Mono',monospace; letter-spacing:.09em; text-transform:uppercase; }
     .heat-summary-card h2,.heat-os-card h2 { margin:7px 0 4px; color:var(--text-strong); font-size:1.15rem; }
@@ -20,7 +20,7 @@
     .heat-total-percent { text-align:center; color:var(--text-strong); font:900 2.35rem 'JetBrains Mono',monospace; }
     .heat-total-percent small { font-size:.8rem; color:var(--text-muted); }
     .heat-os-visual { position:relative; flex:1; display:grid; place-items:center; padding:22px 0; }
-    .heat-ring { width:min(230px,70vw); aspect-ratio:1; border-radius:50%; display:grid; place-items:center; background:var(--heat-gradient); box-shadow:0 0 40px color-mix(in srgb,var(--heat-color) 18%,transparent); }
+    .heat-ring { width:min(190px,70vw); aspect-ratio:1; border-radius:50%; display:grid; place-items:center; background:var(--heat-gradient); box-shadow:0 0 40px color-mix(in srgb,var(--heat-color) 18%,transparent); }
     .heat-ring::before { content:""; width:70%; aspect-ratio:1; border-radius:50%; background:var(--surface); border:1px solid var(--border); box-shadow:inset 0 0 26px rgba(0,0,0,.3); }
     .heat-ring-value { position:absolute; left:50%; top:50%; transform:translate(-50%,-50%); text-align:center; color:var(--text-strong); font:900 2rem 'JetBrains Mono',monospace; }
     .heat-ring-value small { display:block; margin-top:3px; color:var(--text-muted); font-size:.68rem; text-transform:uppercase; letter-spacing:.07em; }
@@ -67,9 +67,31 @@
     .heat-matrix-cell.bad .heat-matrix-progress span { background:var(--bad); }
     .heat-matrix-metric { padding:2px 0; color:var(--text-muted); font-size:.72rem; }
     .heat-matrix-metric strong { color:var(--text-strong); }
+    .inventory-filter-panel { margin-bottom:14px; }
+    .inventory-filter-grid { display:grid; grid-template-columns:repeat(5,minmax(130px,1fr)); gap:12px; align-items:end; }
+    .inventory-filter-grid .inventory-search-field { grid-column:span 2; }
+    .inventory-filter-grid label { display:block; margin-bottom:5px; color:var(--text-muted); font:800 10px 'JetBrains Mono',monospace; letter-spacing:.07em; text-transform:uppercase; }
+    .inventory-filter-actions { display:flex; justify-content:flex-end; margin-top:12px; }
+    .inventory-results.is-loading { opacity:.5; pointer-events:none; }
+    .inventory-kpi-grid { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:12px; margin-bottom:12px; }
+    .inventory-kpi-card { min-width:0; min-height:112px; display:grid; grid-template-columns:38px minmax(0,1fr); gap:12px; align-items:start; padding:16px; border:1px solid var(--border); border-radius:10px; background:var(--surface); color:inherit; text-align:left; box-shadow:0 14px 36px rgba(0,0,0,.16); cursor:pointer; }
+    .inventory-kpi-card:hover,.inventory-kpi-card.active { border-color:color-mix(in srgb,var(--ops-accent) 58%,var(--border)); background:color-mix(in srgb,var(--ops-accent) 8%,var(--surface)); }
+    .inventory-kpi-card small,.inventory-kpi-card em { display:block; color:var(--text-muted); font-style:normal; }
+    .inventory-kpi-card small { font:900 10px 'JetBrains Mono',monospace; letter-spacing:.07em; text-transform:uppercase; }
+    .inventory-kpi-card strong { display:block; margin:7px 0 5px; color:var(--text-strong); font:900 1.55rem 'JetBrains Mono',monospace; }
+    .inventory-kpi-card em { font-size:.72rem; line-height:1.35; }
+    .inventory-table-wrap { border:1px solid var(--border); border-radius:10px; }
+    .inventory-table { color:var(--text); --bs-table-bg:transparent; --bs-table-color:var(--text); --bs-table-border-color:var(--border); }
+    .inventory-table th { color:var(--text-muted); font:800 9px 'JetBrains Mono',monospace; letter-spacing:.06em; text-transform:uppercase; white-space:nowrap; }
+    .inventory-table td { font-size:.78rem; }
+    .inventory-table td > strong,.inventory-table td > small { display:block; }
+    .inventory-table td > strong { color:var(--text-strong); }
+    .inventory-table td > small { margin-top:3px; color:var(--text-muted); }
+    .inventory-table .inventory-sla-warning { color:var(--bad); font-weight:800; }
     @media(max-width:1100px) { .ops-kpi-grid.case-summary-grid { grid-template-columns:repeat(2, minmax(0, 1fr)); } }
-    @media(max-width:1100px) { .heat-overview-grid { grid-template-columns:1fr 1fr; }.heat-summary-card{grid-column:1/-1;min-height:340px}.heat-thermometer{height:170px} }
-    @media(max-width:760px) { .ops-kpi-grid.case-summary-grid,.heat-overview-grid { grid-template-columns:1fr; }.heat-summary-card{grid-column:auto}.heat-summary-card,.heat-os-card{min-height:auto}.heat-filter-wrap{justify-content:stretch}.heat-filter{width:100%;flex-wrap:wrap}.heat-filter select{flex:1;min-width:130px} }
+    @media(max-width:1100px) { .inventory-filter-grid,.inventory-kpi-grid { grid-template-columns:repeat(2,minmax(0,1fr)); }.inventory-filter-grid .inventory-search-field{grid-column:span 2} }
+    @media(max-width:1100px) { .heat-overview-grid { grid-template-columns:1fr 1fr; }.heat-summary-card{grid-column:auto;min-height:390px}.heat-thermometer{height:190px} }
+    @media(max-width:760px) { .ops-kpi-grid.case-summary-grid,.heat-overview-grid,.inventory-filter-grid,.inventory-kpi-grid { grid-template-columns:1fr; }.inventory-filter-grid .inventory-search-field{grid-column:auto}.heat-summary-card{grid-column:auto}.heat-summary-card,.heat-os-card{min-height:auto}.heat-filter-wrap{justify-content:stretch}.heat-filter{width:100%;flex-wrap:wrap}.heat-filter select{flex:1;min-width:130px} }
 </style>
 {% endblock %}
 
@@ -91,6 +113,7 @@
             <button class="ops-tab-link" type="button" data-tab="fuentes">Fuentes</button>
             <button class="ops-tab-link" type="button" data-tab="ciclo">Ciclo de vida</button>
             <button class="ops-tab-link" type="button" data-tab="mapa-calor">Mapa de calor</button>
+            <button class="ops-tab-link" type="button" data-tab="inventario">Inventario</button>
             <a class="ops-tab-link" href="{% url 'dashboard_mitre' %}">MITRE</a>
         </nav>
 
@@ -364,6 +387,24 @@
                 {% empty %}
                     <section class="ops-panel"><p class="muted">Todavía no hay inventario de servidores disponible.</p></section>
                 {% endfor %}
+                <article class="heat-os-card" style="--heat-color:{{ server_critical_coverage.color }};--heat-gradient:{{ server_critical_coverage.gradient }}">
+                    <span class="heat-card-kicker">{{ server_critical_coverage.code }} · Cobertura</span>
+                    <h2>{{ server_critical_coverage.name }}</h2>
+                    <p>Todos los críticos habilitados del ambiente, sin importar OS o sección.</p>
+                    <div class="heat-os-visual">
+                        <div class="heat-ring" role="img" aria-label="Servidores críticos: {{ server_critical_coverage.percent }}% de cobertura"></div>
+                        <div class="heat-ring-value">{{ server_critical_coverage.percent }}%<small>cubierto</small></div>
+                    </div>
+                    <div class="heat-card-stats">
+                        <div><span>Total críticos</span><strong>{{ server_critical_coverage.total }}</strong></div>
+                        <div><span>En SIEM</span><strong>{{ server_critical_coverage.covered }}</strong></div>
+                        <div><span>Pendientes</span><strong>{{ server_critical_coverage.pending }}</strong></div>
+                    </div>
+                    <div class="heat-legend-inline">
+                        <span><i style="background:{{ server_critical_coverage.color }}"></i>Con ingesta</span>
+                        <span><i style="background:#ff4757"></i>Pendiente</span>
+                    </div>
+                </article>
             </div>
             <div class="heat-matrix-legend">
                 <span><i style="background:var(--good)"></i>90–100%</span>
@@ -390,6 +431,122 @@
                 {% else %}<div class="empty-state">No hay equipos para construir el mapa con el ambiente seleccionado.</div>{% endif %}
             </section>
         </section>
+
+        <section class="ops-tab-panel" data-panel="inventario" hidden data-inventory-dashboard data-results-url="{% url 'dashboard_inventory_results' %}">
+            <section class="ops-panel inventory-filter-panel">
+                <form method="get" data-inventory-filters data-live-search="off">
+                    <input type="hidden" name="tab" value="inventario">
+                    <input type="hidden" name="inventory_list" value="{{ inventory_list_mode }}">
+                    <input type="hidden" name="inventory_page" value="1">
+                    <div class="inventory-filter-grid">
+                        <div>
+                            <label for="inventory-period">Período</label>
+                            <select class="form-select" id="inventory-period" name="inventory_period">
+                                {% for days in inventory_period_choices %}<option value="{{ days }}" {% if inventory_period_days == days %}selected{% endif %}>Últimos {{ days }} días</option>{% endfor %}
+                            </select>
+                        </div>
+                        <div>
+                            <label for="inventory-environment">Ambiente</label>
+                            <select class="form-select" id="inventory-environment" name="inventory_environment">
+                                <option value="all" {% if selected_inventory_environment == 'all' %}selected{% endif %}>Todos</option>
+                                {% for environment in inventory_environment_choices %}<option value="{{ environment }}" {% if selected_inventory_environment|upper == environment %}selected{% endif %}>{{ environment }}</option>{% endfor %}
+                            </select>
+                        </div>
+                        <div>
+                            <label for="inventory-criticality">Criticidad</label>
+                            <select class="form-select" id="inventory-criticality" name="inventory_criticality">
+                                <option value="all" {% if selected_inventory_criticality == 'all' %}selected{% endif %}>Todos</option>
+                                <option value="critical" {% if selected_inventory_criticality == 'critical' %}selected{% endif %}>Críticos</option>
+                                <option value="standard" {% if selected_inventory_criticality == 'standard' %}selected{% endif %}>No críticos</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label for="inventory-category">Sección</label>
+                            <select class="form-select" id="inventory-category" name="inventory_category">
+                                <option value="">Todas</option>
+                                {% for category in inventory_category_choices %}<option value="{{ category.id }}" {% if selected_inventory_category == category.id|stringformat:'s' %}selected{% endif %}>{{ category.name }}</option>{% endfor %}
+                            </select>
+                        </div>
+                        <div>
+                            <label for="inventory-ping">Resultado del ping</label>
+                            <select class="form-select" id="inventory-ping" name="inventory_ping">
+                                <option value="all">Todos</option>
+                                {% for value,label in inventory_ping_choices %}<option value="{{ value }}" {% if selected_inventory_ping == value %}selected{% endif %}>{{ label }}</option>{% endfor %}
+                            </select>
+                        </div>
+                        <div class="inventory-search-field">
+                            <label for="inventory-search">Buscar equipo</label>
+                            <input class="form-control" id="inventory-search" name="inventory_q" type="search" value="{{ inventory_search }}" placeholder="Hostname, IP, nombre u OU">
+                        </div>
+                    </div>
+                    <div class="inventory-filter-actions">
+                        <a class="btn btn-outline-secondary" href="{% url 'dashboard' %}?tab=inventario">Limpiar filtros</a>
+                    </div>
+                </form>
+            </section>
+            <div class="inventory-results" data-inventory-results>
+                {% include "includes/dashboard_inventory_results.html" %}
+            </div>
+        </section>
     </section>
 </main>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+document.addEventListener("DOMContentLoaded", function () {
+    const dashboard = document.querySelector("[data-inventory-dashboard]");
+    if (!dashboard) return;
+    const form = dashboard.querySelector("[data-inventory-filters]");
+    const results = dashboard.querySelector("[data-inventory-results]");
+    const listInput = form.querySelector("[name='inventory_list']");
+    const pageInput = form.querySelector("[name='inventory_page']");
+    let timer = null;
+
+    const loadResults = async function (page) {
+        pageInput.value = page || 1;
+        const params = new URLSearchParams(new FormData(form));
+        results.classList.add("is-loading");
+        try {
+            const response = await fetch(`${dashboard.dataset.resultsUrl}?${params}`, {
+                headers: {"X-Requested-With": "XMLHttpRequest"}
+            });
+            if (!response.ok) throw new Error("No se pudo actualizar el inventario.");
+            results.innerHTML = await response.text();
+            const browserParams = new URLSearchParams(params);
+            browserParams.set("tab", "inventario");
+            history.replaceState({}, "", `${location.pathname}?${browserParams}`);
+        } catch (error) {
+            console.error(error);
+        } finally {
+            results.classList.remove("is-loading");
+        }
+    };
+
+    form.addEventListener("submit", function (event) {
+        event.preventDefault();
+        loadResults(1);
+    });
+    form.querySelectorAll("select").forEach(function (select) {
+        select.addEventListener("change", function () { loadResults(1); });
+    });
+    form.querySelector("[name='inventory_q']").addEventListener("input", function () {
+        clearTimeout(timer);
+        timer = setTimeout(function () { loadResults(1); }, 300);
+    });
+    results.addEventListener("click", function (event) {
+        const modeButton = event.target.closest("[data-inventory-mode]");
+        if (modeButton) {
+            listInput.value = modeButton.dataset.inventoryMode;
+            loadResults(1);
+            return;
+        }
+        const pageLink = event.target.closest("[data-inventory-page]");
+        if (pageLink) {
+            event.preventDefault();
+            loadResults(pageLink.dataset.inventoryPage);
+        }
+    });
+});
+</script>
 {% endblock %}

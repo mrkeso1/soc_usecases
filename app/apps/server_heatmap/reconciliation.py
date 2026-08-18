@@ -185,6 +185,16 @@ def reconcile_observation(observation, record, *, classification_rules=None):
         )
         return None, False
 
+    manual_classification = (
+        asset.classification_source == ServerAsset.CLASSIFICATION_MANUAL
+    )
+    manual_values = {
+        "category_id": asset.category_id,
+        "os_family": asset.os_family,
+        "server_type": asset.server_type,
+        "application_name": asset.application_name,
+        "environment": asset.environment,
+    }
     source = observation.source
     observed_at = record.observed_at or timezone.now()
     if source == InventorySyncRun.SOURCE_AD:
@@ -194,6 +204,8 @@ def reconcile_observation(observation, record, *, classification_rules=None):
         if not asset.is_enabled and not asset.disable_events.exists():
             asset.is_enabled = True
         asset.ad_last_seen_at = timezone.now()
+        if asset.ad_first_seen_at is None:
+            asset.ad_first_seen_at = observation.created_at or timezone.now()
         asset.ad_last_logon_at = record.observed_at
         if record.organizational_unit:
             asset.organizational_unit = record.organizational_unit
@@ -201,6 +213,8 @@ def reconcile_observation(observation, record, *, classification_rules=None):
             asset.environment = record.environment
     elif source == InventorySyncRun.SOURCE_SIEM:
         asset.in_siem = True
+        if asset.siem_first_seen_at is None:
+            asset.siem_first_seen_at = observation.created_at or timezone.now()
         asset.siem_last_seen_at = observed_at
         if record.groups:
             asset.siem_groups = record.groups
@@ -217,6 +231,12 @@ def reconcile_observation(observation, record, *, classification_rules=None):
     asset.inventory_source = source
     if asset.classification_source == ServerAsset.CLASSIFICATION_AUTO:
         apply_automatic_classification(asset, save=False, rules=classification_rules)
+    if manual_classification:
+        # Defensa adicional: aunque se agregue una nueva fuente automática en
+        # el futuro, los valores elegidos por una persona conservan prioridad 1.
+        for field, value in manual_values.items():
+            setattr(asset, field, value)
+        asset.classification_source = ServerAsset.CLASSIFICATION_MANUAL
     asset.save()
 
     _save_identifier(asset, AssetIdentifier.KIND_HOSTNAME, canonical_hostname, source, observed_at)
@@ -303,6 +323,8 @@ def synchronize_inventory(source, connector, *, metadata=None, apply_filters_aft
                 if retention_days:
                     cutoff = timezone.now() - timedelta(days=retention_days)
                     stale_assets = ServerAsset.objects.filter(
+                        in_active_directory=False,
+                    ).filter(
                         Q(ad_last_logon_at__lt=cutoff)
                         | Q(ad_last_logon_at__isnull=True, created_at__lt=cutoff),
                     )
@@ -504,7 +526,6 @@ def reprocess_stored_inventory():
             apply_automatic_classification(
                 asset,
                 rules=classification_rules,
-                force=True,
             )
 
     return {"processed": processed, "matched": matched, "runs": len(latest_runs)}

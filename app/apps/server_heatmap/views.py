@@ -114,6 +114,7 @@ def build_server_heatmap_context(params):
     enabled_filter = (params.get("enabled") or "yes").strip()
     environment_filter = (params.get("environment") or "PROD").strip()
     inventory_status = (params.get("inventory_status") or "all").strip()
+    criticality_filter = (params.get("criticality") or "all").strip()
     inventory_query = (params.get("inventory_q") or "").strip()
     new_server_cutoff = timezone.now() - timedelta(days=7)
 
@@ -146,12 +147,32 @@ def build_server_heatmap_context(params):
     elif coverage_filter:
         coverage_filter = ""
 
+    critical_scope = qs.filter(in_active_directory=True, is_critical=True)
+    critical_summary = critical_scope.aggregate(
+        total=Count("id"),
+        ingested=Count("id", filter=Q(in_siem=True)),
+    )
+    critical_summary["pending"] = (
+        critical_summary["total"] - critical_summary["ingested"]
+    )
+    critical_summary["coverage_percent"] = _percent(
+        critical_summary["ingested"],
+        critical_summary["total"],
+    )
+
+    if criticality_filter == "critical":
+        qs = qs.filter(is_critical=True)
+    elif criticality_filter == "not_critical":
+        qs = qs.filter(is_critical=False)
+    elif criticality_filter != "all":
+        criticality_filter = "all"
+
     if inventory_status == "ingested":
         qs = qs.filter(in_active_directory=True, in_siem=True)
     elif inventory_status == "pending":
         qs = qs.filter(in_active_directory=True, in_siem=False)
     elif inventory_status == "new":
-        qs = qs.filter(in_active_directory=True, created_at__gte=new_server_cutoff)
+        qs = qs.filter(in_active_directory=True, ad_first_seen_at__gte=new_server_cutoff)
     elif inventory_status != "all":
         inventory_status = "all"
     if inventory_query:
@@ -283,7 +304,7 @@ def build_server_heatmap_context(params):
         siem_only_count=Count("id", filter=Q(in_active_directory=False, in_siem=True)),
         new_server_count=Count(
             "id",
-            filter=Q(in_active_directory=True, created_at__gte=new_server_cutoff),
+            filter=Q(in_active_directory=True, ad_first_seen_at__gte=new_server_cutoff),
         ),
     )
     gaps_qs = qs.filter(in_active_directory=True, in_siem=False)
@@ -424,6 +445,7 @@ def build_server_heatmap_context(params):
         "siem_only_count": summary["siem_only_count"],
         "new_server_count": summary["new_server_count"],
         "siem_coverage_percent": _percent(summary["both_count"], summary["ad_count"]),
+        "critical_summary": critical_summary,
         "os_choices": [
             (ServerAsset.OS_WINDOWS, "Windows"),
             ("linux_group", "Linux / Unix / AIX"),
@@ -435,6 +457,7 @@ def build_server_heatmap_context(params):
         "selected_enabled": enabled_filter,
         "environment_choices": environment_choices,
         "selected_environment": environment_filter,
+        "selected_criticality": criticality_filter,
     }
 
 
@@ -447,6 +470,7 @@ def build_server_inventory_results_context(params):
     type_filter = (params.get("type") or "").strip()
     coverage_filter = (params.get("coverage") or "").strip()
     inventory_status = (params.get("inventory_status") or "all").strip()
+    criticality_filter = (params.get("criticality") or "all").strip()
     inventory_query = (params.get("inventory_q") or "").strip()
     new_server_cutoff = timezone.now() - timedelta(days=7)
 
@@ -471,12 +495,31 @@ def build_server_inventory_results_context(params):
     elif coverage_filter == "siem_only":
         qs = qs.none()
 
+    critical_summary = qs.filter(is_critical=True).aggregate(
+        total=Count("id"),
+        ingested=Count("id", filter=Q(in_siem=True)),
+    )
+    critical_summary["pending"] = (
+        critical_summary["total"] - critical_summary["ingested"]
+    )
+    critical_summary["coverage_percent"] = _percent(
+        critical_summary["ingested"],
+        critical_summary["total"],
+    )
+
+    if criticality_filter == "critical":
+        qs = qs.filter(is_critical=True)
+    elif criticality_filter == "not_critical":
+        qs = qs.filter(is_critical=False)
+    elif criticality_filter != "all":
+        criticality_filter = "all"
+
     if inventory_status == "ingested":
         qs = qs.filter(in_siem=True)
     elif inventory_status == "pending":
         qs = qs.filter(in_siem=False)
     elif inventory_status == "new":
-        qs = qs.filter(created_at__gte=new_server_cutoff)
+        qs = qs.filter(ad_first_seen_at__gte=new_server_cutoff)
     if inventory_query:
         qs = qs.filter(
             Q(hostname__icontains=inventory_query)
@@ -487,11 +530,15 @@ def build_server_inventory_results_context(params):
             | Q(os_name__icontains=inventory_query)
         )
 
+    inventory_queryset = qs.select_related("category").order_by("hostname")
     return {
+        "inventory_queryset": inventory_queryset,
         "inventory_page": Paginator(
-            qs.select_related("category").order_by("hostname"),
+            inventory_queryset,
             HEATMAP_TABLE_PAGE_SIZE,
         ).get_page(params.get("inventory_page")),
+        "critical_summary": critical_summary,
+        "selected_criticality": criticality_filter,
     }
 
 
@@ -576,19 +623,14 @@ def export_ingestion_gaps(request):
     if not can_access_server_heatmap(request.user):
         return HttpResponseForbidden("No tenés permisos para exportar las brechas.")
     response = HttpResponse(content_type="text/csv; charset=utf-8")
-    response["Content-Disposition"] = 'attachment; filename="servidores_pendientes_ingesta.csv"'
+    response["Content-Disposition"] = 'attachment; filename="inventario_equipos_filtrado.csv"'
     response.write("\ufeff")
     writer = csv.writer(response, delimiter=";")
     writer.writerow([
         "Hostname", "IP", "Sistema operativo", "Tipo", "Aplicación", "Ambiente", "OU",
         "DNS", "IP resuelta", "Ping", "Última actividad AD", "Resultado",
     ])
-    queryset = ServerAsset.objects.filter(
-        is_enabled=True,
-        is_excluded_by_rule=False,
-        in_active_directory=True,
-        in_siem=False,
-    ).order_by("hostname")
+    queryset = build_server_inventory_results_context(request.GET)["inventory_queryset"]
     for asset in queryset:
         writer.writerow([
             asset.hostname,
@@ -696,7 +738,13 @@ def server_administration(request):
                 category_form.save()
                 messages.success(request, "Sección de servidores creada.")
                 return redirect("server_heatmap_administration")
-        elif action in {"enable_assets", "disable_assets", "reclassify_assets"}:
+        elif action in {
+            "enable_assets",
+            "disable_assets",
+            "mark_critical_assets",
+            "clear_critical_assets",
+            "reclassify_assets",
+        }:
             asset_ids = request.POST.getlist("asset_ids")
             assets = ServerAsset.objects.filter(id__in=asset_ids)
             if action == "enable_assets":
@@ -746,13 +794,54 @@ def server_administration(request):
                         },
                     )
                 messages.success(request, f"{changed} equipo(s) deshabilitado(s).")
+            elif action in {"mark_critical_assets", "clear_critical_assets"}:
+                is_critical = action == "mark_critical_assets"
+                selected_assets = list(
+                    assets.exclude(is_critical=is_critical).only("id", "hostname")
+                )
+                changed = ServerAsset.objects.filter(
+                    id__in=[asset.id for asset in selected_assets],
+                ).update(is_critical=is_critical)
+                if changed:
+                    audit(
+                        request,
+                        "server_assets_criticality_changed",
+                        "server_asset",
+                        ",".join(str(asset.id) for asset in selected_assets),
+                        {
+                            "is_critical": is_critical,
+                            "count": changed,
+                            "hostnames": [asset.hostname for asset in selected_assets],
+                            "source": "server_administration",
+                        },
+                    )
+                message = (
+                    f"{changed} equipo(s) marcado(s) como crítico(s)."
+                    if is_critical
+                    else f"Se quitó la criticidad de {changed} equipo(s)."
+                )
+                messages.success(request, message)
             else:
                 rules = active_classification_rules()
                 changed = 0
-                for asset in assets:
-                    apply_automatic_classification(asset, rules=rules, force=True)
+                automatic_assets = assets.filter(
+                    classification_source=ServerAsset.CLASSIFICATION_AUTO,
+                )
+                skipped_manual = assets.exclude(
+                    classification_source=ServerAsset.CLASSIFICATION_AUTO,
+                ).count()
+                for asset in automatic_assets:
+                    apply_automatic_classification(asset, rules=rules)
                     changed += 1
-                messages.success(request, f"{changed} equipo(s) reclasificado(s).")
+                detail = (
+                    f" {skipped_manual} clasificación(es) manual(es) se conservaron."
+                    if skipped_manual
+                    else ""
+                )
+                messages.success(
+                    request,
+                    f"{changed} equipo(s) reclasificado(s).{detail}",
+                )
             return redirect(request.get_full_path())
         elif action == "resolve_issues":
             issue_ids = request.POST.getlist("issue_ids")
@@ -781,37 +870,7 @@ def server_administration(request):
                 )
             return redirect("server_heatmap_administration")
 
-    query = (request.GET.get("q") or "").strip()
-    enabled = (request.GET.get("enabled") or "all").strip()
-    server_type = (request.GET.get("type") or "").strip()
-    selected_ping = (request.GET.get("ping") or "all").strip()
-    selected_asset_environment = (request.GET.get("asset_environment") or "all").strip()
-    if selected_ping not in REACHABILITY_FILTER_VALUES | {"all"}:
-        selected_ping = "all"
-    assets = ServerAsset.objects.select_related("category")
-    if query:
-        assets = assets.filter(
-            Q(hostname__icontains=query)
-            | Q(ip_address__icontains=query)
-            | Q(application_name__icontains=query)
-            | Q(organizational_unit__icontains=query)
-        )
-    if enabled == "yes":
-        assets = assets.filter(
-            is_enabled=True,
-            is_excluded_by_rule=False,
-        )
-    elif enabled == "no":
-        assets = assets.filter(
-            Q(is_enabled=False) | Q(is_excluded_by_rule=True),
-        )
-    if server_type:
-        assets = assets.filter(category_id=server_type)
-    if selected_ping != "all":
-        assets = assets.filter(reachability_status=selected_ping)
-    if selected_asset_environment.lower() != "all":
-        assets = assets.filter(environment__iexact=selected_asset_environment)
-    page = Paginator(assets.order_by("hostname"), 20).get_page(request.GET.get("page"))
+    asset_context = _filtered_assets(request.GET)
 
     return render(
         request,
@@ -820,15 +879,10 @@ def server_administration(request):
             "configuration_form": configuration_form,
             "category_form": category_form,
             "categories": ServerCategory.objects.all(),
-            "asset_page": page,
+            **asset_context,
             **_administration_list_context("issues", request.GET.get("issues_page")),
             **_administration_list_context("jobs", request.GET.get("jobs_page")),
             **_administration_list_context("runs", request.GET.get("runs_page")),
-            "query": query,
-            "selected_enabled": enabled,
-            "selected_type": server_type,
-            "selected_ping": selected_ping,
-            "selected_asset_environment": selected_asset_environment,
             "asset_environment_choices": _asset_environment_choices(),
             "type_choices": ServerCategory.objects.filter(is_active=True),
         },
@@ -841,15 +895,22 @@ def _filtered_assets(params):
     server_type = (params.get("type") or "").strip()
     selected_ping = (params.get("ping") or "all").strip()
     selected_asset_environment = (params.get("asset_environment") or "all").strip()
+    selected_criticality = (params.get("criticality") or "all").strip()
+    if enabled not in {"all", "yes", "no"}:
+        enabled = "all"
     if selected_ping not in REACHABILITY_FILTER_VALUES | {"all"}:
         selected_ping = "all"
+    if selected_criticality not in {"all", "critical", "not_critical"}:
+        selected_criticality = "all"
     assets = ServerAsset.objects.select_related("category")
     if query:
         assets = assets.filter(
             Q(hostname__icontains=query)
             | Q(ip_address__icontains=query)
+            | Q(resolved_ip_address__icontains=query)
             | Q(application_name__icontains=query)
             | Q(organizational_unit__icontains=query)
+            | Q(os_name__icontains=query)
         )
     if enabled == "yes":
         assets = assets.filter(
@@ -866,6 +927,10 @@ def _filtered_assets(params):
         assets = assets.filter(reachability_status=selected_ping)
     if selected_asset_environment.lower() != "all":
         assets = assets.filter(environment__iexact=selected_asset_environment)
+    if selected_criticality == "critical":
+        assets = assets.filter(is_critical=True)
+    elif selected_criticality == "not_critical":
+        assets = assets.filter(is_critical=False)
     page = Paginator(assets.order_by("hostname"), 20).get_page(params.get("page"))
     return {
         "asset_page": page,
@@ -874,6 +939,7 @@ def _filtered_assets(params):
         "selected_type": server_type,
         "selected_ping": selected_ping,
         "selected_asset_environment": selected_asset_environment,
+        "selected_criticality": selected_criticality,
     }
 
 
@@ -1004,9 +1070,23 @@ def edit_server_asset(request, asset_id):
     if not can_manage_server_heatmap(request.user):
         return HttpResponseForbidden("No tenés permisos para administrar equipos.")
     asset = get_object_or_404(ServerAsset, pk=asset_id)
+    previous_criticality = asset.is_critical
     form = ServerAssetForm(request.POST or None, instance=asset)
     if request.method == "POST" and form.is_valid():
-        form.save()
+        saved_asset = form.save()
+        if previous_criticality != saved_asset.is_critical:
+            audit(
+                request,
+                "server_assets_criticality_changed",
+                "server_asset",
+                saved_asset.id,
+                {
+                    "hostname": saved_asset.hostname,
+                    "previous_is_critical": previous_criticality,
+                    "is_critical": saved_asset.is_critical,
+                    "source": "server_asset_edit",
+                },
+            )
         messages.success(request, f"Equipo {asset.hostname} actualizado.")
         return redirect("server_heatmap_administration")
     return render(

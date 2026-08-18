@@ -155,15 +155,19 @@ def run_siem_inventory_sync(*, siem_file=None, scheduled=False, progress_callbac
 
 
 def run_network_diagnostics(*, progress_callback=None):
-    _progress(progress_callback, "diagnose_network", scope="pending_or_disabled")
+    _progress(
+        progress_callback,
+        "diagnose_network",
+        scope="ad_without_siem_pending_or_disabled",
+    )
     result = diagnose_ingestion_gaps(
         limit=None,
         workers=16,
         timeout=2,
         only_unchecked=True,
         include_disabled=True,
-        include_covered=True,
-        auto_disable_unreachable=True,
+        include_covered=False,
+        auto_disable_failures=True,
     )
     _progress(progress_callback, "completed", **result)
     return result

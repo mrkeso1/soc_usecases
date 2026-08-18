@@ -9,7 +9,7 @@ from django.db import close_old_connections
 from apps.server_heatmap.jobs import (
     claim_next_inventory_job,
     default_worker_id,
-    enqueue_due_siem_sync,
+    enqueue_due_inventory_sync,
     execute_inventory_job,
     recover_zombie_jobs,
 )
@@ -40,12 +40,12 @@ class Command(BaseCommand):
 
         while not stopping:
             close_old_connections()
-            scheduled_job, scheduled = enqueue_due_siem_sync()
+            scheduled_job, scheduled = enqueue_due_inventory_sync()
             if scheduled:
                 logger.info(
-                    "Se encoló la sincronización SIEM programada.",
+                    "Se encoló la actualización programada de AD y SIEM.",
                     extra={
-                        "event": "inventory_siem_sync_scheduled",
+                        "event": "inventory_full_sync_scheduled",
                         "job_id": scheduled_job.id,
                     },
                 )

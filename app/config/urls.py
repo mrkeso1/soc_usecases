@@ -9,6 +9,7 @@ from django.views.static import serve
 from apps.dashboard.views import (
     dashboard_mitre_details_view,
     dashboard_mitre_view,
+    dashboard_inventory_results_view,
     dashboard_pdf_export,
     dashboard_view,
 )
@@ -27,6 +28,11 @@ urlpatterns = [
     ),
     path("logout/", auth_views.LogoutView.as_view(next_page="login"), name="logout"),
     path("dashboard/", dashboard_view, name="dashboard"),
+    path(
+        "dashboard/inventory/results/",
+        dashboard_inventory_results_view,
+        name="dashboard_inventory_results",
+    ),
     path("dashboard/mitre/", dashboard_mitre_view, name="dashboard_mitre"),
     path("dashboard/mitre/details/", dashboard_mitre_details_view, name="dashboard_mitre_details"),
     path("dashboard/export/pdf/", dashboard_pdf_export, name="dashboard_pdf_export"),

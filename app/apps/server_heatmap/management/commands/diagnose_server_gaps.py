@@ -5,8 +5,8 @@ from apps.server_heatmap.network_diagnostics import diagnose_ingestion_gaps
 
 class Command(BaseCommand):
     help = (
-        "Verifica equipos AD sin diagnóstico o deshabilitados y deshabilita "
-        "automáticamente los que no responden al ping."
+        "Verifica equipos AD sin SIEM que estén sin diagnóstico o deshabilitados, "
+        "y deshabilita automáticamente los que no resuelven DNS o no responden al ping."
     )
 
     def add_arguments(self, parser):
@@ -25,8 +25,8 @@ class Command(BaseCommand):
             timeout=max(0.5, options["timeout"]),
             only_unchecked=True,
             include_disabled=True,
-            include_covered=True,
-            auto_disable_unreachable=True,
+            include_covered=False,
+            auto_disable_failures=True,
         )
         self.stdout.write(
             self.style.SUCCESS(

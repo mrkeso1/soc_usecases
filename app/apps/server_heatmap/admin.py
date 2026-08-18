@@ -1,5 +1,7 @@
 from django.contrib import admin, messages
 
+from apps.auditlog.service import audit
+
 from .classification import apply_automatic_classification
 from .models import (
     AssetIdentifier,
@@ -121,16 +123,51 @@ def reclassify_assets(modeladmin, request, queryset):
     messages.success(request, f"{updated} equipo(s) reclasificado(s).")
 
 
+def _set_criticality(request, queryset, value):
+    assets = list(queryset.exclude(is_critical=value).only("id", "hostname"))
+    updated = ServerAsset.objects.filter(
+        id__in=[asset.id for asset in assets],
+    ).update(is_critical=value)
+    if updated:
+        audit(
+            request,
+            "server_assets_criticality_changed",
+            "server_asset",
+            ",".join(str(asset.id) for asset in assets),
+            {
+                "is_critical": value,
+                "count": updated,
+                "hostnames": [asset.hostname for asset in assets],
+                "source": "django_admin",
+            },
+        )
+    return updated
+
+
+@admin.action(description="Marcar equipos seleccionados como críticos")
+def mark_assets_critical(modeladmin, request, queryset):
+    updated = _set_criticality(request, queryset, True)
+    messages.success(request, f"{updated} equipo(s) marcado(s) como crítico(s).")
+
+
+@admin.action(description="Quitar criticidad a equipos seleccionados")
+def clear_assets_critical(modeladmin, request, queryset):
+    updated = _set_criticality(request, queryset, False)
+    messages.success(request, f"Se quitó la criticidad de {updated} equipo(s).")
+
+
 @admin.register(ServerAsset)
 class ServerAssetAdmin(admin.ModelAdmin):
     list_display = (
         "hostname", "os_family", "server_type", "in_active_directory", "in_siem",
+        "is_critical",
         "dns_status", "reachability_status", "environment", "is_enabled",
         "is_excluded_by_rule",
         "classification_source", "updated_at",
     )
     list_filter = (
         "is_enabled", "is_excluded_by_rule", "in_active_directory", "in_siem",
+        "is_critical",
         "os_family", "server_type",
         "classification_source", "environment", "dns_status", "reachability_status",
     )
@@ -138,8 +175,17 @@ class ServerAssetAdmin(admin.ModelAdmin):
         "hostname", "display_name", "domain", "ip_address", "application_name",
         "organizational_unit", "siem_groups", "os_name", "notes",
     )
-    readonly_fields = ("is_excluded_by_rule", "created_at", "updated_at")
-    actions = (enable_assets, disable_assets, reclassify_assets)
+    readonly_fields = (
+        "is_excluded_by_rule", "ad_first_seen_at", "siem_first_seen_at",
+        "created_at", "updated_at",
+    )
+    actions = (
+        enable_assets,
+        disable_assets,
+        mark_assets_critical,
+        clear_assets_critical,
+        reclassify_assets,
+    )
     fieldsets = (
         ("Identidad", {"fields": ("hostname", "display_name", "domain", "ip_address", "environment")}),
         (
@@ -152,7 +198,7 @@ class ServerAssetAdmin(admin.ModelAdmin):
         (
             "Comparación de inventarios",
             {"fields": (
-                "in_active_directory", "in_siem", "is_enabled",
+                "in_active_directory", "in_siem", "is_critical", "is_enabled",
                 "is_excluded_by_rule",
             )},
         ),
@@ -161,7 +207,8 @@ class ServerAssetAdmin(admin.ModelAdmin):
             {"fields": (
                 "dns_status", "resolved_fqdn", "resolved_ip_address",
                 "reachability_status", "network_checked_at", "network_check_error",
-                "ad_last_seen_at", "ad_last_logon_at", "siem_last_seen_at",
+                "ad_first_seen_at", "ad_last_seen_at", "ad_last_logon_at",
+                "siem_first_seen_at", "siem_last_seen_at",
             )},
         ),
         (
@@ -194,7 +241,10 @@ class ServerInventoryConfigurationAdmin(admin.ModelAdmin):
     list_display = (
         "__str__", "siem_sync_enabled", "siem_sync_interval_days", "siem_sync_time",
         "ad_active_days", "retention_days",
-        "inventory_history_days", "job_history_days", "updated_at",
+        "inventory_history_days", "job_history_days",
+        "dashboard_period_days", "ingestion_sla_days",
+        "dashboard_default_environment", "dashboard_enabled_only",
+        "dashboard_page_size", "updated_at",
     )
     readonly_fields = ("siem_sync_last_enqueued_at", "updated_at")
 

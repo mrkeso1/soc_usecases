@@ -201,6 +201,65 @@ class DashboardInventoryScopeTests(TestCase):
         self.assertEqual(all_cell["ad_count"], 2)
         self.assertEqual(all_cell["pending"], 1)
 
+    def test_executive_heatmap_critical_wheel_ignores_os_and_section(self):
+        ServerAsset.objects.create(
+            hostname="critical-other-covered",
+            environment="PROD",
+            os_family=ServerAsset.OS_OTHER,
+            is_critical=True,
+            in_active_directory=True,
+            in_siem=True,
+        )
+        ServerAsset.objects.create(
+            hostname="critical-windows-pending",
+            environment="PROD",
+            os_family=ServerAsset.OS_WINDOWS,
+            is_critical=True,
+            in_active_directory=True,
+            in_siem=False,
+        )
+        ServerAsset.objects.create(
+            hostname="standard-covered",
+            environment="PROD",
+            is_critical=False,
+            in_active_directory=True,
+            in_siem=True,
+        )
+        ServerAsset.objects.create(
+            hostname="critical-disabled",
+            environment="PROD",
+            is_critical=True,
+            is_enabled=False,
+            in_active_directory=True,
+            in_siem=False,
+        )
+
+        context = build_executive_dashboard_context(
+            self._request("/dashboard/?tab=mapa-calor")
+        )
+
+        critical = context["server_critical_coverage"]
+        self.assertEqual(critical["total"], 2)
+        self.assertEqual(critical["covered"], 1)
+        self.assertEqual(critical["pending"], 1)
+        self.assertEqual(critical["percent"], 50.0)
+
+    def test_executive_heatmap_renders_thermometer_and_three_rings_in_order(self):
+        self.client.force_login(self.user)
+
+        response = self.client.get(
+            reverse("dashboard"),
+            {"tab": "mapa-calor", "environment": "all"},
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'class="heat-summary-card"', count=1)
+        self.assertContains(response, 'class="heat-os-card"', count=3)
+        content = response.content.decode()
+        self.assertLess(content.index("Cobertura general"), content.index("Windows"))
+        self.assertLess(content.index("Windows"), content.index("Linux / Unix / AIX"))
+        self.assertLess(content.index("Linux / Unix / AIX"), content.index("Servidores críticos"))
+
     def test_executive_distribution_bars_use_total_cases_as_one_hundred_percent(self):
         UseCase.objects.create(name="ICBC 1", status=UseCase.STATUS_PRODUCTION, owner_name="ICBC")
         UseCase.objects.create(name="ICBC 2", status=UseCase.STATUS_PRODUCTION, owner_name="ICBC")
