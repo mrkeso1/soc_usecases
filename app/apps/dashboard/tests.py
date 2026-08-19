@@ -148,6 +148,12 @@ class DashboardInventoryScopeTests(TestCase):
         self.assertEqual(context["server_heatmap_percent"], 66.7)
         self.assertEqual(context["server_heatmap_rows"][1]["total"], 2)
         self.assertEqual(context["server_heatmap_rows"][1]["covered"], 1)
+        self.assertTrue(all(
+            item["color"] == "#00e5a0"
+            and "#00e5a0" in item["gradient"]
+            and "#ff4757" in item["gradient"]
+            for item in context["server_heatmap_rows"]
+        ))
 
     def test_executive_heatmap_defaults_to_prod_and_all_includes_every_environment(self):
         category = ServerCategory.objects.get(code="application")
@@ -243,6 +249,8 @@ class DashboardInventoryScopeTests(TestCase):
         self.assertEqual(critical["covered"], 1)
         self.assertEqual(critical["pending"], 1)
         self.assertEqual(critical["percent"], 50.0)
+        self.assertEqual(critical["color"], "#00e5a0")
+        self.assertIn("#ff4757", critical["gradient"])
 
     def test_executive_heatmap_renders_thermometer_and_three_rings_in_order(self):
         self.client.force_login(self.user)

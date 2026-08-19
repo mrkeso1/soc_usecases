@@ -312,8 +312,8 @@ def build_executive_dashboard_context(request):
         "covered": 0,
         "pending": 0,
         "percent": 0.0,
-        "color": "#a78bfa",
-        "gradient": "conic-gradient(#a78bfa 0% 0%, rgba(255,71,87,.78) 0% 100%)",
+        "color": "#00e5a0",
+        "gradient": "conic-gradient(#00e5a0 0% 0%, #ff4757 0% 100%)",
     }
     try:
         server_environment_choices = sorted({
@@ -334,14 +334,10 @@ def build_executive_dashboard_context(request):
                 environment__iexact=server_environment,
             )
         operating_systems = (
-            ("Windows", [ServerAsset.OS_WINDOWS], "#2d7aff"),
-            (
-                "Linux / Unix / AIX",
-                [ServerAsset.OS_LINUX, ServerAsset.OS_UNIX],
-                "#00e5a0",
-            ),
+            ("Windows", [ServerAsset.OS_WINDOWS]),
+            ("Linux / Unix / AIX", [ServerAsset.OS_LINUX, ServerAsset.OS_UNIX]),
         )
-        for name, families, color in operating_systems:
+        for name, families in operating_systems:
             assets = enabled_ad_assets.filter(os_family__in=families)
             total = assets.count()
             covered = assets.filter(in_siem=True).count()
@@ -353,10 +349,10 @@ def build_executive_dashboard_context(request):
                 "covered": covered,
                 "pending": max(total - covered, 0),
                 "percent": percent,
-                "color": color,
+                "color": "#00e5a0",
                 "gradient": (
-                    f"conic-gradient({color} 0% {percent}%, "
-                    f"rgba(255,71,87,.78) {percent}% 100%)"
+                    f"conic-gradient(#00e5a0 0% {percent}%, "
+                    f"#ff4757 {percent}% 100%)"
                 ),
             })
         critical_assets = enabled_ad_assets.filter(is_critical=True)
@@ -369,8 +365,8 @@ def build_executive_dashboard_context(request):
             "pending": max(critical_total - critical_covered, 0),
             "percent": critical_percent,
             "gradient": (
-                f"conic-gradient(#a78bfa 0% {critical_percent}%, "
-                f"rgba(255,71,87,.78) {critical_percent}% 100%)"
+                f"conic-gradient(#00e5a0 0% {critical_percent}%, "
+                f"#ff4757 {critical_percent}% 100%)"
             ),
         })
         server_heatmap_matrix_types = list(
