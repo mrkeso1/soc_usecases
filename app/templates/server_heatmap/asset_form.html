@@ -7,6 +7,7 @@
         <a class="btn btn-outline-secondary" href="{% url 'server_heatmap_administration' %}">Volver</a>
     </header>
     <section class="detail-card card p-3">
+        {% if asset.is_siem_only_approved and not asset.in_active_directory %}<div class="alert alert-info"><strong>Solo SIEM aprobado.</strong> Aprobado el {{ asset.siem_exception_approved_at|date:"d/m/Y H:i" }} por {{ asset.siem_exception_approved_by.get_username|default:"usuario eliminado" }}. Motivo: {{ asset.siem_exception_reason }}</div>{% endif %}
         <form method="post" data-submit-once>{% csrf_token %}{% for field in form %}<div class="field mb-3">{{ field.label_tag }}{{ field }}{{ field.errors }}{% if field.help_text %}<small class="form-text text-body-secondary">{{ field.help_text }}</small>{% endif %}</div>{% endfor %}
             <div class="header-actions mt-3"><button class="btn btn-primary" type="submit">Guardar equipo</button><a class="btn btn-outline-secondary" href="{% url 'server_heatmap_administration' %}">Cancelar</a></div>
         </form>

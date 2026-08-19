@@ -1,0 +1,55 @@
+{% extends "base_bootstrap.html" %}
+{% block title %}Incorporar equipo Solo SIEM - SOC Control Manager{% endblock %}
+{% block content %}
+<main class="container-xxl"><section class="page-shell">
+    <header class="page-header">
+        <div>
+            <div class="page-eyebrow">// EXCEPCIÓN DE INVENTARIO</div>
+            <h1 class="page-title">Revisar equipo Solo SIEM</h1>
+            <p class="page-subtitle">Completá la identidad y aprobalo únicamente si es un servidor legítimo que no debe existir en Active Directory.</p>
+        </div>
+        <a class="btn btn-outline-secondary" href="{% url 'server_heatmap_administration' %}">Volver</a>
+    </header>
+
+    <div class="row g-3">
+        <div class="col-12 col-lg-4">
+            <article class="detail-card card p-3 h-100">
+                <h2 class="section-title">Dato recibido desde SIEM</h2>
+                <dl class="row mb-0 small">
+                    <dt class="col-5">Identificador</dt><dd class="col-7">{{ issue.identifier|default:"-" }}</dd>
+                    <dt class="col-5">Hostname</dt><dd class="col-7">{{ observation.hostname|default:"-" }}</dd>
+                    <dt class="col-5">FQDN</dt><dd class="col-7">{{ observation.fqdn|default:"-" }}</dd>
+                    <dt class="col-5">IP</dt><dd class="col-7">{{ observation.ip_address|default:"-" }}</dd>
+                    <dt class="col-5">Sistema</dt><dd class="col-7">{{ observation.os_name|default:"-" }}</dd>
+                    <dt class="col-5">Grupos</dt><dd class="col-7">{{ observation.groups|default:"-" }}</dd>
+                    <dt class="col-5">Detectado</dt><dd class="col-7">{{ observation.created_at|date:"d/m/Y H:i" }}</dd>
+                </dl>
+                {% with resolution=issue.details.name_resolution %}{% if resolution %}
+                    <hr><h3 class="h6">Último intento DNS</h3>
+                    <p class="small mb-0">{{ resolution.hostname|default:"Sin hostname" }} · {{ resolution.ip_address|default:"Sin IP" }}{% if resolution.error %}<br><span class="text-warning">{{ resolution.error }}</span>{% endif %}</p>
+                {% endif %}{% endwith %}
+            </article>
+        </div>
+        <div class="col-12 col-lg-8">
+            <article class="detail-card card p-3">
+                <form method="post" data-submit-once>{% csrf_token %}
+                    {% if form.non_field_errors %}<div class="alert alert-danger">{{ form.non_field_errors }}</div>{% endif %}
+                    <div class="row g-3">
+                        {% for field in form %}
+                            <div class="{% if field.name == 'notes' or field.name == 'approval_reason' %}col-12{% else %}col-12 col-md-6{% endif %}">
+                                {% if field.field.widget.input_type == 'checkbox' %}<div class="form-check mt-4">{{ field }}{{ field.label_tag }}</div>{% else %}{{ field.label_tag }}{{ field }}{% endif %}
+                                {{ field.errors }}{% if field.help_text %}<small class="form-text text-body-secondary">{{ field.help_text }}</small>{% endif %}
+                            </div>
+                        {% endfor %}
+                    </div>
+                    <div class="header-actions mt-4">
+                        <button class="btn btn-outline-secondary" type="submit" name="action" value="resolve_dns" formnovalidate>Resolver nombre e IP</button>
+                        <button class="btn btn-primary" type="submit" name="action" value="promote">Incorporar al inventario</button>
+                        <a class="btn btn-outline-secondary" href="{% url 'server_heatmap_administration' %}">Cancelar</a>
+                    </div>
+                </form>
+            </article>
+        </div>
+    </div>
+</section></main>
+{% endblock %}

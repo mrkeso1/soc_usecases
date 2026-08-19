@@ -13,6 +13,7 @@ from .views import (
     inventory_filter_edit,
     inventory_filter_list,
     inventory_rule_history,
+    promote_siem_only_asset,
     reprocess_inventory,
     queue_full_inventory_sync,
     server_heatmap_view,
@@ -54,6 +55,11 @@ urlpatterns = [
         "administration/assets/results/",
         server_asset_results,
         name="server_heatmap_asset_results",
+    ),
+    path(
+        "administration/siem-only/<int:issue_id>/promote/",
+        promote_siem_only_asset,
+        name="server_heatmap_siem_only_promote",
     ),
     path(
         "administration/sections/",

@@ -92,6 +92,43 @@ class ServerAsset(models.Model):
     legacy_classification = models.CharField("Clasificación anterior", max_length=80, blank=True)
     in_active_directory = models.BooleanField("Presente en AD", default=False)
     in_siem = models.BooleanField("Con ingesta en SIEM", default=False)
+    is_siem_only_approved = models.BooleanField(
+        "Solo SIEM aprobado",
+        default=False,
+        db_index=True,
+        help_text=(
+            "Excepción aprobada manualmente para equipos que existen en SIEM "
+            "pero no forman parte de Active Directory."
+        ),
+    )
+    siem_exception_approved_at = models.DateTimeField(
+        "Fecha de aprobación Solo SIEM",
+        null=True,
+        blank=True,
+        editable=False,
+    )
+    siem_exception_approved_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        related_name="approved_siem_only_servers",
+        null=True,
+        blank=True,
+        editable=False,
+        verbose_name="Aprobado por",
+    )
+    siem_exception_observation = models.ForeignKey(
+        "InventoryObservation",
+        on_delete=models.SET_NULL,
+        related_name="approved_siem_only_assets",
+        null=True,
+        blank=True,
+        editable=False,
+        verbose_name="Observación SIEM de aprobación",
+    )
+    siem_exception_reason = models.TextField(
+        "Motivo de aprobación Solo SIEM",
+        blank=True,
+    )
     is_critical = models.BooleanField(
         "Servidor crítico",
         default=False,
@@ -180,6 +217,14 @@ class ServerAsset(models.Model):
             "siem_only": "Solo SIEM",
             "neither": "Sin origen",
         }[self.coverage_status]
+
+    @property
+    def inventory_origin_label(self):
+        if self.is_siem_only_approved and not self.in_active_directory:
+            return "Solo SIEM aprobado"
+        if self.in_active_directory:
+            return "Active Directory"
+        return self.coverage_label
 
     @property
     def diagnostic_result(self):

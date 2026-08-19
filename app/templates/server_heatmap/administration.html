@@ -77,6 +77,7 @@
                 <div class="col-12 col-md-6 col-lg"><label class="form-label" for="asset-ping">Resultado de ping</label><select class="form-select" id="asset-ping" name="ping"><option value="all">Todos</option><option value="reachable" {% if selected_ping == 'reachable' %}selected{% endif %}>Responde</option><option value="unreachable" {% if selected_ping == 'unreachable' %}selected{% endif %}>No responde</option><option value="unchecked" {% if selected_ping == 'unchecked' %}selected{% endif %}>Sin verificar</option><option value="error" {% if selected_ping == 'error' %}selected{% endif %}>No disponible</option></select></div>
                 <div class="col-12 col-md-6 col-lg"><label class="form-label" for="asset-environment">Ambiente</label><select class="form-select" id="asset-environment" name="asset_environment"><option value="all">Todos</option>{% for environment in asset_environment_choices %}<option value="{{ environment }}" {% if selected_asset_environment|upper == environment %}selected{% endif %}>{{ environment }}</option>{% endfor %}</select></div>
                 <div class="col-12 col-md-6 col-lg"><label class="form-label" for="asset-criticality">Criticidad</label><select class="form-select" id="asset-criticality" name="criticality"><option value="all">Todos</option><option value="critical" {% if selected_criticality == 'critical' %}selected{% endif %}>Críticos</option><option value="not_critical" {% if selected_criticality == 'not_critical' %}selected{% endif %}>No críticos</option></select></div>
+                <div class="col-12 col-md-6 col-lg"><label class="form-label" for="asset-origin">Origen</label><select class="form-select" id="asset-origin" name="origin"><option value="all">Todos</option><option value="ad" {% if selected_origin == 'ad' %}selected{% endif %}>Active Directory</option><option value="siem_only" {% if selected_origin == 'siem_only' %}selected{% endif %}>Solo SIEM aprobados</option></select></div>
             </form>
             <div class="live-status" id="asset-live-status" aria-live="polite"></div>
             <div id="asset-results">{% include "server_heatmap/_asset_results.html" %}</div>
@@ -84,7 +85,7 @@
 
         <div class="col-12"><article class="admin-card card">
             <h2>Conflictos de conciliación pendientes</h2>
-            <p>Seleccioná registros para intentar obtener el hostname mediante DNS y volver a cruzarlos con Active Directory.</p>
+            <p>Intentá resolverlos contra AD o revisá los equipos legítimos que sólo existen en SIEM para incorporarlos manualmente.</p>
             <div data-admin-list="issues">{% include "server_heatmap/_administration_issues.html" %}</div>
         </article></div>
 

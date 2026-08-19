@@ -3,6 +3,7 @@ from datetime import timedelta
 
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
+from django.core.exceptions import ValidationError
 from django.core.paginator import Paginator
 from django.db import transaction
 from django.db.models import Count, Q
@@ -21,6 +22,7 @@ from .forms import (
     InventoryFilterRuleForm,
     ServerAssetForm,
     ServerCategoryForm,
+    SiemOnlyPromotionForm,
 )
 from .models import (
     InventoryObservation,
@@ -38,6 +40,10 @@ from .jobs import enqueue_inventory_job
 from .inventory_filters import simulate_inventory_filters
 from .permissions import can_access_server_heatmap, can_manage_server_heatmap
 from .reconciliation import (
+    normalize_hostname,
+    os_family_from_name,
+    promote_siem_only_issue,
+    resolve_issue_observation_identity,
     retry_issue_name_resolution,
     synchronize_inventory,
 )
@@ -741,13 +747,32 @@ def server_administration(request):
         elif action in {
             "enable_assets",
             "disable_assets",
+            "diagnose_assets",
             "mark_critical_assets",
             "clear_critical_assets",
             "reclassify_assets",
         }:
             asset_ids = request.POST.getlist("asset_ids")
             assets = ServerAsset.objects.filter(id__in=asset_ids)
-            if action == "enable_assets":
+            if action == "diagnose_assets":
+                selected_ids = list(assets.values_list("id", flat=True))
+                if not selected_ids:
+                    messages.warning(request, "Seleccioná al menos un equipo para diagnosticar.")
+                else:
+                    job, created = enqueue_inventory_job(
+                        InventoryJob.TYPE_NETWORK_DIAGNOSTIC,
+                        requested_by=request.user,
+                        payload={"asset_ids": selected_ids, "manual_selection": True},
+                    )
+                    messages.success(
+                        request,
+                        (
+                            f"Diagnóstico de {len(selected_ids)} equipo(s) encolado como trabajo #{job.id}."
+                            if created
+                            else f"Ya existe un diagnóstico activo: trabajo #{job.id}."
+                        ),
+                    )
+            elif action == "enable_assets":
                 changed = assets.update(is_enabled=True)
                 still_excluded = assets.filter(is_excluded_by_rule=True).count()
                 detail = (
@@ -896,12 +921,15 @@ def _filtered_assets(params):
     selected_ping = (params.get("ping") or "all").strip()
     selected_asset_environment = (params.get("asset_environment") or "all").strip()
     selected_criticality = (params.get("criticality") or "all").strip()
+    selected_origin = (params.get("origin") or "all").strip()
     if enabled not in {"all", "yes", "no"}:
         enabled = "all"
     if selected_ping not in REACHABILITY_FILTER_VALUES | {"all"}:
         selected_ping = "all"
     if selected_criticality not in {"all", "critical", "not_critical"}:
         selected_criticality = "all"
+    if selected_origin not in {"all", "ad", "siem_only"}:
+        selected_origin = "all"
     assets = ServerAsset.objects.select_related("category")
     if query:
         assets = assets.filter(
@@ -931,6 +959,13 @@ def _filtered_assets(params):
         assets = assets.filter(is_critical=True)
     elif selected_criticality == "not_critical":
         assets = assets.filter(is_critical=False)
+    if selected_origin == "ad":
+        assets = assets.filter(in_active_directory=True)
+    elif selected_origin == "siem_only":
+        assets = assets.filter(
+            in_active_directory=False,
+            is_siem_only_approved=True,
+        )
     page = Paginator(assets.order_by("hostname"), 20).get_page(params.get("page"))
     return {
         "asset_page": page,
@@ -940,7 +975,88 @@ def _filtered_assets(params):
         "selected_ping": selected_ping,
         "selected_asset_environment": selected_asset_environment,
         "selected_criticality": selected_criticality,
+        "selected_origin": selected_origin,
     }
+
+
+def _siem_promotion_initial(issue):
+    observation = issue.observation
+    hostname = normalize_hostname(observation.hostname or observation.fqdn)
+    resolution = (issue.details or {}).get("name_resolution") or {}
+    hostname = normalize_hostname(resolution.get("hostname") or hostname)
+    return {
+        "hostname": hostname,
+        "display_name": hostname or observation.hostname,
+        "ip_address": resolution.get("ip_address") or observation.ip_address,
+        "os_family": os_family_from_name(observation.os_name),
+        "environment": observation.environment,
+        "is_enabled": False,
+        "notes": (
+            f"Incorporado desde SIEM. Grupos: {observation.groups}"
+            if observation.groups
+            else "Incorporado manualmente desde SIEM."
+        ),
+    }
+
+
+@login_required
+@limit_inventory_mutation
+def promote_siem_only_asset(request, issue_id):
+    if not can_manage_server_heatmap(request.user):
+        return HttpResponseForbidden("No tenés permisos para incorporar equipos.")
+    issue = get_object_or_404(
+        ReconciliationIssue.objects.select_related("observation", "sync_run"),
+        pk=issue_id,
+        issue_type=ReconciliationIssue.TYPE_NOT_IN_AD,
+        is_resolved=False,
+        observation__source=InventorySyncRun.SOURCE_SIEM,
+    )
+    form = SiemOnlyPromotionForm(
+        request.POST or None,
+        initial=_siem_promotion_initial(issue),
+    )
+    if request.method == "POST" and request.POST.get("action") == "resolve_dns":
+        try:
+            resolution = resolve_issue_observation_identity(issue)
+        except ValidationError as exc:
+            messages.error(request, "; ".join(exc.messages))
+        else:
+            if resolution.error:
+                messages.warning(request, f"No se pudo resolver la identidad: {resolution.error}")
+            else:
+                messages.success(request, "La identidad se completó mediante DNS.")
+        return redirect("server_heatmap_siem_only_promote", issue_id=issue.id)
+
+    if request.method == "POST" and form.is_valid():
+        try:
+            asset = promote_siem_only_issue(issue, form.cleaned_data, approved_by=request.user)
+        except ValidationError as exc:
+            form.add_error(None, "; ".join(exc.messages))
+        else:
+            audit(
+                request,
+                "server_siem_only_asset_approved",
+                "server_asset",
+                asset.id,
+                {
+                    "hostname": asset.hostname,
+                    "observation_id": issue.observation_id,
+                    "issue_id": issue.id,
+                    "reason": asset.siem_exception_reason,
+                    "enabled": asset.is_enabled,
+                },
+            )
+            messages.success(
+                request,
+                f"{asset.hostname} fue incorporado como equipo Solo SIEM aprobado.",
+            )
+            return redirect("server_heatmap_asset_edit", asset_id=asset.id)
+
+    return render(
+        request,
+        "server_heatmap/siem_only_promote.html",
+        {"issue": issue, "observation": issue.observation, "form": form},
+    )
 
 
 @login_required

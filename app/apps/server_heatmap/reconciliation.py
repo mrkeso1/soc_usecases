@@ -1,9 +1,11 @@
 import ipaddress
+import ipaddress
 import logging
 import time
 from datetime import timedelta
 
 from django.conf import settings
+from django.core.exceptions import ValidationError
 from django.db import transaction
 from django.db.models import Q
 from django.utils import timezone
@@ -199,6 +201,9 @@ def reconcile_observation(observation, record, *, classification_rules=None):
     observed_at = record.observed_at or timezone.now()
     if source == InventorySyncRun.SOURCE_AD:
         asset.in_active_directory = True
+        # Una excepción Solo SIEM vuelve al flujo normal apenas AD la observa.
+        # Se conserva quién/cuándo la aprobó como historial, pero deja de ser excepción.
+        asset.is_siem_only_approved = False
         # Los equipos deshabilitados por cargas heredadas vuelven a entrar en
         # alcance al reaparecer en AD. Una baja manual auditada siempre se respeta.
         if not asset.is_enabled and not asset.disable_events.exists():
@@ -324,6 +329,7 @@ def synchronize_inventory(source, connector, *, metadata=None, apply_filters_aft
                     cutoff = timezone.now() - timedelta(days=retention_days)
                     stale_assets = ServerAsset.objects.filter(
                         in_active_directory=False,
+                        is_siem_only_approved=False,
                     ).filter(
                         Q(ad_last_logon_at__lt=cutoff)
                         | Q(ad_last_logon_at__isnull=True, created_at__lt=cutoff),
@@ -421,11 +427,11 @@ def _record_from_observation(observation):
     )
 
 
-def retry_issue_name_resolution(issue):
-    """Resuelve la identidad por DNS y reintenta la conciliación."""
+def resolve_issue_observation_identity(issue):
+    """Resuelve y persiste la identidad de una observación, exista o no en AD."""
     observation = issue.observation
     if observation is None:
-        return False, "El conflicto no tiene una observación asociada."
+        raise ValidationError("El conflicto no tiene una observación asociada.")
 
     resolution = resolve_observation_identity(observation)
     details = dict(issue.details or {})
@@ -439,12 +445,28 @@ def retry_issue_name_resolution(issue):
     if resolution.error:
         issue.details = details
         issue.save(update_fields=["details"])
-        return False, resolution.error
+        return resolution
 
     observation.hostname = resolution.hostname or observation.hostname
     observation.fqdn = resolution.fqdn or observation.fqdn
     observation.ip_address = resolution.ip_address or observation.ip_address
     observation.save(update_fields=["hostname", "fqdn", "ip_address"])
+    issue.details = details
+    issue.save(update_fields=["details"])
+    return resolution
+
+
+def retry_issue_name_resolution(issue):
+    """Resuelve la identidad por DNS y reintenta la conciliación con AD."""
+    try:
+        resolution = resolve_issue_observation_identity(issue)
+    except ValidationError as exc:
+        return False, "; ".join(exc.messages)
+    if resolution.error:
+        return False, resolution.error
+
+    observation = issue.observation
+    details = dict(issue.details or {})
     record = _record_from_observation(observation)
     candidates = list(_candidate_assets(record)[:2])
     if len(candidates) != 1:
@@ -464,6 +486,106 @@ def retry_issue_name_resolution(issue):
         return False, "No se pudo asociar el equipo después de resolver el nombre."
     observation.issues.filter(is_resolved=False).update(is_resolved=True)
     return True, asset.hostname
+
+
+@transaction.atomic
+def promote_siem_only_issue(issue, cleaned_data, *, approved_by):
+    """Incorpora manualmente al inventario un registro SIEM que no existe en AD."""
+    issue = ReconciliationIssue.objects.select_for_update().get(pk=issue.pk)
+    observation = issue.observation
+    if issue.is_resolved:
+        raise ValidationError("El conflicto ya fue resuelto.")
+    if issue.issue_type != ReconciliationIssue.TYPE_NOT_IN_AD:
+        raise ValidationError("Sólo se pueden incorporar conflictos no encontrados en AD.")
+    if observation is None or observation.source != InventorySyncRun.SOURCE_SIEM:
+        raise ValidationError("La excepción debe originarse en una observación SIEM.")
+
+    hostname = normalize_hostname(cleaned_data.get("hostname"))
+    if not hostname:
+        raise ValidationError("Ingresá un hostname válido.")
+    ip_address = normalize_ip(cleaned_data.get("ip_address")) or None
+    observation.hostname = hostname
+    observation.ip_address = ip_address or observation.ip_address
+    observation.save(update_fields=["hostname", "ip_address"])
+    record = _record_from_observation(observation)
+    candidates = list(_candidate_assets(record).select_for_update()[:2])
+    if len(candidates) > 1:
+        raise ValidationError("El hostname o la IP coinciden con más de un equipo existente.")
+    if candidates and candidates[0].in_active_directory:
+        raise ValidationError(
+            "El equipo ya coincide con Active Directory; reintentá la conciliación en lugar de aprobar una excepción."
+        )
+
+    if candidates:
+        asset = candidates[0]
+    else:
+        asset = ServerAsset(hostname=hostname)
+
+    now = timezone.now()
+    observed_at = observation.observed_at or observation.created_at or now
+    asset.hostname = hostname
+    asset.display_name = (cleaned_data.get("display_name") or hostname).strip()
+    asset.ip_address = ip_address or observation.ip_address
+    asset.os_family = cleaned_data.get("os_family") or os_family_from_name(observation.os_name)
+    asset.os_name = observation.os_name or asset.os_name
+    asset.category = cleaned_data.get("category")
+    asset.application_name = (cleaned_data.get("application_name") or "").strip()
+    asset.environment = (cleaned_data.get("environment") or observation.environment or "").strip()
+    asset.is_critical = bool(cleaned_data.get("is_critical"))
+    asset.is_enabled = bool(cleaned_data.get("is_enabled"))
+    asset.notes = (cleaned_data.get("notes") or "").strip()
+    asset.classification_source = ServerAsset.CLASSIFICATION_MANUAL
+    asset.inventory_source = InventorySyncRun.SOURCE_SIEM
+    asset.in_active_directory = False
+    asset.in_siem = True
+    asset.is_siem_only_approved = True
+    asset.siem_exception_approved_at = now
+    asset.siem_exception_approved_by = approved_by
+    asset.siem_exception_observation = observation
+    asset.siem_exception_reason = cleaned_data["approval_reason"].strip()
+    asset.siem_first_seen_at = asset.siem_first_seen_at or observation.created_at or now
+    asset.siem_last_seen_at = observed_at
+    asset.siem_groups = observation.groups or asset.siem_groups
+    fqdn = normalize_fqdn(observation.fqdn)
+    if fqdn and "." in fqdn:
+        asset.domain = fqdn.split(".", 1)[1]
+    asset.save()
+
+    _save_identifier(
+        asset,
+        AssetIdentifier.KIND_HOSTNAME,
+        hostname,
+        InventorySyncRun.SOURCE_SIEM,
+        observed_at,
+    )
+    _save_identifier(
+        asset,
+        AssetIdentifier.KIND_FQDN,
+        fqdn,
+        InventorySyncRun.SOURCE_SIEM,
+        observed_at,
+    )
+    _save_identifier(
+        asset,
+        AssetIdentifier.KIND_IP,
+        asset.ip_address,
+        InventorySyncRun.SOURCE_SIEM,
+        observed_at,
+    )
+    observation.asset = asset
+    observation.save(update_fields=["asset"])
+    details = dict(issue.details or {})
+    details["manual_siem_approval"] = {
+        "asset_id": asset.id,
+        "approved_by_id": getattr(approved_by, "pk", None),
+        "approved_at": now.isoformat(),
+        "reason": asset.siem_exception_reason,
+    }
+    observation.issues.filter(is_resolved=False).update(is_resolved=True)
+    issue.details = details
+    issue.is_resolved = True
+    issue.save(update_fields=["details", "is_resolved"])
+    return asset
 
 
 def reprocess_stored_inventory():

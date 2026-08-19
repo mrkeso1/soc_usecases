@@ -154,11 +154,13 @@ def run_siem_inventory_sync(*, siem_file=None, scheduled=False, progress_callbac
     return result
 
 
-def run_network_diagnostics(*, progress_callback=None):
+def run_network_diagnostics(*, progress_callback=None, asset_ids=None):
+    selected_asset_ids = [int(asset_id) for asset_id in (asset_ids or [])]
     _progress(
         progress_callback,
         "diagnose_network",
-        scope="ad_without_siem_pending_or_disabled",
+        scope=("selected_assets" if selected_asset_ids else "ad_without_siem_pending_or_disabled"),
+        selected_count=len(selected_asset_ids),
     )
     result = diagnose_ingestion_gaps(
         limit=None,
@@ -167,7 +169,8 @@ def run_network_diagnostics(*, progress_callback=None):
         only_unchecked=True,
         include_disabled=True,
         include_covered=False,
-        auto_disable_failures=True,
+        auto_disable_failures=not bool(selected_asset_ids),
+        asset_ids=selected_asset_ids or None,
     )
     _progress(progress_callback, "completed", **result)
     return result

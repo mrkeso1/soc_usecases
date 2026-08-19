@@ -153,23 +153,29 @@ def diagnose_ingestion_gaps(
     include_disabled=False,
     include_covered=False,
     auto_disable_failures=False,
+    asset_ids=None,
 ):
-    queryset = ServerAsset.objects.filter(in_active_directory=True)
-    if not include_covered:
-        queryset = queryset.filter(in_siem=False)
-    if include_disabled:
-        if only_unchecked:
-            queryset = queryset.filter(
-                Q(network_checked_at__isnull=True)
-                | Q(is_enabled=False)
-                | Q(is_excluded_by_rule=True)
-                | Q(reachability_status=ServerAsset.REACHABILITY_UNCHECKED)
-                | Q(reachability_status=ServerAsset.REACHABILITY_ERROR)
-            )
+    if asset_ids is not None:
+        # El diagnóstico manual debe funcionar también para excepciones Solo SIEM,
+        # equipos deshabilitados y equipos que ya tienen una medición anterior.
+        queryset = ServerAsset.objects.filter(id__in=asset_ids)
     else:
-        queryset = queryset.filter(is_enabled=True, is_excluded_by_rule=False)
-        if only_unchecked:
-            queryset = queryset.filter(network_checked_at__isnull=True)
+        queryset = ServerAsset.objects.filter(in_active_directory=True)
+        if not include_covered:
+            queryset = queryset.filter(in_siem=False)
+        if include_disabled:
+            if only_unchecked:
+                queryset = queryset.filter(
+                    Q(network_checked_at__isnull=True)
+                    | Q(is_enabled=False)
+                    | Q(is_excluded_by_rule=True)
+                    | Q(reachability_status=ServerAsset.REACHABILITY_UNCHECKED)
+                    | Q(reachability_status=ServerAsset.REACHABILITY_ERROR)
+                )
+        else:
+            queryset = queryset.filter(is_enabled=True, is_excluded_by_rule=False)
+            if only_unchecked:
+                queryset = queryset.filter(network_checked_at__isnull=True)
     queryset = queryset.order_by(
         F("network_checked_at").asc(nulls_first=True),
         "hostname",

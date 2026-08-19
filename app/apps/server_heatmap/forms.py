@@ -116,6 +116,60 @@ class ServerAssetForm(BootstrapFormMixin, forms.ModelForm):
         return super().save(commit=commit)
 
 
+class SiemOnlyPromotionForm(BootstrapFormMixin, forms.Form):
+    hostname = forms.CharField(
+        label="Hostname",
+        max_length=255,
+        help_text="Nombre corto y único con el que se incorporará al inventario.",
+    )
+    display_name = forms.CharField(label="Nombre visible", max_length=255, required=False)
+    ip_address = forms.GenericIPAddressField(label="Dirección IP", required=False)
+    os_family = forms.ChoiceField(
+        label="Sistema operativo",
+        choices=ServerAsset.OS_CHOICES,
+        initial=ServerAsset.OS_UNKNOWN,
+    )
+    category = forms.ModelChoiceField(
+        label="Sección funcional",
+        queryset=ServerCategory.objects.none(),
+        required=False,
+    )
+    application_name = forms.CharField(label="Aplicación interna", max_length=180, required=False)
+    environment = forms.CharField(label="Ambiente", max_length=80, required=False)
+    is_critical = forms.BooleanField(label="Servidor crítico", required=False)
+    is_enabled = forms.BooleanField(
+        label="Habilitar al incorporarlo",
+        required=False,
+        help_text="Si queda desmarcado podrá diagnosticarse antes de habilitarlo.",
+    )
+    notes = forms.CharField(
+        label="Notas",
+        required=False,
+        widget=forms.Textarea(attrs={"rows": 3}),
+    )
+    approval_reason = forms.CharField(
+        label="Motivo de la excepción",
+        widget=forms.Textarea(attrs={"rows": 3}),
+        help_text="Quedará auditado junto con el usuario y la fecha de aprobación.",
+    )
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields["category"].queryset = ServerCategory.objects.filter(is_active=True)
+
+    def clean_hostname(self):
+        hostname = self.cleaned_data["hostname"].strip().lower().rstrip(".").split(".", 1)[0]
+        if not hostname:
+            raise forms.ValidationError("Ingresá un hostname válido.")
+        return hostname
+
+    def clean_approval_reason(self):
+        reason = self.cleaned_data["approval_reason"].strip()
+        if not reason:
+            raise forms.ValidationError("El motivo de la excepción es obligatorio.")
+        return reason
+
+
 class ServerCategoryForm(BootstrapFormMixin, forms.ModelForm):
     class Meta:
         model = ServerCategory

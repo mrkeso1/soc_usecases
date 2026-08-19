@@ -52,7 +52,11 @@ from .jobs import (
 )
 from .maintenance import maintain_server_inventory
 from .network_diagnostics import diagnose_asset, diagnose_ingestion_gaps
-from .reconciliation import reprocess_stored_inventory, synchronize_inventory
+from .reconciliation import (
+    promote_siem_only_issue,
+    reprocess_stored_inventory,
+    synchronize_inventory,
+)
 from apps.accounts.models import LDAPSettings
 from apps.auditlog.models import ActionRateLimit, AuditLog, OperationalAlert
 from .management.commands.sync_server_inventory import (
@@ -2609,3 +2613,213 @@ class ServerHeatmapTests(TestCase):
         self.assertTrue(covered.is_enabled)
         event = ServerAssetDisableEvent.objects.get(asset=missing)
         self.assertIn("no resolvió DNS", event.justification)
+
+    def _siem_only_issue(self, hostname="aix-siem-only", ip_address="10.20.30.40"):
+        run = InventorySyncRun.objects.create(
+            source=InventorySyncRun.SOURCE_SIEM,
+            status=InventorySyncRun.STATUS_SUCCESS,
+        )
+        observation = InventoryObservation.objects.create(
+            sync_run=run,
+            source=InventorySyncRun.SOURCE_SIEM,
+            external_id=hostname,
+            hostname=hostname,
+            ip_address=ip_address,
+            os_name="IBM AIX 7.3",
+            groups="aix-production",
+        )
+        issue = ReconciliationIssue.objects.create(
+            sync_run=run,
+            observation=observation,
+            issue_type=ReconciliationIssue.TYPE_NOT_IN_AD,
+            identifier=hostname,
+        )
+        return issue
+
+    def test_promote_siem_only_issue_creates_audited_manual_asset(self):
+        user = get_user_model().objects.create_user("siem-approver")
+        issue = self._siem_only_issue()
+
+        asset = promote_siem_only_issue(
+            issue,
+            {
+                "hostname": "AIX-SIEM-ONLY",
+                "display_name": "AIX exclusivo",
+                "ip_address": "10.20.30.40",
+                "os_family": ServerAsset.OS_UNIX,
+                "category": None,
+                "application_name": "Core AIX",
+                "environment": "PROD",
+                "is_critical": True,
+                "is_enabled": False,
+                "notes": "Validado por infraestructura.",
+                "approval_reason": "Equipo AIX fuera del dominio por diseño.",
+            },
+            approved_by=user,
+        )
+
+        issue.refresh_from_db()
+        issue.observation.refresh_from_db()
+        self.assertEqual(asset.hostname, "aix-siem-only")
+        self.assertFalse(asset.in_active_directory)
+        self.assertTrue(asset.in_siem)
+        self.assertTrue(asset.is_siem_only_approved)
+        self.assertFalse(asset.is_enabled)
+        self.assertEqual(asset.os_family, ServerAsset.OS_UNIX)
+        self.assertEqual(asset.classification_source, ServerAsset.CLASSIFICATION_MANUAL)
+        self.assertEqual(asset.siem_exception_approved_by, user)
+        self.assertEqual(issue.observation.asset, asset)
+        self.assertTrue(issue.is_resolved)
+
+    def test_approved_siem_only_asset_survives_ad_retention_cleanup(self):
+        configuration = ServerInventoryConfiguration.load()
+        configuration.retention_days = 1
+        configuration.save(update_fields=["retention_days"])
+        asset = ServerAsset.objects.create(
+            hostname="aix-retained",
+            in_active_directory=False,
+            in_siem=True,
+            is_siem_only_approved=True,
+        )
+        ServerAsset.objects.filter(pk=asset.pk).update(
+            created_at=django_timezone.now() - timedelta(days=30),
+        )
+
+        class EmptyConnector:
+            def collect(self):
+                return []
+
+        synchronize_inventory(InventorySyncRun.SOURCE_AD, EmptyConnector())
+
+        self.assertTrue(ServerAsset.objects.filter(pk=asset.pk).exists())
+
+    def test_approved_siem_only_asset_returns_to_normal_flow_when_ad_finds_it(self):
+        user = get_user_model().objects.create_user("siem-to-ad-approver")
+        issue = self._siem_only_issue(hostname="aix-later-in-ad")
+        asset = promote_siem_only_issue(
+            issue,
+            {
+                "hostname": "aix-later-in-ad",
+                "display_name": "",
+                "ip_address": "10.20.30.40",
+                "os_family": ServerAsset.OS_UNIX,
+                "category": None,
+                "application_name": "",
+                "environment": "LAB",
+                "is_critical": False,
+                "is_enabled": True,
+                "notes": "",
+                "approval_reason": "Excepción temporal.",
+            },
+            approved_by=user,
+        )
+
+        class AdConnector:
+            def collect(self):
+                return [InventoryRecord(external_id=asset.hostname, hostname=asset.hostname)]
+
+        synchronize_inventory(InventorySyncRun.SOURCE_AD, AdConnector())
+
+        asset.refresh_from_db()
+        self.assertTrue(asset.in_active_directory)
+        self.assertFalse(asset.is_siem_only_approved)
+        self.assertEqual(asset.siem_exception_approved_by, user)
+
+    def test_future_siem_sync_reuses_approved_asset_without_new_conflict(self):
+        user = get_user_model().objects.create_user("siem-refresh-approver")
+        issue = self._siem_only_issue(hostname="aix-siem-refresh")
+        asset = promote_siem_only_issue(
+            issue,
+            {
+                "hostname": "aix-siem-refresh",
+                "display_name": "AIX SIEM",
+                "ip_address": "10.20.30.40",
+                "os_family": ServerAsset.OS_UNIX,
+                "category": None,
+                "application_name": "Core",
+                "environment": "PROD",
+                "is_critical": False,
+                "is_enabled": True,
+                "notes": "",
+                "approval_reason": "Fuera de AD por diseño.",
+            },
+            approved_by=user,
+        )
+
+        class SiemConnector:
+            def collect(self):
+                return [
+                    InventoryRecord(
+                        external_id="aix-siem-refresh",
+                        hostname="aix-siem-refresh",
+                        ip_address="10.20.30.40",
+                        os_name="IBM AIX 7.3",
+                    )
+                ]
+
+        run = synchronize_inventory(InventorySyncRun.SOURCE_SIEM, SiemConnector())
+
+        asset.refresh_from_db()
+        self.assertTrue(asset.is_siem_only_approved)
+        self.assertTrue(asset.in_siem)
+        self.assertEqual(run.issues_count, 0)
+        self.assertEqual(run.observations.get().asset, asset)
+
+    def test_admin_can_promote_and_filter_siem_only_assets(self):
+        user = get_user_model().objects.create_user("siem-ui-admin", password="pass")
+        group, _ = Group.objects.get_or_create(name="Admin")
+        user.groups.add(group)
+        self.client.login(username="siem-ui-admin", password="pass")
+        issue = self._siem_only_issue(hostname="aix-ui-only")
+
+        response = self.client.post(
+            reverse("server_heatmap_siem_only_promote", args=[issue.id]),
+            {
+                "action": "promote",
+                "hostname": "aix-ui-only",
+                "display_name": "AIX UI",
+                "ip_address": "10.20.30.40",
+                "os_family": ServerAsset.OS_UNIX,
+                "application_name": "Pagos",
+                "environment": "PROD",
+                "approval_reason": "Servidor no integrado al dominio.",
+                "is_enabled": "on",
+            },
+        )
+
+        asset = ServerAsset.objects.get(hostname="aix-ui-only")
+        self.assertRedirects(response, reverse("server_heatmap_asset_edit", args=[asset.id]))
+        filtered = self.client.get(
+            reverse("server_heatmap_asset_results"),
+            {"origin": "siem_only"},
+        )
+        self.assertContains(filtered, "aix-ui-only")
+        self.assertContains(filtered, "Solo SIEM aprobado")
+        self.assertTrue(
+            AuditLog.objects.filter(action="server_siem_only_asset_approved").exists()
+        )
+
+    @patch("apps.server_heatmap.network_diagnostics.diagnose_asset")
+    def test_selected_network_diagnostic_includes_siem_only_asset(self, diagnose):
+        from .network_diagnostics import NetworkDiagnosticResult
+
+        asset = ServerAsset.objects.create(
+            hostname="aix-manual-ping",
+            in_active_directory=False,
+            in_siem=True,
+            is_siem_only_approved=True,
+            is_enabled=False,
+        )
+        diagnose.return_value = NetworkDiagnosticResult(
+            asset_id=asset.id,
+            dns_status=ServerAsset.DNS_RESOLVED,
+            resolved_ip_address="10.20.30.50",
+            reachability_status=ServerAsset.REACHABILITY_REACHABLE,
+        )
+
+        summary = diagnose_ingestion_gaps(asset_ids=[asset.id], limit=None)
+
+        asset.refresh_from_db()
+        self.assertEqual(summary["checked"], 1)
+        self.assertEqual(asset.reachability_status, ServerAsset.REACHABILITY_REACHABLE)
+        self.assertFalse(asset.is_enabled)

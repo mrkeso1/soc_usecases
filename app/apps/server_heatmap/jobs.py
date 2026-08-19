@@ -243,7 +243,10 @@ def _execute(job, worker_id):
     if job.job_type == InventoryJob.TYPE_APPLY_FILTERS:
         return run_apply_filters(progress_callback=callback)
     if job.job_type == InventoryJob.TYPE_NETWORK_DIAGNOSTIC:
-        return run_network_diagnostics(progress_callback=callback)
+        return run_network_diagnostics(
+            progress_callback=callback,
+            asset_ids=(job.payload or {}).get("asset_ids"),
+        )
     if job.job_type == InventoryJob.TYPE_SIEM_SYNC:
         return run_siem_inventory_sync(
             siem_file=(job.payload or {}).get("siem_file"),
